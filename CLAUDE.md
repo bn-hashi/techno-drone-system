@@ -4,9 +4,15 @@
 Claude Code は本ファイルを毎回読み込むため、簡潔に保つこと（目安: 200行未満）。
 
 ## 技術スタック
-- バックエンド: FastAPI (Python 3.12) / PostgreSQL / Redis
-- フロントエンド: Next.js 14 (App Router) / TypeScript / Tailwind CSS
-- インフラ: Docker / GitHub Actions
+- フロントエンド：Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- バックエンド：Next.js API Routes（FastAPIは使わない。1プロセスに統合）
+- DB：PostgreSQL（サーバー内にインストール済み。DB名: drone_school）
+- ORM：Prisma（接続先: postgresql://ubuntu@localhost/drone_school）
+- 動画配信：/home/ubuntu/videos/ にMP4を配置し、nginxのlocationで直接配信
+- 認証：NextAuth.js（Credentials Provider、DB保存）
+- PDF生成：@react-pdf/renderer（Puppeteerは使わない。メモリ1GBなので）
+- ファイル保存：ローカルSSD（/home/ubuntu/uploads/）
+- メール：Resend（環境変数 RESEND_API_KEY で設定）
 
 ## アーキテクチャ原則
 - レイヤードアーキテクチャを厳守 (Controller → Service → Repository)
