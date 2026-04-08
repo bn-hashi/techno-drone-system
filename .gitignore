@@ -1,0 +1,24 @@
+# 個人設定 (絶対にコミットしない)
+.claude/settings.local.json
+
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# 依存パッケージ
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ビルド成果物
+dist/
+build/
+.next/
+
+# OS / エディタ
+.DS_Store
+.vscode/
+.idea/

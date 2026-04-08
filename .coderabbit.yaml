@@ -1,0 +1,66 @@
+# .coderabbit.yaml
+# CodeRabbit のレビュー設定 (チーム共有・Git管理対象)
+
+language: ja-JP  # レビューコメントを日本語で出す
+
+reviews:
+  profile: assertive          # 厳しめにレビューさせる
+  request_changes_workflow: true  # 問題があれば changes requested を出す
+  high_level_summary: true    # PR 冒頭にサマリを書く
+  poem: false                 # おまけのポエム機能はオフ
+  review_status: true
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true             # PR が立ったら自動レビュー
+    drafts: false             # ドラフト PR はスキップ
+    base_branches:
+      - main
+      - develop
+
+  # ファイルごとに追加で見てほしい観点を自然言語で指定
+  path_instructions:
+    - path: "backend/**/*.py"
+      instructions: |
+        - レイヤードアーキテクチャ (router → service → repository) を遵守しているか確認
+        - Controller にビジネスロジックが書かれていないか
+        - 型ヒントが付いているか
+        - 生 SQL の文字列連結がないか (SQLインジェクション対策)
+        - except Exception の握りつぶしがないか
+
+    - path: "frontend/**/*.{ts,tsx}"
+      instructions: |
+        - any 型が使われていないか
+        - useEffect の依存配列が正しいか
+        - dangerouslySetInnerHTML の不適切使用がないか
+        - Server Component を優先しているか
+
+    - path: "**/*.test.*"
+      instructions: |
+        - AAA パターン (Arrange/Act/Assert) で構造化されているか
+        - 1テスト1アサーションになっているか
+        - 外部APIが適切にモック化されているか
+        - skip マーカーが残っていないか
+
+  # CodeRabbit が内蔵リンター/セキュリティツールを動かす設定
+  tools:
+    ruff:
+      enabled: true
+    eslint:
+      enabled: true
+    gitleaks:           # 秘密情報の漏洩検知
+      enabled: true
+    semgrep:            # セキュリティ静的解析
+      enabled: true
+    markdownlint:
+      enabled: true
+
+chat:
+  auto_reply: true      # PR 上の質問に CodeRabbit が自動回答
+
+# 不要なファイルはレビュー対象外にしてノイズを減らす
+path_filters:
+  - "!**/node_modules/**"
+  - "!**/dist/**"
+  - "!**/*.lock"
+  - "!**/migrations/**"

@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run test *)",
+      "Bash(npm run build)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm build)",
+      "Bash(pytest *)",
+      "Bash(ruff check *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff check *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(make:*)",
+      "Bash(npm run:*)",
+      "Bash(pnpm:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(eslint:*)",
+      "Read(./**)",
+      "Edit(./**)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:*)",
+      "Bash(cat .env*)",
+      "Read(./.env)",
+      "Read(./.env*)",
+      "Read(./secrets/**)",
+      "Read(./**/secrets/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Edit(./.env*)"
+    ]
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "disabledMcpServers": ["drawio"]
+}
