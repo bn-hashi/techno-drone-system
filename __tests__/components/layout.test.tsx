@@ -1,9 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
-
-vi.mock("next/font/local", () => ({
-  default: () => ({ variable: "--font-mock", className: "font-mock" }),
-}));
+import { describe, it, expect } from "vitest";
 
 import RootLayout from "@/app/layout";
 import { metadata } from "@/app/layout";
