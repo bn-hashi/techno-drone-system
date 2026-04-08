@@ -1,4 +1,4 @@
-.PHONY: dev build start test test-watch test-coverage lint format migrate seed
+.PHONY: dev build start test test-watch test-coverage lint format migrate seed verify
 
 dev:
 	npm run dev
@@ -29,3 +29,5 @@ migrate:
 
 seed:
 	npx prisma db seed
+
+verify: build lint test

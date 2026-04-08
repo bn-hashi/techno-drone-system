@@ -5,10 +5,10 @@ import Home from "@/app/page";
 describe("Home ページ", () => {
   it("test_home_renders_without_crash", () => {
     // Arrange / Act
-    render(<Home />);
+    const { container } = render(<Home />);
 
     // Assert
-    expect(document.body).toBeTruthy();
+    expect(container.firstChild).toBeInTheDocument();
   });
 
   it("test_home_displays_site_heading", () => {
