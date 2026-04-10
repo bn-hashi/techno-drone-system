@@ -25,9 +25,9 @@ format:
 	npm run format
 
 migrate:
-	npx prisma migrate dev
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npx prisma migrate dev
 
 seed:
-	npx prisma db seed
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npx prisma db seed
 
 verify: build lint test

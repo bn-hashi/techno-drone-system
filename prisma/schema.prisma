@@ -1,0 +1,313 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===========================
+// Enum 定義
+// ===========================
+
+enum UserRole {
+  ADMIN
+  STUDENT
+}
+
+enum CourseType {
+  BEGINNER
+  EXPERIENCED
+}
+
+enum UserStatus {
+  PENDING_REGISTRATION // 仮登録
+  PENDING_ACTIVATION   // 本登録待ち
+  ACTIVE               // 受講中
+  EXAM_PASSED          // 試験合格
+  COMPLETED            // 受講成立
+  CERTIFIED            // 修了証明書発行済
+  DIPS_LINKED          // DIPS 連携済
+}
+
+enum ExamStatus {
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+enum DIPSExportStatus {
+  PENDING
+  EXPORTED
+  CONFIRMED
+}
+
+enum FraudFlagType {
+  TAB_LEAVE
+  CONCURRENT_LOGIN
+  SPEED_VIOLATION
+}
+
+// ===========================
+// テーブル定義
+// ===========================
+
+/// 受講者・管理者アカウント
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         UserRole   @default(STUDENT)
+  courseType   CourseType?
+  status       UserStatus @default(PENDING_REGISTRATION)
+  expiresAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  enrollmentApplication EnrollmentApplication?
+  agreementLogs         AgreementLog[]
+  viewingLogs           ViewingLog[]
+  subjectProgress       SubjectProgress[]
+  exams                 Exam[]
+  qaRecords             QARecord[]
+  completionCertificate CompletionCertificate?
+  dipsExportLogs        DIPSExportLog[]
+  fraudFlags            FraudFlag[]
+
+  @@map("users")
+}
+
+/// 入学申請・本人確認資料
+model EnrollmentApplication {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  applicationDate      DateTime  @default(now())
+  idDocumentPath       String?
+  photoPath            String?
+  experienceCertPath   String?
+  acceptedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("enrollment_applications")
+}
+
+/// 規約同意ログ
+model AgreementLog {
+  id        String   @id @default(cuid())
+  userId    String
+  version   String
+  agreedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("agreement_logs")
+}
+
+/// 科目マスタ（4科目固定）
+model Subject {
+  id                        String  @id @default(cuid())
+  code                      String  @unique
+  name                      String
+  requiredMinutesBeginner   Int
+  requiredMinutesExperienced Int
+
+  videos          Video[]
+  questions       Question[]
+  subjectProgress SubjectProgress[]
+
+  @@map("subjects")
+}
+
+/// コースマスタ
+model Course {
+  id        String     @id @default(cuid())
+  name      String
+  type      CourseType
+
+  videos Video[]
+
+  @@map("courses")
+}
+
+/// 動画メタデータ
+model Video {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  subjectId   String
+  courseId    String
+  filePath    String   // /home/ubuntu/videos/ 相対パス
+  duration    Int      // 秒
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject     Subject         @relation(fields: [subjectId], references: [id])
+  course      Course          @relation(fields: [courseId], references: [id])
+  supervisors VideoSupervisor[]
+  viewingLogs ViewingLog[]
+
+  @@map("videos")
+}
+
+/// 動画の監修者情報
+model VideoSupervisor {
+  id                          String @id @default(cuid())
+  videoId                     String
+  name                        String
+  instructorRegistrationNumber String
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("video_supervisors")
+}
+
+/// 動画視聴ログ（秒単位）
+model ViewingLog {
+  id             String   @id @default(cuid())
+  userId         String
+  videoId        String
+  startedAt      DateTime
+  endedAt        DateTime?
+  watchedSeconds Int      @default(0)
+  rawLog         Json?    // クライアントから送信された生ログ
+  createdAt      DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id])
+
+  @@map("viewing_logs")
+}
+
+/// 科目別進捗（受講時間充足状況）
+model SubjectProgress {
+  id                  String  @id @default(cuid())
+  userId              String
+  subjectId           String
+  totalWatchedMinutes Int     @default(0)
+  isFulfilled         Boolean @default(false)
+  updatedAt           DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([userId, subjectId])
+  @@map("subject_progress")
+}
+
+/// 試験問題バンク
+model Question {
+  id           String @id @default(cuid())
+  subjectId    String
+  body         String
+  choices      Json   // String[] （三肢）
+  correctIndex Int    // 0-2
+  explanation  String
+  createdAt    DateTime @default(now())
+
+  subject     Subject      @relation(fields: [subjectId], references: [id])
+  examAnswers ExamAnswer[]
+
+  @@map("questions")
+}
+
+/// 修了確認試験
+model Exam {
+  id             String     @id @default(cuid())
+  userId         String
+  startedAt      DateTime   @default(now())
+  endedAt        DateTime?
+  score          Int?       // 正答率 (0-100)
+  totalQuestions Int        @default(0)
+  passed         Boolean?
+  status         ExamStatus @default(IN_PROGRESS)
+  createdAt      DateTime   @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examAnswers ExamAnswer[]
+
+  @@map("exams")
+}
+
+/// 試験の採点解答用紙
+model ExamAnswer {
+  id            String  @id @default(cuid())
+  examId        String
+  questionId    String
+  selectedIndex Int
+  isCorrect     Boolean
+
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([examId, questionId])
+  @@map("exam_answers")
+}
+
+/// 質疑応答レコード
+model QARecord {
+  id           String    @id @default(cuid())
+  userId       String
+  question     String
+  answer       String?
+  questionedAt DateTime  @default(now())
+  answeredAt   DateTime?
+  answeredBy   String?   // 回答した管理者名
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("qa_records")
+}
+
+/// 修了証明書（様式1）
+model CompletionCertificate {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  certificateNumber String   @unique
+  issuedAt          DateTime @default(now())
+  expiresAt         DateTime
+  pdfPath           String?
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dipsExportLogs DIPSExportLog[]
+
+  @@map("completion_certificates")
+}
+
+/// DIPS 連携エクスポートログ
+model DIPSExportLog {
+  id            String           @id @default(cuid())
+  userId        String
+  certificateId String
+  exportedAt    DateTime?
+  csvPath       String?
+  status        DIPSExportStatus @default(PENDING)
+  createdAt     DateTime         @default(now())
+
+  user        User                  @relation(fields: [userId], references: [id])
+  certificate CompletionCertificate @relation(fields: [certificateId], references: [id])
+
+  @@map("dips_export_logs")
+}
+
+/// 不正行為フラグ
+model FraudFlag {
+  id          String        @id @default(cuid())
+  userId      String
+  type        FraudFlagType
+  description String?
+  detectedAt  DateTime      @default(now())
+  resolvedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("fraud_flags")
+}
