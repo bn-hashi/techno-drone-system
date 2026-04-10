@@ -1,8 +1,6 @@
 import path from "node:path";
-import type { PrismaConfig } from "prisma";
 
 export default {
-  earlyAccess: true,
   schema: path.join("prisma", "schema.prisma"),
   migrate: {
     adapter: async () => {
@@ -20,4 +18,4 @@ export default {
       return new PrismaPg(pool);
     },
   },
-} satisfies PrismaConfig;
+};
