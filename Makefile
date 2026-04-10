@@ -1,4 +1,4 @@
-.PHONY: dev build start test test-watch test-coverage lint format migrate seed
+.PHONY: dev build start test test-watch test-coverage lint format migrate seed verify
 
 dev:
 	npm run dev
@@ -25,7 +25,9 @@ format:
 	npm run format
 
 migrate:
-	npx prisma migrate dev
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npx prisma migrate dev
 
 seed:
-	npx prisma db seed
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npx prisma db seed
+
+verify: build lint test
