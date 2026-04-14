@@ -22,13 +22,13 @@ Claude Code は本ファイルを毎回読み込むため、簡潔に保つこ�
 ## 開発フロー (必須)
 1. 新機能は必ず `/plan` で計画を立て、承認するまで実装に入らない
 2. 実装は `/tdd` で TDD サイクルを自動実行する
-3. コミットは `/smart-commit`、PR説明は `/pr-description` を使う
-4. push 前に `/verify` でビルド・テスト・リント・型を一括チェック
-5. マージ前に `/code-review` を実行し、その後 GitHub 上で
-   CodeRabbit のレビューを待つ
-6. 両方のAIレビューがクリアしたら人間が最終判断 (アーキテクチャ・
+3. 実装が一段落したら、`/verify` でビルド・テスト・リント・型を一括チェックし、push 前にローカルで一括チェック
+4. 落ちた場合は、[エラーログをペースト]して、`/build-fix` で最小限の修正で通してください。アーキテクチャの変更は禁止です。
+5. コミットは `/smart-commit`、push後、PR説明は `/pr-description`を使い、その後、GitHub上でCodeRabbit のレビューを待つ
+6. マージ前に `/code-review` を実行する
+7. 両方のAIレビューがクリアしたら人間が最終判断 (アーキテクチャ・
    ライブラリ追加・DB変更・事業妥当性のみ)
-7. セッション終了時は `/save-session`、再開時は `/resume-session`
+8. セッション終了時は `/save-session`、再開時は `/resume-session`
 
 ## ECC 利用上の注意
 - ECC のコマンド (`/plan`, `/tdd`, `/code-review` 等) を優先して使う
