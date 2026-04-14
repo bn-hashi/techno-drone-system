@@ -1,5 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// SessionProvider がテスト環境で /api/auth/session をフェッチしないようにモック
+vi.mock("next-auth/react", () => ({
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
 
 import RootLayout from "@/app/layout";
 import { metadata } from "@/app/layout";
