@@ -6,10 +6,16 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import * as bcrypt from "bcryptjs";
 import { SEED_ADMIN, SEED_SUBJECTS, SEED_COURSE, SEED_QUESTIONS } from "./seed-data";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL || "postgresql://ubuntu@localhost/drone_school";
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({ adapter });
 
 async function main(): Promise<void> {
   // 管理者パスワードを環境変数から取得（必須）
@@ -28,6 +34,46 @@ async function main(): Promise<void> {
       name: SEED_ADMIN.name,
       role: SEED_ADMIN.role,
       passwordHash,
+    },
+  });
+
+  // E2E テスト用ユーザー
+  const e2eStudentHash = await bcrypt.hash("E2eStudent#2024", 12);
+  await prisma.user.upsert({
+    where: { email: "e2e-student@techno-drone.test" },
+    update: {},
+    create: {
+      email: "e2e-student@techno-drone.test",
+      name: "E2E Student User",
+      role: "STUDENT",
+      status: "ACTIVE",
+      passwordHash: e2eStudentHash,
+    },
+  });
+
+  const e2eAdminHash = await bcrypt.hash("E2eAdmin#2024", 12);
+  await prisma.user.upsert({
+    where: { email: "e2e-admin@techno-drone.test" },
+    update: {},
+    create: {
+      email: "e2e-admin@techno-drone.test",
+      name: "E2E Admin User",
+      role: "ADMIN",
+      status: "ACTIVE",
+      passwordHash: e2eAdminHash,
+    },
+  });
+
+  const e2ePendingHash = await bcrypt.hash("E2ePending#2024", 12);
+  await prisma.user.upsert({
+    where: { email: "e2e-pending@techno-drone.test" },
+    update: {},
+    create: {
+      email: "e2e-pending@techno-drone.test",
+      name: "E2E Pending User",
+      role: "STUDENT",
+      status: "PENDING_REGISTRATION",
+      passwordHash: e2ePendingHash,
     },
   });
 
@@ -99,4 +145,5 @@ main()
   })
   .finally(() => {
     prisma.$disconnect().catch(console.error);
+    pool.end().catch(console.error);
   });
