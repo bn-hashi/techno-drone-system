@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
-import { User } from "@prisma/client"
-import { UserRole, UserStatus, CourseType } from "@/types/prisma"
-import { AuthService, LoginResult, IUserRepository } from "@/services/authService"
+import { describe, it, expect, beforeEach, vi, Mocked } from "vitest";
+import { User } from "@prisma/client";
+import { UserRole, UserStatus, CourseType } from "@/types/prisma";
+import { AuthService, IUserRepository } from "@/services/authService";
 
 // bcryptjs モック
 vi.mock("bcryptjs", () => ({
   default: {
     compare: vi.fn(),
   },
-}))
+}));
 
-import bcrypt from "bcryptjs"
+import bcrypt from "bcryptjs";
 
 describe("AuthService", () => {
-  let authService: AuthService
-  let mockUserRepository: any
+  let authService: AuthService;
+  let mockUserRepository: Mocked<IUserRepository>;
 
   const mockUser: User = {
     id: "user-1",
@@ -27,92 +27,92 @@ describe("AuthService", () => {
     expiresAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-  }
+  };
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.clearAllMocks();
 
     // IUserRepository スタブ実装
     mockUserRepository = {
       findByEmail: vi.fn(),
-    } as any as IUserRepository
+    } as Mocked<IUserRepository>;
 
-    authService = new AuthService(mockUserRepository)
-  })
+    authService = new AuthService(mockUserRepository);
+  });
 
   describe("login", () => {
     it("test_login_valid_credentials_active_status_returns_success", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
+      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
-      const result = await authService.login("test@example.com", "password123")
+      const result = await authService.login("test@example.com", "password123");
 
-      expect(result.success).toBe(true)
-      expect(result.user).toEqual(mockUser)
-      expect(result.error).toBeUndefined()
-    })
+      expect(result.success).toBe(true);
+      expect(result.user).toEqual(mockUser);
+      expect(result.error).toBeUndefined();
+    });
 
     it("test_login_invalid_password_returns_invalid_credentials", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(false as never)
+      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
-      const result = await authService.login("test@example.com", "wrongpassword")
+      const result = await authService.login("test@example.com", "wrongpassword");
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe("invalid_credentials")
-      expect(result.user).toBeUndefined()
-    })
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("invalid_credentials");
+      expect(result.user).toBeUndefined();
+    });
 
     it("test_login_nonexistent_email_returns_invalid_credentials", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(null)
+      mockUserRepository.findByEmail.mockResolvedValue(null);
 
-      const result = await authService.login("nonexistent@example.com", "password123")
+      const result = await authService.login("nonexistent@example.com", "password123");
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe("invalid_credentials")
-      expect(result.user).toBeUndefined()
-    })
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("invalid_credentials");
+      expect(result.user).toBeUndefined();
+    });
 
     it("test_login_pending_registration_returns_account_not_active", async () => {
-      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION }
-      mockUserRepository.findByEmail.mockResolvedValue(pendingUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
+      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION };
+      mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
-      const result = await authService.login("test@example.com", "password123")
+      const result = await authService.login("test@example.com", "password123");
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe("account_not_active")
-      expect(result.user).toBeUndefined()
-    })
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("account_not_active");
+      expect(result.user).toBeUndefined();
+    });
 
     it("test_login_pending_activation_returns_account_pending", async () => {
-      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION }
-      mockUserRepository.findByEmail.mockResolvedValue(pendingUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
+      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION };
+      mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
-      const result = await authService.login("test@example.com", "password123")
+      const result = await authService.login("test@example.com", "password123");
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe("account_pending")
-      expect(result.user).toBeUndefined()
-    })
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("account_pending");
+      expect(result.user).toBeUndefined();
+    });
 
     it("test_login_success_includes_role_in_result", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
+      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
-      const result = await authService.login("test@example.com", "password123")
+      const result = await authService.login("test@example.com", "password123");
 
-      expect(result.user?.role).toBe(UserRole.STUDENT)
-    })
+      expect(result.user?.role).toBe(UserRole.STUDENT);
+    });
 
     it("test_login_success_includes_status_in_result", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser)
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never)
+      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
 
-      const result = await authService.login("test@example.com", "password123")
+      const result = await authService.login("test@example.com", "password123");
 
-      expect(result.user?.status).toBe(UserStatus.ACTIVE)
-    })
-  })
-})
+      expect(result.user?.status).toBe(UserStatus.ACTIVE);
+    });
+  });
+});

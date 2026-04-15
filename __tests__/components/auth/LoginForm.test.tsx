@@ -7,12 +7,6 @@ vi.mock("next-auth/react", () => ({
   signIn: vi.fn(),
 }));
 
-// next/navigation をモック
-const mockPush = vi.fn();
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
-
 import { signIn } from "next-auth/react";
 
 describe("LoginForm", () => {
@@ -62,7 +56,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("test_LoginForm_success_does_not_push_error_route", async () => {
+  it("test_LoginForm_success_does_not_show_error", async () => {
     // SUCCESS: next-auth v4 navigates via window.location.href then returns undefined
     vi.mocked(signIn).mockResolvedValue(undefined);
 
@@ -78,8 +72,8 @@ describe("LoginForm", () => {
 
     await waitFor(() => expect(signIn).toHaveBeenCalled());
 
-    // router.push should NOT be called on success; navigation is via window.location.href
-    expect(mockPush).not.toHaveBeenCalled();
+    // エラーメッセージは表示されない
+    expect(screen.queryByTestId("login-error")).not.toBeInTheDocument();
   });
 
   it("test_LoginForm_displays_error_on_failed_signIn", async () => {
@@ -101,8 +95,12 @@ describe("LoginForm", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
 
+    // URLへの露出ではなく、フォーム内にエラーメッセージを表示する
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/login?error=CredentialsSignin");
+      expect(screen.getByTestId("login-error")).toBeInTheDocument();
+      expect(screen.getByTestId("login-error")).toHaveTextContent(
+        "メールアドレスまたはパスワードが正しくありません。"
+      );
     });
   });
 });

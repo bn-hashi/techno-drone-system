@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 interface LoginFormProps {
   onSubmit?: () => void;
@@ -12,12 +11,18 @@ interface LoginFormProps {
 // and redirects to the correct dashboard (/admin or /student).
 const ROLE_REDIRECT_PATH = "/auth/role-redirect";
 
+// エラーコードをユーザー向けメッセージに変換する
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  CredentialsSignin: "メールアドレスまたはパスワードが正しくありません。",
+  account_not_active: "アカウント登録が完了していません。",
+  account_pending: "本登録メールをご確認ください。",
+};
+
 export function LoginForm({ onSubmit }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -38,7 +43,9 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
 
       // FAILURE: result contains { error, ok: false }.
       if (result?.error) {
-        router.push(`/login?error=${result.error}`);
+        const message =
+          LOGIN_ERROR_MESSAGES[result.error] ?? "ログインに失敗しました。もう一度お試しください。";
+        setError(message);
         return;
       }
 

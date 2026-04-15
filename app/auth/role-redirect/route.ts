@@ -1,5 +1,6 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { UserRole } from "@/types/prisma";
 
 /**
  * Role-based redirect after successful login.
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (token.role === "ADMIN") {
+  if (token.role === UserRole.ADMIN) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 

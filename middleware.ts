@@ -1,37 +1,38 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getToken } from "next-auth/jwt"
-import { determineRedirect } from "@/lib/middlewareHelpers"
-import type { TokenPayload } from "@/lib/middlewareHelpers"
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { determineRedirect } from "@/lib/middlewareHelpers";
+import type { TokenPayload } from "@/lib/middlewareHelpers";
+import { UserRole } from "@/types/prisma";
 
 export async function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname
+  const pathname = request.nextUrl.pathname;
 
   // ログインページは保護されない
   if (pathname === "/login" || pathname.startsWith("/(auth)")) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
   // ストレージからトークンを取得
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
-  })
+  });
 
-  // tokenPayloadへのキャスト
+  // JWT の role フィールドを UserRole 型に変換
   const tokenPayload: TokenPayload | null = token
     ? {
-        role: (token.role as any) || null,
+        role: token.role as UserRole,
       }
-    : null
+    : null;
 
   // ルートガード判定
-  const redirect = determineRedirect(pathname, tokenPayload)
+  const redirect = determineRedirect(pathname, tokenPayload);
 
   if (redirect === "/login") {
-    return NextResponse.redirect(new URL("/login", request.url))
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
@@ -44,4 +45,4 @@ export const config = {
      */
     "/(admin|student)/:path*",
   ],
-}
+};

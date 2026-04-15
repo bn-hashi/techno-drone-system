@@ -1,5 +1,4 @@
 import { defineConfig, devices } from "@playwright/test";
-import path from "path";
 
 /**
  * Playwright E2E configuration
@@ -63,8 +62,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: "postgresql://ubuntu@localhost/drone_school",
       NEXTAUTH_URL: "http://localhost:3000",
-      // E2E テスト専用シークレット（本番環境では .env.local で上書きすること）
-      NEXTAUTH_SECRET: "e2e-test-secret-for-playwright-minimum-32chars",
+      // .env.local の NEXTAUTH_SECRET を優先し、未設定時はローカル E2E 専用値を使用
+      NEXTAUTH_SECRET:
+        process.env.NEXTAUTH_SECRET ??
+        "e2e-test-secret-for-playwright-minimum-32chars",
     },
   },
 });
