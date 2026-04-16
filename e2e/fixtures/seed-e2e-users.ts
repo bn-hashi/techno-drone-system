@@ -40,7 +40,12 @@ async function seedE2EUsers(): Promise<void> {
   const studentPasswordHash = await bcrypt.hash(TEST_USERS.student.password, BCRYPT_ROUNDS);
   await prisma.user.upsert({
     where: { email: TEST_USERS.student.email },
-    update: { passwordHash: studentPasswordHash, status: "ACTIVE" },
+    update: {
+      passwordHash: studentPasswordHash,
+      status: "ACTIVE",
+      name: TEST_USERS.student.name,
+      role: TEST_USERS.student.role,
+    },
     create: {
       email: TEST_USERS.student.email,
       name: TEST_USERS.student.name,
@@ -55,7 +60,12 @@ async function seedE2EUsers(): Promise<void> {
   const adminPasswordHash = await bcrypt.hash(TEST_USERS.admin.password, BCRYPT_ROUNDS);
   await prisma.user.upsert({
     where: { email: TEST_USERS.admin.email },
-    update: { passwordHash: adminPasswordHash, status: "ACTIVE" },
+    update: {
+      passwordHash: adminPasswordHash,
+      status: "ACTIVE",
+      name: TEST_USERS.admin.name,
+      role: TEST_USERS.admin.role,
+    },
     create: {
       email: TEST_USERS.admin.email,
       name: TEST_USERS.admin.name,
@@ -70,7 +80,12 @@ async function seedE2EUsers(): Promise<void> {
   const pendingPasswordHash = await bcrypt.hash(TEST_USERS.pendingUser.password, BCRYPT_ROUNDS);
   await prisma.user.upsert({
     where: { email: TEST_USERS.pendingUser.email },
-    update: { passwordHash: pendingPasswordHash, status: "PENDING_REGISTRATION" },
+    update: {
+      passwordHash: pendingPasswordHash,
+      status: "PENDING_REGISTRATION",
+      name: TEST_USERS.pendingUser.name,
+      role: TEST_USERS.pendingUser.role,
+    },
     create: {
       email: TEST_USERS.pendingUser.email,
       name: TEST_USERS.pendingUser.name,
