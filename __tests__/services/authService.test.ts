@@ -114,5 +114,20 @@ describe("AuthService", () => {
 
       expect(result.user?.status).toBe(UserStatus.ACTIVE);
     });
+
+    it("test_login_unknown_disallowed_status_returns_account_not_active", async () => {
+      // isLoginAllowed が false を返すが、既知のステータス以外（将来追加ステータス等）
+      const unknownStatusUser: User = {
+        ...mockUser,
+        status: "FUTURE_STATUS" as unknown as UserStatus,
+      };
+      mockUserRepository.findByEmail.mockResolvedValue(unknownStatusUser);
+
+      const result = await authService.login("test@example.com", "password123");
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("account_not_active");
+      expect(result.user).toBeUndefined();
+    });
   });
 });
