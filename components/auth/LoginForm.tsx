@@ -100,6 +100,8 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
 
       {error && (
         <div
+          role="alert"
+          aria-live="polite"
           className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm"
           data-testid="login-error"
         >
