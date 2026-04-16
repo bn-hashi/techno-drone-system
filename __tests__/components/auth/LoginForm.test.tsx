@@ -76,8 +76,7 @@ describe("LoginForm", () => {
     expect(screen.queryByTestId("login-error")).not.toBeInTheDocument();
   });
 
-  it("test_LoginForm_displays_error_on_failed_signIn", async () => {
-    // FAILURE: next-auth v4 returns { ok: false, error: "CredentialsSignin" }
+  it("test_LoginForm_shows_error_element_on_failed_signIn", async () => {
     vi.mocked(signIn).mockResolvedValue({
       ok: false,
       error: "CredentialsSignin",
@@ -95,12 +94,56 @@ describe("LoginForm", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
 
-    // URLへの露出ではなく、フォーム内にエラーメッセージを表示する
     await waitFor(() => {
       expect(screen.getByTestId("login-error")).toBeInTheDocument();
+    });
+  });
+
+  it("test_LoginForm_displays_invalid_credentials_message_on_failed_signIn", async () => {
+    vi.mocked(signIn).mockResolvedValue({
+      ok: false,
+      error: "CredentialsSignin",
+      status: 401,
+      url: null,
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/email/i), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+      target: { value: "wrongpassword" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
+
+    await waitFor(() => {
       expect(screen.getByTestId("login-error")).toHaveTextContent(
         "メールアドレスまたはパスワードが正しくありません。"
       );
+    });
+  });
+
+  it("test_LoginForm_shows_error_element_on_account_not_active", async () => {
+    vi.mocked(signIn).mockResolvedValue({
+      ok: false,
+      error: "account_not_active",
+      status: 401,
+      url: null,
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/email/i), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("login-error")).toBeInTheDocument();
     });
   });
 
@@ -123,10 +166,32 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("login-error")).toBeInTheDocument();
       expect(screen.getByTestId("login-error")).toHaveTextContent(
         "アカウント登録が完了していません。"
       );
+    });
+  });
+
+  it("test_LoginForm_shows_error_element_on_account_pending", async () => {
+    vi.mocked(signIn).mockResolvedValue({
+      ok: false,
+      error: "account_pending",
+      status: 401,
+      url: null,
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/email/i), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("login-error")).toBeInTheDocument();
     });
   });
 
@@ -149,8 +214,30 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("login-error")).toBeInTheDocument();
       expect(screen.getByTestId("login-error")).toHaveTextContent("本登録メールをご確認ください。");
+    });
+  });
+
+  it("test_LoginForm_shows_error_element_on_unknown_error_code", async () => {
+    vi.mocked(signIn).mockResolvedValue({
+      ok: false,
+      error: "UNKNOWN_ERROR_CODE",
+      status: 500,
+      url: null,
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/email/i), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("login-error")).toBeInTheDocument();
     });
   });
 
@@ -173,7 +260,6 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /login|sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("login-error")).toBeInTheDocument();
       expect(screen.getByTestId("login-error")).toHaveTextContent(
         "ログインに失敗しました。もう一度お試しください。"
       );
