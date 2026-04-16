@@ -26,5 +26,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 
-  return NextResponse.redirect(new URL("/student", request.url));
+  if (token.role === UserRole.STUDENT) {
+    return NextResponse.redirect(new URL("/student", request.url));
+  }
+
+  // Unknown role — fail closed
+  return NextResponse.redirect(new URL("/login", request.url));
 }
