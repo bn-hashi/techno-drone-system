@@ -47,8 +47,9 @@ describe("AuthService", () => {
 
       const result = await authService.login("test@example.com", "password123");
 
+      const { passwordHash: _passwordHash, ...expectedSafeUser } = mockUser;
       expect(result.success).toBe(true);
-      expect(result.user).toEqual(mockUser);
+      expect(result.user).toEqual(expectedSafeUser);
       expect(result.error).toBeUndefined();
     });
 

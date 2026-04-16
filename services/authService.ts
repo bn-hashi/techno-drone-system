@@ -3,9 +3,11 @@ import { UserStatus } from "@/types/prisma";
 import { isLoginAllowed } from "@/lib/authHelpers";
 import bcrypt from "bcryptjs";
 
+export type SafeUser = Omit<User, "passwordHash">;
+
 export interface LoginResult {
   success: boolean;
-  user?: User;
+  user?: SafeUser;
   error?: "invalid_credentials" | "account_not_active" | "account_pending";
 }
 
@@ -56,10 +58,11 @@ export class AuthService {
       };
     }
 
-    // ログイン成功
+    // ログイン成功（passwordHash をレスポンスから除外）
+    const { passwordHash: _passwordHash, ...safeUser } = user;
     return {
       success: true,
-      user,
+      user: safeUser,
     };
   }
 }
