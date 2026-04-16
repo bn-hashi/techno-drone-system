@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { determineRedirect } from "@/lib/middlewareHelpers";
 import type { TokenPayload } from "@/lib/middlewareHelpers";
-import { UserRole } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -18,10 +18,11 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // JWT の role フィールドを UserRole 型に変換
+  // JWT の role / status フィールドを型付き TokenPayload に変換
   const tokenPayload: TokenPayload | null = token
     ? {
         role: token.role as UserRole,
+        status: token.status as UserStatus,
       }
     : null;
 

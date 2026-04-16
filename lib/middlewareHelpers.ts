@@ -1,7 +1,9 @@
-import { UserRole } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
+import { isLoginAllowed } from "@/lib/authHelpers";
 
 export interface TokenPayload {
   role: UserRole;
+  status: UserStatus;
 }
 
 /**
@@ -18,6 +20,11 @@ export function determineRedirect(
 ): "allow" | "/login" {
   // トークンなしの場合は全てのプロテクトルートをブロック
   if (!token) {
+    return "/login";
+  }
+
+  // アカウントステータスが許可されていない場合はブロック（停止・未登録アカウント対策）
+  if (!isLoginAllowed(token.status)) {
     return "/login";
   }
 
