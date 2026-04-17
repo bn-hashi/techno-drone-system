@@ -1,6 +1,6 @@
 import { User } from "@prisma/client";
 import { UserStatus } from "@/types/prisma";
-import { isLoginAllowed } from "@/lib/authHelpers";
+import { isLoginAllowed, getLoginBlockedErrorCode } from "@/lib/authHelpers";
 import bcrypt from "bcryptjs";
 
 export type SafeUser = Omit<User, "passwordHash">;
@@ -30,22 +30,9 @@ export class AuthService {
 
     // ステータスでログイン可否を判定
     if (!isLoginAllowed(user.status)) {
-      if (user.status === UserStatus.PENDING_REGISTRATION) {
-        return {
-          success: false,
-          error: "account_not_active",
-        };
-      }
-      if (user.status === UserStatus.PENDING_ACTIVATION) {
-        return {
-          success: false,
-          error: "account_pending",
-        };
-      }
-      // 上記以外の非許可ステータス（将来の追加ステータスを含む）
       return {
         success: false,
-        error: "account_not_active",
+        error: getLoginBlockedErrorCode(user.status),
       };
     }
 
