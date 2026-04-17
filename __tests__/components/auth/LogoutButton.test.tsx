@@ -47,4 +47,15 @@ describe("LogoutButton", () => {
     render(<LogoutButton />);
     expect(screen.getByRole("button", { name: /ログアウト/i })).not.toBeDisabled();
   });
+
+  it("test_LogoutButton_resets_loading_state_on_signOut_failure", async () => {
+    vi.mocked(signOut).mockRejectedValue(new Error("network error"));
+
+    render(<LogoutButton />);
+    fireEvent.click(screen.getByRole("button", { name: /ログアウト/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /ログアウト/i })).not.toBeDisabled();
+    });
+  });
 });
