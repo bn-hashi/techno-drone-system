@@ -6,7 +6,7 @@
  * - 冪等性テスト（モックベース）
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   SEED_ADMIN,
   SEED_SUBJECTS,
@@ -19,9 +19,15 @@ import {
 // ===========================
 
 describe("SEED_ADMIN", () => {
-  it("test_seed_admin_has_required_fields", () => {
+  it("test_seed_admin_has_email_field", () => {
     expect(SEED_ADMIN).toHaveProperty("email");
+  });
+
+  it("test_seed_admin_has_name_field", () => {
     expect(SEED_ADMIN).toHaveProperty("name");
+  });
+
+  it("test_seed_admin_has_role_field", () => {
     expect(SEED_ADMIN).toHaveProperty("role");
   });
 
@@ -35,11 +41,23 @@ describe("SEED_SUBJECTS", () => {
     expect(SEED_SUBJECTS).toHaveLength(4);
   });
 
-  it("test_seed_subjects_codes_are_correct", () => {
+  it("test_seed_subjects_contains_subject_01", () => {
     const codes = SEED_SUBJECTS.map((s) => s.code);
     expect(codes).toContain("SUBJECT_01");
+  });
+
+  it("test_seed_subjects_contains_subject_02", () => {
+    const codes = SEED_SUBJECTS.map((s) => s.code);
     expect(codes).toContain("SUBJECT_02");
+  });
+
+  it("test_seed_subjects_contains_subject_03", () => {
+    const codes = SEED_SUBJECTS.map((s) => s.code);
     expect(codes).toContain("SUBJECT_03");
+  });
+
+  it("test_seed_subjects_contains_subject_04", () => {
+    const codes = SEED_SUBJECTS.map((s) => s.code);
     expect(codes).toContain("SUBJECT_04");
   });
 
@@ -75,8 +93,11 @@ describe("SEED_SUBJECTS", () => {
 });
 
 describe("SEED_COURSE", () => {
-  it("test_seed_course_has_required_fields", () => {
+  it("test_seed_course_has_name_field", () => {
     expect(SEED_COURSE).toHaveProperty("name");
+  });
+
+  it("test_seed_course_has_type_field", () => {
     expect(SEED_COURSE).toHaveProperty("type");
   });
 });
@@ -86,11 +107,26 @@ describe("SEED_QUESTIONS", () => {
     expect(SEED_QUESTIONS).toHaveLength(5);
   });
 
-  it("test_seed_questions_each_has_required_fields", () => {
+  it("test_seed_questions_each_has_body_field", () => {
     for (const q of SEED_QUESTIONS) {
       expect(q).toHaveProperty("body");
+    }
+  });
+
+  it("test_seed_questions_each_has_choices_field", () => {
+    for (const q of SEED_QUESTIONS) {
       expect(q).toHaveProperty("choices");
+    }
+  });
+
+  it("test_seed_questions_each_has_correct_index_field", () => {
+    for (const q of SEED_QUESTIONS) {
       expect(q).toHaveProperty("correctIndex");
+    }
+  });
+
+  it("test_seed_questions_each_has_explanation_field", () => {
+    for (const q of SEED_QUESTIONS) {
       expect(q).toHaveProperty("explanation");
     }
   });
@@ -101,9 +137,14 @@ describe("SEED_QUESTIONS", () => {
     }
   });
 
-  it("test_seed_questions_correct_index_is_valid", () => {
+  it("test_seed_questions_correct_index_is_greater_than_or_equal_to_zero", () => {
     for (const q of SEED_QUESTIONS) {
       expect(q.correctIndex).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("test_seed_questions_correct_index_is_less_than_or_equal_to_two", () => {
+    for (const q of SEED_QUESTIONS) {
       expect(q.correctIndex).toBeLessThanOrEqual(2);
     }
   });

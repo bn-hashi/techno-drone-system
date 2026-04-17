@@ -93,7 +93,7 @@ describe("UserStatus enum", () => {
     expect(values).toHaveLength(7);
   });
 
-  it("test_user_status_transition_order_is_correct", () => {
+  it("test_user_status_transition_order_has_seven_steps", () => {
     const transitionOrder = [
       UserStatus.PENDING_REGISTRATION,
       UserStatus.PENDING_ACTIVATION,
@@ -104,7 +104,31 @@ describe("UserStatus enum", () => {
       UserStatus.DIPS_LINKED,
     ];
     expect(transitionOrder).toHaveLength(7);
+  });
+
+  it("test_user_status_transition_order_starts_with_pending_registration", () => {
+    const transitionOrder = [
+      UserStatus.PENDING_REGISTRATION,
+      UserStatus.PENDING_ACTIVATION,
+      UserStatus.ACTIVE,
+      UserStatus.EXAM_PASSED,
+      UserStatus.COMPLETED,
+      UserStatus.CERTIFIED,
+      UserStatus.DIPS_LINKED,
+    ];
     expect(transitionOrder[0]).toBe("PENDING_REGISTRATION");
+  });
+
+  it("test_user_status_transition_order_ends_with_dips_linked", () => {
+    const transitionOrder = [
+      UserStatus.PENDING_REGISTRATION,
+      UserStatus.PENDING_ACTIVATION,
+      UserStatus.ACTIVE,
+      UserStatus.EXAM_PASSED,
+      UserStatus.COMPLETED,
+      UserStatus.CERTIFIED,
+      UserStatus.DIPS_LINKED,
+    ];
     expect(transitionOrder[6]).toBe("DIPS_LINKED");
   });
 });
@@ -170,10 +194,19 @@ describe("Schema constants", () => {
     expect(INSTITUTION_CODE).toBe("0515");
   });
 
-  it("test_subject_codes_are_defined", () => {
+  it("test_subject_codes_contains_subject_01", () => {
     expect(SUBJECT_CODES).toContain("SUBJECT_01");
+  });
+
+  it("test_subject_codes_contains_subject_02", () => {
     expect(SUBJECT_CODES).toContain("SUBJECT_02");
+  });
+
+  it("test_subject_codes_contains_subject_03", () => {
     expect(SUBJECT_CODES).toContain("SUBJECT_03");
+  });
+
+  it("test_subject_codes_contains_subject_04", () => {
     expect(SUBJECT_CODES).toContain("SUBJECT_04");
   });
 

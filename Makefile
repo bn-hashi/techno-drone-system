@@ -1,4 +1,4 @@
-.PHONY: dev build start test test-watch test-coverage lint format migrate seed verify
+.PHONY: dev build start test test-watch test-coverage lint format migrate seed verify e2e e2e-seed e2e-report
 
 dev:
 	npm run dev
@@ -31,3 +31,12 @@ seed:
 	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npx prisma db seed
 
 verify: build lint test
+
+e2e-seed:
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npm run e2e:seed
+
+e2e:
+	DATABASE_URL=postgresql://ubuntu@localhost/drone_school npm run e2e
+
+e2e-report:
+	npm run e2e:report

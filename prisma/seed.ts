@@ -6,10 +6,19 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import * as bcrypt from "bcryptjs";
 import { SEED_ADMIN, SEED_SUBJECTS, SEED_COURSE, SEED_QUESTIONS } from "./seed-data";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is required");
+}
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({ adapter });
 
 async function main(): Promise<void> {
   // 管理者パスワードを環境変数から取得（必須）
@@ -99,4 +108,5 @@ main()
   })
   .finally(() => {
     prisma.$disconnect().catch(console.error);
+    pool.end().catch(console.error);
   });

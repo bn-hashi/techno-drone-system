@@ -11,7 +11,12 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:debug": "playwright test --debug",
+    "e2e:report": "playwright show-report e2e/playwright-report",
+    "e2e:seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' e2e/fixtures/seed-e2e-users.ts"
   },
   "prisma": {
     "seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
@@ -21,11 +26,13 @@
     "@prisma/client": "^7.7.0",
     "bcryptjs": "^2.4.3",
     "next": "14.2.35",
-    "prisma": "^7.7.0",
+    "next-auth": "^4.24.13",
+    "pg": "^8.20.0",
     "react": "^18",
     "react-dom": "^18"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
@@ -36,6 +43,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.1.1",
     "eslint": "^8",
+    "prisma": "^7.7.0",
     "eslint-config-next": "14.2.35",
     "jsdom": "^26.1.0",
     "postcss": "^8",
