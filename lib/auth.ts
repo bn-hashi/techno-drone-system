@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { UserRepository } from "@/repositories/userRepository";
 import { AuthService } from "@/services/authService";
 import { UserRole, UserStatus } from "@/types/prisma";
+import { isValidUserRole, isValidUserStatus } from "@/lib/authHelpers";
 
 // Lazy initialization to avoid database connection at build time
 let userRepository: UserRepository | null = null;
@@ -65,8 +66,12 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
-        session.user.status = token.status as UserStatus;
+        // 型ガードで検証し、無効なペイロードはセッションを返さない（フェイルクローズ）
+        if (!isValidUserRole(token.role) || !isValidUserStatus(token.status)) {
+          return { ...session, user: undefined as never };
+        }
+        session.user.role = token.role;
+        session.user.status = token.status;
       }
       return session;
     },

@@ -10,9 +10,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import * as bcrypt from "bcryptjs";
 import { SEED_ADMIN, SEED_SUBJECTS, SEED_COURSE, SEED_QUESTIONS } from "./seed-data";
-import { TEST_USERS } from "../e2e/fixtures/test-users";
 
-const connectionString = process.env.DATABASE_URL || "postgresql://ubuntu@localhost/drone_school";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is required");
+}
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
@@ -35,46 +37,6 @@ async function main(): Promise<void> {
       name: SEED_ADMIN.name,
       role: SEED_ADMIN.role,
       passwordHash,
-    },
-  });
-
-  // E2E テスト用ユーザー（TEST_USERS を単一ソースとして参照）
-  const e2eStudentHash = await bcrypt.hash(TEST_USERS.student.password, 12);
-  await prisma.user.upsert({
-    where: { email: TEST_USERS.student.email },
-    update: {},
-    create: {
-      email: TEST_USERS.student.email,
-      name: TEST_USERS.student.name,
-      role: TEST_USERS.student.role,
-      status: "ACTIVE",
-      passwordHash: e2eStudentHash,
-    },
-  });
-
-  const e2eAdminHash = await bcrypt.hash(TEST_USERS.admin.password, 12);
-  await prisma.user.upsert({
-    where: { email: TEST_USERS.admin.email },
-    update: {},
-    create: {
-      email: TEST_USERS.admin.email,
-      name: TEST_USERS.admin.name,
-      role: TEST_USERS.admin.role,
-      status: "ACTIVE",
-      passwordHash: e2eAdminHash,
-    },
-  });
-
-  const e2ePendingHash = await bcrypt.hash(TEST_USERS.pendingUser.password, 12);
-  await prisma.user.upsert({
-    where: { email: TEST_USERS.pendingUser.email },
-    update: {},
-    create: {
-      email: TEST_USERS.pendingUser.email,
-      name: TEST_USERS.pendingUser.name,
-      role: TEST_USERS.pendingUser.role,
-      status: "PENDING_REGISTRATION",
-      passwordHash: e2ePendingHash,
     },
   });
 

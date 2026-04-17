@@ -8,7 +8,13 @@ export function LogoutButton() {
 
   const handleLogout = async () => {
     setIsLoading(true);
-    await signOut({ callbackUrl: "/login" });
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch {
+      // signOut の失敗は UI をクラッシュさせない。loading 解除は finally で行う
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
