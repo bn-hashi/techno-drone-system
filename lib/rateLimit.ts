@@ -19,8 +19,22 @@ const store = new Map<string, RateLimitEntry>();
  * 指定されたキー（IPアドレスなど）のリクエストが許可されるか判定する。
  * @returns 許可される場合 true、レート超過の場合 false
  */
+/**
+ * 期限切れエントリを store から削除する。
+ * checkRateLimit の呼び出し時に毎回実行してメモリを解放する。
+ */
+function purgeExpiredEntries(now: number): void {
+  for (const [key, entry] of store.entries()) {
+    if (now > entry.resetAt) {
+      store.delete(key);
+    }
+  }
+}
+
 export function checkRateLimit(key: string): boolean {
   const now = Date.now();
+  purgeExpiredEntries(now);
+
   const entry = store.get(key);
 
   if (!entry || now > entry.resetAt) {

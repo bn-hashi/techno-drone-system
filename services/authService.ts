@@ -1,6 +1,7 @@
 import { User } from "@prisma/client";
 import { UserStatus } from "@/types/prisma";
 import { isLoginAllowed, getLoginBlockedErrorCode } from "@/lib/authHelpers";
+import type { IUserRepository } from "@/repositories/userRepository";
 import bcrypt from "bcryptjs";
 
 export type SafeUser = Omit<User, "passwordHash">;
@@ -9,10 +10,6 @@ export interface LoginResult {
   success: boolean;
   user?: SafeUser;
   error?: "invalid_credentials" | "account_not_active" | "account_pending";
-}
-
-export interface IUserRepository {
-  findByEmail(email: string): Promise<User | null>;
 }
 
 export class AuthService {
