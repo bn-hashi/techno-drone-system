@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi, Mocked } from "vitest";
 import { User } from "@prisma/client";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
-import { AuthService, IUserRepository } from "@/services/authService";
+import { AuthService } from "@/services/authService";
+import type { IUserRepository } from "@/repositories/userRepository";
 
 // bcryptjs モック
 vi.mock("bcryptjs", () => ({

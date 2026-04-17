@@ -24,11 +24,13 @@ const store = new Map<string, RateLimitEntry>();
  * checkRateLimit の呼び出し時に毎回実行してメモリを解放する。
  */
 function purgeExpiredEntries(now: number): void {
-  for (const [key, entry] of store.entries()) {
+  const expiredKeys: string[] = [];
+  store.forEach((entry, key) => {
     if (now > entry.resetAt) {
-      store.delete(key);
+      expiredKeys.push(key);
     }
-  }
+  });
+  expiredKeys.forEach((key) => store.delete(key));
 }
 
 export function checkRateLimit(key: string): boolean {
