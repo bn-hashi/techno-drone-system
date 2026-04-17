@@ -9,6 +9,8 @@ interface Column<T> {
 interface TableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
+  // 各行を一意に識別するキー名。React の差分検知に使用する
+  rowKey: keyof T;
   totalCount: number;
   page: number;
   pageSize: number;
@@ -18,6 +20,7 @@ interface TableProps<T extends Record<string, unknown>> {
 export function Table<T extends Record<string, unknown>>({
   columns,
   data,
+  rowKey,
   totalCount,
   page,
   pageSize,
@@ -46,21 +49,19 @@ export function Table<T extends Record<string, unknown>>({
         <tbody className="bg-white divide-y divide-gray-200">
           {data.length === 0 ? (
             <tr>
-              <td
-                colSpan={columns.length}
-                className="px-6 py-4 text-center text-gray-500"
-              >
+              <td colSpan={columns.length} className="px-6 py-4 text-center text-gray-500">
                 データがありません
               </td>
             </tr>
           ) : (
-            data.map((row, rowIndex) => (
-              <tr key={rowIndex}>
+            data.map((row) => (
+              <tr key={String(row[rowKey])}>
                 {columns.map((column) => (
-                  <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {column.render
-                      ? column.render(row)
-                      : String(row[column.key] ?? "")}
+                  <td
+                    key={column.key}
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                  >
+                    {column.render ? column.render(row) : String(row[column.key] ?? "")}
                   </td>
                 ))}
               </tr>

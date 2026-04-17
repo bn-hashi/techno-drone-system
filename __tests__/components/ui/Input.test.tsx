@@ -11,20 +11,20 @@ describe("Input", () => {
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("test_Input_with_label_prop_label_text_is_displayed", () => {
+  it("test_Input_with_label_prop_label_is_associated_with_input", () => {
     // Arrange / Act
     render(<Input label="メールアドレス" />);
 
-    // Assert
-    expect(screen.getByText("メールアドレス")).toBeInTheDocument();
+    // Assert: getByLabelText でラベルと input の関連付けを検証する
+    expect(screen.getByLabelText("メールアドレス")).toBeInTheDocument();
   });
 
-  it("test_Input_with_error_prop_error_message_is_displayed", () => {
+  it("test_Input_with_error_prop_error_message_is_displayed_as_alert", () => {
     // Arrange / Act
     render(<Input error="入力が必要です" />);
 
-    // Assert
-    expect(screen.getByText("入力が必要です")).toBeInTheDocument();
+    // Assert: role="alert" でスクリーンリーダーへの通知を検証する
+    expect(screen.getByRole("alert")).toHaveTextContent("入力が必要です");
   });
 
   it("test_Input_without_error_prop_error_message_is_not_displayed", () => {

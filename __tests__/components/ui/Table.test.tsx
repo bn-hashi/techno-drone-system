@@ -22,6 +22,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={2}
         page={1}
         pageSize={10}
@@ -40,6 +41,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={2}
         page={1}
         pageSize={10}
@@ -57,6 +59,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={[]}
+        rowKey="id"
         totalCount={0}
         page={1}
         pageSize={10}
@@ -74,6 +77,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={25}
         page={1}
         pageSize={10}
@@ -92,6 +96,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={2}
         page={1}
         pageSize={10}
@@ -110,6 +115,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={25}
         page={1}
         pageSize={10}
@@ -131,6 +137,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={25}
         page={2}
         pageSize={10}
@@ -151,6 +158,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={25}
         page={1}
         pageSize={10}
@@ -168,6 +176,7 @@ describe("Table", () => {
       <Table
         columns={COLUMNS}
         data={SAMPLE_DATA}
+        rowKey="id"
         totalCount={25}
         page={3}
         pageSize={10}

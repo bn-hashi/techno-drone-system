@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useId, useRef } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,6 +10,21 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  // モーダルが開いたときにフォーカスを移動し、Escキーで閉じる
+  useEffect(() => {
+    if (!isOpen) return;
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }
@@ -22,13 +37,18 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         aria-hidden="true"
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="relative z-10 bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        className="relative z-10 bg-white rounded-lg shadow-xl p-6 w-full max-w-md focus:outline-none"
       >
         <div className="flex items-center justify-between mb-4">
           {title && (
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold text-gray-900">
+              {title}
+            </h2>
           )}
           <button
             aria-label="閉じる"
