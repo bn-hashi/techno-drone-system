@@ -16,7 +16,7 @@ const SAMPLE_DATA: User[] = [
 ];
 
 describe("Table", () => {
-  it("test_Table_on_render_column_headers_are_displayed", () => {
+  it("test_Table_on_render_column_header_name_is_displayed", () => {
     // Arrange / Act
     render(
       <Table
@@ -32,6 +32,23 @@ describe("Table", () => {
 
     // Assert
     expect(screen.getByText("名前")).toBeInTheDocument();
+  });
+
+  it("test_Table_on_render_column_header_email_is_displayed", () => {
+    // Arrange / Act
+    render(
+      <Table
+        columns={COLUMNS}
+        data={SAMPLE_DATA}
+        rowKey="id"
+        totalCount={2}
+        page={1}
+        pageSize={10}
+        onPageChange={vi.fn()}
+      />
+    );
+
+    // Assert
     expect(screen.getByText("メール")).toBeInTheDocument();
   });
 
@@ -71,7 +88,7 @@ describe("Table", () => {
     expect(screen.getByText("データがありません")).toBeInTheDocument();
   });
 
-  it("test_Table_with_multiple_pages_pagination_controls_are_displayed", () => {
+  it("test_Table_with_multiple_pages_next_button_is_displayed", () => {
     // Arrange / Act
     render(
       <Table
@@ -87,6 +104,23 @@ describe("Table", () => {
 
     // Assert
     expect(screen.getByRole("button", { name: "次へ" })).toBeInTheDocument();
+  });
+
+  it("test_Table_with_multiple_pages_prev_button_is_displayed", () => {
+    // Arrange / Act
+    render(
+      <Table
+        columns={COLUMNS}
+        data={SAMPLE_DATA}
+        rowKey="id"
+        totalCount={25}
+        page={1}
+        pageSize={10}
+        onPageChange={vi.fn()}
+      />
+    );
+
+    // Assert
     expect(screen.getByRole("button", { name: "前へ" })).toBeInTheDocument();
   });
 

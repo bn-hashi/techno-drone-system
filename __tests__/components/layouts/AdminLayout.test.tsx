@@ -21,12 +21,19 @@ describe("AdminLayout", () => {
     expect(screen.getByText("管理コンテンツ")).toBeInTheDocument();
   });
 
-  it("test_AdminLayout_on_render_navigation_links_are_displayed", () => {
+  it("test_AdminLayout_on_render_navigation_link_student_list_is_displayed", () => {
     // Arrange / Act
     render(<AdminLayout>コンテンツ</AdminLayout>);
 
     // Assert
     expect(screen.getByText("受講者一覧")).toBeInTheDocument();
+  });
+
+  it("test_AdminLayout_on_render_navigation_link_applications_is_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
     expect(screen.getByText("入学申請")).toBeInTheDocument();
   });
 

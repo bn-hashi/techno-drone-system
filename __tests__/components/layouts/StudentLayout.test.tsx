@@ -21,13 +21,27 @@ describe("StudentLayout", () => {
     expect(screen.getByText("メインコンテンツ")).toBeInTheDocument();
   });
 
-  it("test_StudentLayout_on_render_navigation_links_are_displayed", () => {
+  it("test_StudentLayout_on_render_navigation_link_dashboard_is_displayed", () => {
     // Arrange / Act
     render(<StudentLayout>コンテンツ</StudentLayout>);
 
     // Assert
     expect(screen.getByText("ダッシュボード")).toBeInTheDocument();
+  });
+
+  it("test_StudentLayout_on_render_navigation_link_course_is_displayed", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
     expect(screen.getByText("受講")).toBeInTheDocument();
+  });
+
+  it("test_StudentLayout_on_render_navigation_link_exam_is_displayed", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
     expect(screen.getByText("試験")).toBeInTheDocument();
   });
 

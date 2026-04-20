@@ -31,8 +31,8 @@ describe("Input", () => {
     // Arrange / Act
     render(<Input />);
 
-    // Assert
-    expect(screen.queryByRole("paragraph")).not.toBeInTheDocument();
+    // Assert: role="alert" で error メッセージが表示されていないことを検証する
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("test_Input_with_error_prop_error_border_style_is_applied", () => {

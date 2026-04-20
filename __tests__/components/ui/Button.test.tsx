@@ -36,12 +36,19 @@ describe("Button", () => {
     expect(screen.getByRole("button")).toHaveClass("bg-red-600");
   });
 
-  it("test_Button_with_isLoading_true_button_is_disabled_and_spinner_visible", () => {
+  it("test_Button_with_isLoading_true_button_is_disabled", () => {
     // Arrange / Act
     render(<Button isLoading>送信</Button>);
 
     // Assert
     expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("test_Button_with_isLoading_true_spinner_is_visible", () => {
+    // Arrange / Act
+    render(<Button isLoading>送信</Button>);
+
+    // Assert
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
