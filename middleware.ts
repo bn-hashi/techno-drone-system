@@ -3,7 +3,6 @@ import { getToken } from "next-auth/jwt";
 import { determineRedirect } from "@/lib/middlewareHelpers";
 import type { TokenPayload } from "@/lib/middlewareHelpers";
 import { isValidUserRole, isValidUserStatus } from "@/lib/authHelpers";
-import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -13,14 +12,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 認証エンドポイントへのブルートフォース対策
-  if (pathname === "/api/auth/callback/credentials") {
-    const ip =
-      request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
-    if (!checkRateLimit(ip)) {
-      return new NextResponse("Too Many Requests", { status: 429 });
-    }
-  }
+  // ブルートフォース対策は /api/auth/[...nextauth]/route.ts の POST ハンドラで実施
+  // (Node.js ランタイム確実なインメモリ store を使用)
 
   // ストレージからトークンを取得
   const token = await getToken({
@@ -52,10 +45,8 @@ export const config = {
      * マッチ対象パス
      * - /admin/* (管理画面)
      * - /student/* (受講者画面)
-     * - /api/auth/callback/credentials (ブルートフォース対策)
      * 除外: _next/static, _next/image, favicon.ico
      */
     "/(admin|student)/:path*",
-    "/api/auth/callback/credentials",
   ],
 };
