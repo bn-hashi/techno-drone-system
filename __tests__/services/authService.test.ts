@@ -44,7 +44,7 @@ describe("AuthService", () => {
   describe("login", () => {
     it("test_login_valid_credentials_active_status_returns_success", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true);
 
       const result = await authService.login("test@example.com", "password123");
 
@@ -56,7 +56,7 @@ describe("AuthService", () => {
 
     it("test_login_invalid_password_returns_invalid_credentials", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(false);
 
       const result = await authService.login("test@example.com", "wrongpassword");
 
@@ -78,7 +78,7 @@ describe("AuthService", () => {
     it("test_login_pending_registration_returns_account_not_active", async () => {
       const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION };
       mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true);
 
       const result = await authService.login("test@example.com", "password123");
 
@@ -90,7 +90,7 @@ describe("AuthService", () => {
     it("test_login_pending_activation_returns_account_pending", async () => {
       const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION };
       mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true);
 
       const result = await authService.login("test@example.com", "password123");
 
@@ -101,7 +101,7 @@ describe("AuthService", () => {
 
     it("test_login_success_includes_role_in_result", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true);
 
       const result = await authService.login("test@example.com", "password123");
 
@@ -110,7 +110,7 @@ describe("AuthService", () => {
 
     it("test_login_success_includes_status_in_result", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      vi.mocked(bcrypt.compare).mockResolvedValue(true);
 
       const result = await authService.login("test@example.com", "password123");
 
