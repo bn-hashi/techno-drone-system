@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
 
+// React key として有効な値（string | number）を持つプロパティ名のみに制限する
+type KeyFieldOf<T> = {
+  [K in keyof T]: T[K] extends string | number ? K : never;
+}[keyof T];
+
 interface Column<T> {
   // keyof T に限定することで、存在しないプロパティ名をコンパイル時に検出できる
   key: keyof T;
@@ -10,8 +15,8 @@ interface Column<T> {
 interface TableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
-  // 各行を一意に識別するキー名。React の差分検知に使用する
-  rowKey: keyof T;
+  // 各行を一意に識別するキー名。React の差分検知に使用する（string | number 値のキーのみ許容）
+  rowKey: KeyFieldOf<T>;
   totalCount: number;
   page: number;
   pageSize: number;
