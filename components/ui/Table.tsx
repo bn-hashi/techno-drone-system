@@ -1,7 +1,8 @@
 import React from "react";
 
 interface Column<T> {
-  key: string;
+  // keyof T に限定することで、存在しないプロパティ名をコンパイル時に検出できる
+  key: keyof T;
   header: string;
   render?: (row: T) => React.ReactNode;
 }
@@ -26,8 +27,11 @@ export function Table<T extends Record<string, unknown>>({
   pageSize,
   onPageChange,
 }: TableProps<T>) {
+  // pageSize が 0 以下の場合、Infinity/NaN になるためガードする
+  const safePageSize = pageSize > 0 ? pageSize : 1;
+  const safeTotalCount = Math.max(0, totalCount);
   // ページ数は totalCount と pageSize から算出する
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const totalPages = Math.ceil(safeTotalCount / safePageSize);
   const hasPagination = totalPages > 1;
 
   return (
@@ -37,7 +41,7 @@ export function Table<T extends Record<string, unknown>>({
           <tr>
             {columns.map((column) => (
               <th
-                key={column.key}
+                key={String(column.key)}
                 scope="col"
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
@@ -58,7 +62,7 @@ export function Table<T extends Record<string, unknown>>({
               <tr key={String(row[rowKey])}>
                 {columns.map((column) => (
                   <td
-                    key={column.key}
+                    key={String(column.key)}
                     className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                   >
                     {column.render ? column.render(row) : String(row[column.key] ?? "")}

@@ -11,18 +11,46 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // モーダルを閉じた後にフォーカスを元の要素へ戻すために保持する
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
-  // モーダルが開いたときにフォーカスを移動し、Escキーで閉じる
+  // モーダルが開いたときにフォーカスを移動し、Escキーで閉じる。
+  // クローズ時は previousFocusRef が示す要素へフォーカスを復帰させる。
   useEffect(() => {
     if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement;
     dialogRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+
+      // フォーカストラップ: Tab / Shift+Tab でフォーカスがモーダル外へ抜けるのを防ぐ
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) {
@@ -31,11 +59,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="fixed inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
         ref={dialogRef}
         role="dialog"

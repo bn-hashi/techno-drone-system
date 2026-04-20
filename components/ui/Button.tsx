@@ -19,13 +19,19 @@ export function Button({
   variant = "primary",
   isLoading = false,
   disabled,
+  // type を明示的に受け取り、未指定時は "button" にする（フォーム内での暗黙的な submit を防ぐ）
+  type = "button",
+  // className を明示的に受け取り、基底クラスに結合する（...rest による上書きを防ぐ）
+  className = "",
   children,
   ...rest
 }: ButtonProps) {
+  const isDisabled = Boolean(disabled || isLoading);
   return (
     <button
-      disabled={disabled || isLoading}
-      className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${VARIANT_STYLES[variant]}`}
+      type={type}
+      disabled={isDisabled}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${VARIANT_STYLES[variant]} ${className}`.trimEnd()}
       {...rest}
     >
       {isLoading && <LoadingSpinner />}

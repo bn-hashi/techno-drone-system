@@ -5,12 +5,22 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-export function Input({ label, error, id, className = "", ...rest }: InputProps) {
+export function Input({
+  label,
+  error,
+  id,
+  className = "",
+  // aria-describedby を明示的に受け取り、error 時の errorId と結合する（...rest による上書きを防ぐ）
+  "aria-describedby": ariaDescribedBy,
+  ...rest
+}: InputProps) {
   const generatedId = useId();
   // 呼び出し元が id を指定した場合はそれを優先する
   const inputId = id ?? generatedId;
   const errorId = `${inputId}-error`;
   const borderClass = error ? "border-red-500" : "border-gray-300";
+  const combinedDescribedBy =
+    [error ? errorId : undefined, ariaDescribedBy].filter(Boolean).join(" ") || undefined;
 
   return (
     <div className="flex flex-col gap-1">
@@ -21,7 +31,7 @@ export function Input({ label, error, id, className = "", ...rest }: InputProps)
       )}
       <input
         id={inputId}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={combinedDescribedBy}
         aria-invalid={error ? true : undefined}
         className={`px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${borderClass} ${className}`}
         {...rest}
