@@ -1,10 +1,10 @@
-import React from "react";
+import type { ReactNode } from "react";
 
 interface Column<T> {
   // keyof T に限定することで、存在しないプロパティ名をコンパイル時に検出できる
   key: keyof T;
   header: string;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T) => ReactNode;
 }
 
 interface TableProps<T extends Record<string, unknown>> {
@@ -16,6 +16,8 @@ interface TableProps<T extends Record<string, unknown>> {
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  /** スクリーンリーダー向けテーブルの説明ラベル */
+  "aria-label"?: string;
 }
 
 export function Table<T extends Record<string, unknown>>({
@@ -26,6 +28,7 @@ export function Table<T extends Record<string, unknown>>({
   page,
   pageSize,
   onPageChange,
+  "aria-label": ariaLabel,
 }: TableProps<T>) {
   // pageSize が 0 以下の場合、Infinity/NaN になるためガードする
   const safePageSize = pageSize > 0 ? pageSize : 1;
@@ -36,7 +39,7 @@ export function Table<T extends Record<string, unknown>>({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
+      <table aria-label={ariaLabel} className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             {columns.map((column) => (
