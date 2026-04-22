@@ -1,7 +1,13 @@
 # .coderabbit.yaml
 # CodeRabbit のレビュー設定 (チーム共有・Git管理対象)
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 
 language: ja-JP  # レビューコメントを日本語で出す
+
+# TypeScript は型定義が自己文書化になるため、JSDoc カバレッジチェックは無効化する
+finishing_touches:
+  docstrings:
+    enabled: false
 
 reviews:
   profile: assertive          # 厳しめにレビューさせる
@@ -10,6 +16,13 @@ reviews:
   poem: false                 # おまけのポエム機能はオフ
   review_status: true
   collapse_walkthrough: false
+
+  # 不要なファイルはレビュー対象外にしてノイズを減らす
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/*.lock"
+    - "!**/migrations/**"
 
   auto_review:
     enabled: true             # PR が立ったら自動レビュー
@@ -57,10 +70,3 @@ reviews:
 
 chat:
   auto_reply: true      # PR 上の質問に CodeRabbit が自動回答
-
-# 不要なファイルはレビュー対象外にしてノイズを減らす
-path_filters:
-  - "!**/node_modules/**"
-  - "!**/dist/**"
-  - "!**/*.lock"
-  - "!**/migrations/**"
