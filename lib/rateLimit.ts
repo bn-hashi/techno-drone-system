@@ -44,6 +44,7 @@ export function checkRateLimit(key: string): boolean {
     return true;
   }
 
-  entry.count++;
-  return entry.count <= MAX_ATTEMPTS;
+  const updatedCount = entry.count + 1;
+  store.set(key, { ...entry, count: updatedCount });
+  return updatedCount <= MAX_ATTEMPTS;
 }
