@@ -68,7 +68,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         // 型ガードで検証し、無効なペイロードはセッションを返さない（フェイルクローズ）
         if (!isValidUserRole(token.role) || !isValidUserStatus(token.status)) {
-          return { ...session, user: undefined as never };
+          return { ...session, user: undefined };
         }
         session.user.role = token.role;
         session.user.status = token.status;

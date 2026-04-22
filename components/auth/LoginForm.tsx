@@ -71,7 +71,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         <input
           id="email"
           type="email"
-          placeholder="Email address"
+          placeholder="メールアドレス"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -88,7 +88,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         <input
           id="password"
           type="password"
-          placeholder="Password"
+          placeholder="パスワード"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -115,7 +115,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         className="w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
         data-testid="login-submit"
       >
-        {isLoading ? "ログイン中..." : "Sign In"}
+        {isLoading ? "ログイン中..." : "ログイン"}
       </button>
     </form>
   );
