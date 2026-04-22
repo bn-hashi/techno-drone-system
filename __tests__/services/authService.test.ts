@@ -42,94 +42,150 @@ describe("AuthService", () => {
   });
 
   describe("login", () => {
-    it("test_login_valid_credentials_active_status_returns_success", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true);
+    describe("valid credentials with active status", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("test@example.com", "password123");
+      beforeEach(async () => {
+        mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        result = await authService.login("test@example.com", "password123");
+      });
 
-      const { passwordHash: _passwordHash, ...expectedSafeUser } = mockUser;
-      expect(result.success).toBe(true);
-      expect(result.user).toEqual(expectedSafeUser);
-      expect(result.error).toBeUndefined();
+      it("test_login_valid_credentials_active_status_success_is_true", () => {
+        expect(result.success).toBe(true);
+      });
+
+      it("test_login_valid_credentials_active_status_user_equals_safe_user", () => {
+        const { passwordHash: _passwordHash, ...expectedSafeUser } = mockUser;
+        expect(result.user).toEqual(expectedSafeUser);
+      });
+
+      it("test_login_valid_credentials_active_status_error_is_undefined", () => {
+        expect(result.error).toBeUndefined();
+      });
+
+      it("test_login_success_includes_role_in_result", () => {
+        expect(result.user?.role).toBe(UserRole.STUDENT);
+      });
+
+      it("test_login_success_includes_status_in_result", () => {
+        expect(result.user?.status).toBe(UserStatus.ACTIVE);
+      });
     });
 
-    it("test_login_invalid_password_returns_invalid_credentials", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(false);
+    describe("invalid password", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("test@example.com", "wrongpassword");
+      beforeEach(async () => {
+        mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+        vi.mocked(bcrypt.compare).mockResolvedValue(false);
+        result = await authService.login("test@example.com", "wrongpassword");
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("invalid_credentials");
-      expect(result.user).toBeUndefined();
+      it("test_login_invalid_password_success_is_false", () => {
+        expect(result.success).toBe(false);
+      });
+
+      it("test_login_invalid_password_error_is_invalid_credentials", () => {
+        expect(result.error).toBe("invalid_credentials");
+      });
+
+      it("test_login_invalid_password_user_is_undefined", () => {
+        expect(result.user).toBeUndefined();
+      });
     });
 
-    it("test_login_nonexistent_email_returns_invalid_credentials", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(null);
+    describe("nonexistent email", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("nonexistent@example.com", "password123");
+      beforeEach(async () => {
+        mockUserRepository.findByEmail.mockResolvedValue(null);
+        result = await authService.login("nonexistent@example.com", "password123");
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("invalid_credentials");
-      expect(result.user).toBeUndefined();
+      it("test_login_nonexistent_email_success_is_false", () => {
+        expect(result.success).toBe(false);
+      });
+
+      it("test_login_nonexistent_email_error_is_invalid_credentials", () => {
+        expect(result.error).toBe("invalid_credentials");
+      });
+
+      it("test_login_nonexistent_email_user_is_undefined", () => {
+        expect(result.user).toBeUndefined();
+      });
     });
 
-    it("test_login_pending_registration_returns_account_not_active", async () => {
-      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION };
-      mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true);
+    describe("pending registration status", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("test@example.com", "password123");
+      beforeEach(async () => {
+        const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION };
+        mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
+        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        result = await authService.login("test@example.com", "password123");
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("account_not_active");
-      expect(result.user).toBeUndefined();
+      it("test_login_pending_registration_success_is_false", () => {
+        expect(result.success).toBe(false);
+      });
+
+      it("test_login_pending_registration_error_is_account_not_active", () => {
+        expect(result.error).toBe("account_not_active");
+      });
+
+      it("test_login_pending_registration_user_is_undefined", () => {
+        expect(result.user).toBeUndefined();
+      });
     });
 
-    it("test_login_pending_activation_returns_account_pending", async () => {
-      const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION };
-      mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true);
+    describe("pending activation status", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("test@example.com", "password123");
+      beforeEach(async () => {
+        const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION };
+        mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
+        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        result = await authService.login("test@example.com", "password123");
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("account_pending");
-      expect(result.user).toBeUndefined();
+      it("test_login_pending_activation_success_is_false", () => {
+        expect(result.success).toBe(false);
+      });
+
+      it("test_login_pending_activation_error_is_account_pending", () => {
+        expect(result.error).toBe("account_pending");
+      });
+
+      it("test_login_pending_activation_user_is_undefined", () => {
+        expect(result.user).toBeUndefined();
+      });
     });
 
-    it("test_login_success_includes_role_in_result", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true);
+    describe("unknown disallowed status", () => {
+      let result: Awaited<ReturnType<typeof authService.login>>;
 
-      const result = await authService.login("test@example.com", "password123");
+      beforeEach(async () => {
+        // isLoginAllowed が false を返すが、既知のステータス以外（将来追加ステータス等）
+        const unknownStatusUser: User = {
+          ...mockUser,
+          status: "FUTURE_STATUS" as unknown as UserStatus,
+        };
+        mockUserRepository.findByEmail.mockResolvedValue(unknownStatusUser);
+        result = await authService.login("test@example.com", "password123");
+      });
 
-      expect(result.user?.role).toBe(UserRole.STUDENT);
-    });
+      it("test_login_unknown_disallowed_status_success_is_false", () => {
+        expect(result.success).toBe(false);
+      });
 
-    it("test_login_success_includes_status_in_result", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-      vi.mocked(bcrypt.compare).mockResolvedValue(true);
+      it("test_login_unknown_disallowed_status_error_is_account_not_active", () => {
+        expect(result.error).toBe("account_not_active");
+      });
 
-      const result = await authService.login("test@example.com", "password123");
-
-      expect(result.user?.status).toBe(UserStatus.ACTIVE);
-    });
-
-    it("test_login_unknown_disallowed_status_returns_account_not_active", async () => {
-      // isLoginAllowed が false を返すが、既知のステータス以外（将来追加ステータス等）
-      const unknownStatusUser: User = {
-        ...mockUser,
-        status: "FUTURE_STATUS" as unknown as UserStatus,
-      };
-      mockUserRepository.findByEmail.mockResolvedValue(unknownStatusUser);
-
-      const result = await authService.login("test@example.com", "password123");
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("account_not_active");
-      expect(result.user).toBeUndefined();
+      it("test_login_unknown_disallowed_status_user_is_undefined", () => {
+        expect(result.user).toBeUndefined();
+      });
     });
   });
 });
