@@ -1,5 +1,4 @@
 import { User } from "@prisma/client";
-import { UserStatus } from "@/types/prisma";
 import { isLoginAllowed, getLoginBlockedErrorCode } from "@/lib/authHelpers";
 import type { IUserRepository } from "@/repositories/userRepository";
 import bcrypt from "bcryptjs";
