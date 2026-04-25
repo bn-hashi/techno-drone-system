@@ -152,27 +152,49 @@ describe("UserManagementService", () => {
     });
 
     it("createUser_empty_email_throws_validation_error", async () => {
-      await expect(
-        service.createUser({ ...createInput, email: "" })
-      ).rejects.toThrow("メールアドレスは必須です");
+      await expect(service.createUser({ ...createInput, email: "" })).rejects.toThrow(
+        "メールアドレスは必須です"
+      );
     });
 
     it("createUser_empty_name_throws_validation_error", async () => {
-      await expect(
-        service.createUser({ ...createInput, name: "" })
-      ).rejects.toThrow("氏名は必須です");
+      await expect(service.createUser({ ...createInput, name: "" })).rejects.toThrow(
+        "氏名は必須です"
+      );
     });
 
     it("createUser_empty_password_throws_validation_error", async () => {
-      await expect(
-        service.createUser({ ...createInput, password: "" })
-      ).rejects.toThrow("パスワードは必須です");
+      await expect(service.createUser({ ...createInput, password: "" })).rejects.toThrow(
+        "パスワードは必須です"
+      );
     });
 
     it("createUser_password_too_short_throws_validation_error", async () => {
-      await expect(
-        service.createUser({ ...createInput, password: "short" })
-      ).rejects.toThrow("パスワードは8文字以上で入力してください");
+      await expect(service.createUser({ ...createInput, password: "short" })).rejects.toThrow(
+        "パスワードは8文字以上で入力してください"
+      );
+    });
+
+    it("createUser_invalid_email_format_throws_validation_error", async () => {
+      await expect(service.createUser({ ...createInput, email: "not-an-email" })).rejects.toThrow(
+        "メールアドレスの形式が正しくありません"
+      );
+    });
+
+    it("createUser_valid_input_calls_repo_create_with_role_STUDENT", async () => {
+      await service.createUser(createInput);
+
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ role: UserRole.STUDENT })
+      );
+    });
+
+    it("createUser_valid_input_calls_repo_create_with_status_PENDING_REGISTRATION", async () => {
+      await service.createUser(createInput);
+
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: UserStatus.PENDING_REGISTRATION })
+      );
     });
   });
 
@@ -208,25 +230,25 @@ describe("UserManagementService", () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
 
       // ACTIVE -> PENDING_REGISTRATION は不正
-      await expect(
-        service.updateStatus("user-1", UserStatus.PENDING_REGISTRATION)
-      ).rejects.toThrow("無効なステータス遷移です");
+      await expect(service.updateStatus("user-1", UserStatus.PENDING_REGISTRATION)).rejects.toThrow(
+        "無効なステータス遷移です"
+      );
     });
 
     it("updateStatus_nonexistent_user_throws_not_found_error", async () => {
       mockRepo.findById.mockResolvedValue(null);
 
-      await expect(
-        service.updateStatus("nonexistent", UserStatus.EXAM_PASSED)
-      ).rejects.toThrow("ユーザーが見つかりません");
+      await expect(service.updateStatus("nonexistent", UserStatus.EXAM_PASSED)).rejects.toThrow(
+        "ユーザーが見つかりません"
+      );
     });
 
     it("updateStatus_same_status_throws_error", async () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
 
-      await expect(
-        service.updateStatus("user-1", UserStatus.ACTIVE)
-      ).rejects.toThrow("無効なステータス遷移です");
+      await expect(service.updateStatus("user-1", UserStatus.ACTIVE)).rejects.toThrow(
+        "無効なステータス遷移です"
+      );
     });
 
     it("updateStatus_DIPS_LINKED_throws_error", async () => {
@@ -235,9 +257,9 @@ describe("UserManagementService", () => {
         status: UserStatus.DIPS_LINKED,
       });
 
-      await expect(
-        service.updateStatus("user-1", UserStatus.CERTIFIED)
-      ).rejects.toThrow("無効なステータス遷移です");
+      await expect(service.updateStatus("user-1", UserStatus.CERTIFIED)).rejects.toThrow(
+        "無効なステータス遷移です"
+      );
     });
   });
 });

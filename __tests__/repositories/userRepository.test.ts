@@ -101,12 +101,13 @@ describe("UserRepository", () => {
       expect(result).toEqual(mockUsers);
     });
 
-    it("test_findAll_no_filter_calls_findMany_without_where", async () => {
+    it("test_findAll_no_filter_calls_findMany_with_default_limit", async () => {
       mockFindMany.mockResolvedValue([]);
 
       await repository.findAll();
 
-      expect(mockFindMany).toHaveBeenCalledWith({});
+      // デフォルト limit=500 で全件取得を防ぐ
+      expect(mockFindMany).toHaveBeenCalledWith({ where: undefined, take: 500 });
     });
 
     it("test_findAll_with_status_filter_returns_filtered_users", async () => {
@@ -118,14 +119,23 @@ describe("UserRepository", () => {
       expect(result).toEqual(activeUsers);
     });
 
-    it("test_findAll_with_status_filter_calls_findMany_with_where", async () => {
+    it("test_findAll_with_status_filter_calls_findMany_with_where_and_limit", async () => {
       mockFindMany.mockResolvedValue([]);
 
       await repository.findAll({ status: UserStatus.ACTIVE });
 
       expect(mockFindMany).toHaveBeenCalledWith({
         where: { status: UserStatus.ACTIVE },
+        take: 500,
       });
+    });
+
+    it("test_findAll_with_custom_limit_calls_findMany_with_take", async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      await repository.findAll(undefined, 10);
+
+      expect(mockFindMany).toHaveBeenCalledWith({ where: undefined, take: 10 });
     });
   });
 
@@ -161,6 +171,8 @@ describe("UserRepository", () => {
       name: "New User",
       passwordHash: "hashed_pw",
       courseType: CourseType.BEGINNER,
+      role: UserRole.STUDENT,
+      status: UserStatus.PENDING_REGISTRATION,
     };
 
     it("test_create_valid_data_returns_created_user", async () => {

@@ -5,16 +5,13 @@ vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
 }));
 
-vi.mock("@/services/userManagementService", () => ({
-  UserManagementService: vi.fn(),
-}));
-
-vi.mock("@/repositories/userRepository", () => ({
-  UserRepository: vi.fn(),
+// serviceFactory モック — route は getUserManagementService() 経由でサービスを取得する
+vi.mock("@/lib/serviceFactory", () => ({
+  getUserManagementService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import { UserManagementService } from "@/services/userManagementService";
+import { getUserManagementService } from "@/lib/serviceFactory";
 import { PATCH } from "@/app/api/admin/users/[id]/status/route";
 
 const mockUpdateStatus = vi.fn();
@@ -38,23 +35,20 @@ describe("PATCH /api/admin/users/[id]/status", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(UserManagementService).mockImplementation(
-      () => ({ updateStatus: mockUpdateStatus }) as unknown as UserManagementService
-    );
+    vi.mocked(getUserManagementService).mockReturnValue({
+      updateStatus: mockUpdateStatus,
+    } as unknown as ReturnType<typeof getUserManagementService>);
   });
 
   it("PATCH_authenticated_admin_valid_transition_returns_200", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockResolvedValue(mockSafeUser);
 
-    const request = new Request(
-      "http://localhost/api/admin/users/user-1/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "user-1" } });
 
     expect(response.status).toBe(200);
@@ -63,14 +57,11 @@ describe("PATCH /api/admin/users/[id]/status", () => {
   it("PATCH_unauthenticated_returns_401", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
-    const request = new Request(
-      "http://localhost/api/admin/users/user-1/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "user-1" } });
 
     expect(response.status).toBe(401);
@@ -81,14 +72,11 @@ describe("PATCH /api/admin/users/[id]/status", () => {
       user: { id: "u-1", email: "s@example.com", role: UserRole.STUDENT },
     });
 
-    const request = new Request(
-      "http://localhost/api/admin/users/user-1/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "user-1" } });
 
     expect(response.status).toBe(403);
@@ -98,14 +86,11 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockRejectedValue(new Error("無効なステータス遷移です"));
 
-    const request = new Request(
-      "http://localhost/api/admin/users/user-1/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: UserStatus.PENDING_REGISTRATION }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.PENDING_REGISTRATION }),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "user-1" } });
 
     expect(response.status).toBe(400);
@@ -115,14 +100,11 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockRejectedValue(new Error("ユーザーが見つかりません"));
 
-    const request = new Request(
-      "http://localhost/api/admin/users/nonexistent/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/nonexistent/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "nonexistent" } });
 
     expect(response.status).toBe(404);
@@ -131,16 +113,42 @@ describe("PATCH /api/admin/users/[id]/status", () => {
   it("PATCH_missing_status_field_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
 
-    const request = new Request(
-      "http://localhost/api/admin/users/user-1/status",
-      {
-        method: "PATCH",
-        body: JSON.stringify({}),
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+    });
     const response = await PATCH(request, { params: { id: "user-1" } });
 
     expect(response.status).toBe(400);
+  });
+
+  it("PATCH_unexpected_error_returns_500_with_generic_message", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateStatus.mockRejectedValue(new Error("DB connection failed"));
+
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const response = await PATCH(request, { params: { id: "user-1" } });
+
+    expect(response.status).toBe(500);
+  });
+
+  it("PATCH_unexpected_error_does_not_expose_internal_message", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateStatus.mockRejectedValue(new Error("DB connection failed"));
+
+    const request = new Request("http://localhost/api/admin/users/user-1/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: UserStatus.EXAM_PASSED }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const response = await PATCH(request, { params: { id: "user-1" } });
+    const body = await response.json();
+
+    expect(body.error).toBe("内部エラーが発生しました");
   });
 });

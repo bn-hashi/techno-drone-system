@@ -3,22 +3,22 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CreateUserForm } from "@/components/admin/CreateUserForm";
 
-// fetch のグローバルモック
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// vi.mock はファイル先頭にホイストされるため vi.hoisted で変数を事前に宣言する
+const mockPostCreateUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/adminUsers", () => ({
+  postCreateUser: mockPostCreateUser,
+}));
 
 function renderWithQuery(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 describe("CreateUserForm", () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    mockPostCreateUser.mockReset();
   });
 
   it("renders_email_input_field", () => {
@@ -48,13 +48,11 @@ describe("CreateUserForm", () => {
   it("renders_submit_button", () => {
     renderWithQuery(<CreateUserForm />);
 
-    expect(
-      screen.getByRole("button", { name: "受講者を登録" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "受講者を登録" })).toBeInTheDocument();
   });
 
-  it("submit_calls_fetch_with_correct_data", async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: {} }) });
+  it("submit_calls_postCreateUser_with_email_and_name", async () => {
+    mockPostCreateUser.mockResolvedValue(undefined);
 
     renderWithQuery(<CreateUserForm />);
 
@@ -70,15 +68,19 @@ describe("CreateUserForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "受講者を登録" }));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/admin/users",
-        expect.objectContaining({ method: "POST" })
+      // TanStack Query v5 は mutationFn を (variables, context) の2引数で呼ぶ
+      expect(mockPostCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "new@example.com",
+          name: "新しい受講者",
+        }),
+        expect.anything()
       );
     });
   });
 
   it("submit_success_shows_success_message", async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: {} }) });
+    mockPostCreateUser.mockResolvedValue(undefined);
 
     renderWithQuery(<CreateUserForm />);
 
@@ -110,9 +112,7 @@ describe("CreateUserForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "受講者を登録" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText("メールアドレスは必須です")
-      ).toBeInTheDocument();
+      expect(screen.getByText("メールアドレスは必須です")).toBeInTheDocument();
     });
   });
 });
