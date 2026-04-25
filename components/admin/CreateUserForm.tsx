@@ -3,25 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { CourseType } from "@/types/prisma";
-
-interface CreateUserInput {
-  email: string;
-  name: string;
-  password: string;
-  courseType: CourseType;
-}
-
-async function postCreateUser(input: CreateUserInput): Promise<void> {
-  const response = await fetch("/api/admin/users", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "登録に失敗しました");
-  }
-}
+import { postCreateUser, type CreateUserInput } from "@/lib/api/adminUsers";
 
 export function CreateUserForm() {
   const [email, setEmail] = useState("");
@@ -31,7 +13,9 @@ export function CreateUserForm() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const mutation = useMutation({ mutationFn: postCreateUser });
+  const mutation = useMutation<void, Error, CreateUserInput>({
+    mutationFn: postCreateUser,
+  });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

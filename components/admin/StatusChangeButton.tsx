@@ -1,35 +1,26 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { UserStatus } from "@/types/prisma";
 import { getNextStatuses } from "@/lib/constants/statusTransitions";
+import { patchUserStatus } from "@/lib/api/adminUsers";
 
 interface StatusChangeButtonProps {
   userId: string;
   currentStatus: UserStatus;
 }
 
-async function patchUserStatus(userId: string, status: UserStatus): Promise<void> {
-  const response = await fetch(`/api/admin/users/${userId}/status`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  });
-  if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "ステータス変更に失敗しました");
-  }
-}
-
 export function StatusChangeButton({ userId, currentStatus }: StatusChangeButtonProps) {
-  const queryClient = useQueryClient();
+  const router = useRouter();
   const nextStatuses = getNextStatuses(currentStatus);
   const nextStatus = nextStatuses[0];
 
   const mutation = useMutation({
     mutationFn: () => patchUserStatus(userId, nextStatus),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      // Server Component のデータを再取得するためページをリフレッシュする
+      router.refresh();
     },
   });
 

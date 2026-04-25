@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { UserRepository } from "@/repositories/userRepository";
-import { UserManagementService } from "@/services/userManagementService";
+import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 
 const VALID_STATUSES = new Set<string>(Object.values(UserStatus));
 const VALID_COURSE_TYPES = new Set<string>(Object.values(CourseType));
 
-function getService(): UserManagementService {
-  return new UserManagementService(new UserRepository());
+// 業務エラーとして想定されるメッセージのパターン
+// これに該当しない例外はクライアントに内部情報を露出させない
+const BUSINESS_ERROR_PATTERNS = [
+  "すでに使用されています",
+  "メールアドレス",
+  "氏名",
+  "パスワード",
+] as const;
+
+function isBusinessError(message: string): boolean {
+  return BUSINESS_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -33,7 +41,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const filter = statusParam ? { status: statusParam as UserStatus } : undefined;
-  const users = await getService().listUsers(filter);
+  const users = await getUserManagementService().listUsers(filter);
 
   return NextResponse.json({ users }, { status: 200 });
 }
@@ -64,7 +72,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const user = await getService().createUser({
+    const user = await getUserManagementService().createUser({
       email: body.email,
       name: body.name,
       password: body.password,
@@ -72,10 +80,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json({ user }, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : "";
     if (message.includes("すでに使用されています")) {
       return NextResponse.json({ error: message }, { status: 409 });
     }
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (isBusinessError(message)) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    // 予期しない内部エラーは詳細を露出しない
+    return NextResponse.json(
+      { error: "内部エラーが発生しました" },
+      { status: 500 }
+    );
   }
 }

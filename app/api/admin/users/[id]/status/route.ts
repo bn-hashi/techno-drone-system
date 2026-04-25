@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { UserRepository } from "@/repositories/userRepository";
-import { UserManagementService } from "@/services/userManagementService";
+import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 
 const VALID_STATUSES = new Set<string>(Object.values(UserStatus));
-
-function getService(): UserManagementService {
-  return new UserManagementService(new UserRepository());
-}
 
 export async function PATCH(
   request: Request,
@@ -34,16 +29,23 @@ export async function PATCH(
   }
 
   try {
-    const user = await getService().updateStatus(
+    const user = await getUserManagementService().updateStatus(
       params.id,
       body.status as UserStatus
     );
     return NextResponse.json({ user }, { status: 200 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : "";
     if (message.includes("見つかりません")) {
       return NextResponse.json({ error: message }, { status: 404 });
     }
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (message.includes("無効なステータス遷移")) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    // 予期しない内部エラーは詳細を露出しない
+    return NextResponse.json(
+      { error: "内部エラーが発生しました" },
+      { status: 500 }
+    );
   }
 }

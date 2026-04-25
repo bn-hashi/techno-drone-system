@@ -1,12 +1,16 @@
 import bcrypt from "bcryptjs";
 import { User } from "@prisma/client";
-import { UserStatus, CourseType } from "@/types/prisma";
+import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 import type { IUserRepository } from "@/repositories/userRepository";
 import { isValidTransition } from "@/lib/constants/statusTransitions";
 
 // パスワードハッシュ化のソルトラウンド数
 // OWASP 推奨の最小値: 10
 const BCRYPT_SALT_ROUNDS = 10;
+
+// メールアドレス書式の正規表現
+// ローカル部@ドメイン の基本形式を検証する
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type SafeUser = Omit<User, "passwordHash">;
 
@@ -39,11 +43,14 @@ export class UserManagementService {
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_SALT_ROUNDS);
 
+    // 新規ユーザーは必ず STUDENT ロール・PENDING_REGISTRATION ステータスで作成する
     const user = await this.userRepository.create({
       email: input.email,
       name: input.name,
       passwordHash,
       courseType: input.courseType,
+      role: UserRole.STUDENT,
+      status: UserStatus.PENDING_REGISTRATION,
     });
 
     return this.toSafeUser(user);
@@ -55,6 +62,8 @@ export class UserManagementService {
       throw new Error("ユーザーが見つかりません");
     }
 
+    // user.status は Prisma 生成型のため @/types/prisma の UserStatus にキャストする
+    // 両者は同一の string 値を持つため実行時安全
     if (!isValidTransition(user.status as UserStatus, newStatus)) {
       throw new Error("無効なステータス遷移です");
     }
@@ -66,6 +75,9 @@ export class UserManagementService {
   private validateCreateUserInput(input: CreateUserInput): void {
     if (!input.email) {
       throw new Error("メールアドレスは必須です");
+    }
+    if (!EMAIL_REGEX.test(input.email)) {
+      throw new Error("メールアドレスの形式が正しくありません");
     }
     if (!input.name) {
       throw new Error("氏名は必須です");
@@ -79,7 +91,6 @@ export class UserManagementService {
   }
 
   private toSafeUser(user: User): SafeUser {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return safeUser;
   }

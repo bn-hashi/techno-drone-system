@@ -1,16 +1,20 @@
-import { UserRepository } from "@/repositories/userRepository";
-import { UserManagementService } from "@/services/userManagementService";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getUserManagementService } from "@/lib/serviceFactory";
 import { StatusChangeButton } from "@/components/admin/StatusChangeButton";
-import { UserStatus } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "受講者管理" };
 
-function getService() {
-  return new UserManagementService(new UserRepository());
-}
-
 export default async function AdminUsersPage() {
-  const users = await getService().listUsers();
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== UserRole.ADMIN) {
+    redirect("/login");
+  }
+
+  const users = await getUserManagementService().listUsers();
 
   return (
     <div className="p-6">
@@ -40,10 +44,7 @@ export default async function AdminUsersPage() {
               <td className="border border-gray-300 px-4 py-2">{user.email}</td>
               <td className="border border-gray-300 px-4 py-2">{user.status}</td>
               <td className="border border-gray-300 px-4 py-2">
-                <StatusChangeButton
-                  userId={user.id}
-                  currentStatus={user.status as UserStatus}
-                />
+                <StatusChangeButton userId={user.id} currentStatus={user.status as UserStatus} />
               </td>
             </tr>
           ))}
