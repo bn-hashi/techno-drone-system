@@ -26,9 +26,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const filter = statusParam ? { status: statusParam as UserStatus } : undefined;
-  const users = await getUserManagementService().listUsers(filter);
 
-  return NextResponse.json({ users }, { status: 200 });
+  try {
+    const users = await getUserManagementService().listUsers(filter);
+    return NextResponse.json({ users }, { status: 200 });
+  } catch {
+    return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request): Promise<NextResponse> {

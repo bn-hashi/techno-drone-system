@@ -22,6 +22,9 @@ export function StatusChangeButton({ userId, currentStatus }: StatusChangeButton
       // Server Component のデータを再取得するためページをリフレッシュする
       router.refresh();
     },
+    onError: () => {
+      // エラーは mutation.error として UI に表示する
+    },
   });
 
   const isDisabled = !nextStatus || mutation.isPending;
@@ -37,12 +40,21 @@ export function StatusChangeButton({ userId, currentStatus }: StatusChangeButton
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={isDisabled}
-      className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {nextStatus ?? "変更不可"}
-    </button>
+    <div>
+      <button
+        onClick={handleClick}
+        disabled={isDisabled}
+        className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {nextStatus ?? "変更不可"}
+      </button>
+      {mutation.isError && (
+        <p className="mt-1 text-sm text-red-600" role="alert">
+          {mutation.error instanceof Error
+            ? mutation.error.message
+            : "ステータス変更に失敗しました"}
+        </p>
+      )}
+    </div>
   );
 }
