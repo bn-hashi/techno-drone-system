@@ -3,22 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
+import { BusinessError, DuplicateEmailError } from "@/services/errors";
 
 const VALID_STATUSES = new Set<string>(Object.values(UserStatus));
 const VALID_COURSE_TYPES = new Set<string>(Object.values(CourseType));
-
-// 業務エラーとして想定されるメッセージのパターン
-// これに該当しない例外はクライアントに内部情報を露出させない
-const BUSINESS_ERROR_PATTERNS = [
-  "すでに使用されています",
-  "メールアドレス",
-  "氏名",
-  "パスワード",
-] as const;
-
-function isBusinessError(message: string): boolean {
-  return BUSINESS_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
-}
 
 export async function GET(request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -34,10 +22,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const statusParam = searchParams.get("status");
 
   if (statusParam !== null && !VALID_STATUSES.has(statusParam)) {
-    return NextResponse.json(
-      { error: "無効なステータス値です" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "無効なステータス値です" }, { status: 400 });
   }
 
   const filter = statusParam ? { status: statusParam as UserStatus } : undefined;
@@ -65,10 +50,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     typeof body.password !== "string" ||
     !VALID_COURSE_TYPES.has(body.courseType)
   ) {
-    return NextResponse.json(
-      { error: "必須フィールドが不正です" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "必須フィールドが不正です" }, { status: 400 });
   }
 
   try {
@@ -80,17 +62,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json({ user }, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("すでに使用されています")) {
-      return NextResponse.json({ error: message }, { status: 409 });
+    if (err instanceof DuplicateEmailError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
     }
-    if (isBusinessError(message)) {
-      return NextResponse.json({ error: message }, { status: 400 });
+    if (err instanceof BusinessError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     // 予期しない内部エラーは詳細を露出しない
-    return NextResponse.json(
-      { error: "内部エラーが発生しました" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

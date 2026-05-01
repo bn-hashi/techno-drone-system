@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getUserManagementService } from "@/lib/serviceFactory";
+import { fetchAdminUsers } from "@/lib/api/adminUsers";
 import { StatusChangeButton } from "@/components/admin/StatusChangeButton";
 import { UserRole, UserStatus } from "@/types/prisma";
 
@@ -14,7 +15,13 @@ export default async function AdminUsersPage() {
     redirect("/login");
   }
 
-  const users = await getUserManagementService().listUsers();
+  const headersList = headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const protocol = headersList.get("x-forwarded-proto") ?? "http";
+  const baseUrl = `${protocol}://${host}`;
+  const cookie = headersList.get("cookie") ?? "";
+
+  const users = await fetchAdminUsers(baseUrl, cookie);
 
   return (
     <div className="p-6">

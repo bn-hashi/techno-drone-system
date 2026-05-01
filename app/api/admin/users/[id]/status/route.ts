@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
+import { UserNotFoundError, InvalidTransitionError } from "@/services/errors";
 
 const VALID_STATUSES = new Set<string>(Object.values(UserStatus));
 
@@ -22,10 +23,7 @@ export async function PATCH(
   const body = await request.json().catch(() => null);
 
   if (!body || !body.status || !VALID_STATUSES.has(body.status)) {
-    return NextResponse.json(
-      { error: "status フィールドが不正です" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "status フィールドが不正です" }, { status: 400 });
   }
 
   try {
@@ -35,17 +33,13 @@ export async function PATCH(
     );
     return NextResponse.json({ user }, { status: 200 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("見つかりません")) {
-      return NextResponse.json({ error: message }, { status: 404 });
+    if (err instanceof UserNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
-    if (message.includes("無効なステータス遷移")) {
-      return NextResponse.json({ error: message }, { status: 400 });
+    if (err instanceof InvalidTransitionError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     // 予期しない内部エラーは詳細を露出しない
-    return NextResponse.json(
-      { error: "内部エラーが発生しました" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }
