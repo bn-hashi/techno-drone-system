@@ -33,9 +33,13 @@ describe("AuthService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // IUserRepository スタブ実装
+    // IUserRepository スタブ実装（新メソッドも含む）
     mockUserRepository = {
       findByEmail: vi.fn(),
+      findAll: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      updateStatus: vi.fn(),
     } as Mocked<IUserRepository>;
 
     authService = new AuthService(mockUserRepository);
