@@ -143,7 +143,7 @@ describe("UserManagementService", () => {
       expect(result.status).toBe(UserStatus.PENDING_REGISTRATION);
     });
 
-    it("createUser_duplicate_email_throws_error", async () => {
+    it("test_createUser_duplicate_email_throws_error", async () => {
       mockRepo.findByEmail.mockResolvedValue(mockUser);
 
       await expect(service.createUser(createInput)).rejects.toThrow(
@@ -151,37 +151,37 @@ describe("UserManagementService", () => {
       );
     });
 
-    it("createUser_empty_email_throws_validation_error", async () => {
+    it("test_createUser_empty_email_throws_validation_error", async () => {
       await expect(service.createUser({ ...createInput, email: "" })).rejects.toThrow(
         "メールアドレスは必須です"
       );
     });
 
-    it("createUser_empty_name_throws_validation_error", async () => {
+    it("test_createUser_empty_name_throws_validation_error", async () => {
       await expect(service.createUser({ ...createInput, name: "" })).rejects.toThrow(
         "氏名は必須です"
       );
     });
 
-    it("createUser_empty_password_throws_validation_error", async () => {
+    it("test_createUser_empty_password_throws_validation_error", async () => {
       await expect(service.createUser({ ...createInput, password: "" })).rejects.toThrow(
         "パスワードは必須です"
       );
     });
 
-    it("createUser_password_too_short_throws_validation_error", async () => {
+    it("test_createUser_password_too_short_throws_validation_error", async () => {
       await expect(service.createUser({ ...createInput, password: "short" })).rejects.toThrow(
         "パスワードは8文字以上で入力してください"
       );
     });
 
-    it("createUser_invalid_email_format_throws_validation_error", async () => {
+    it("test_createUser_invalid_email_format_throws_validation_error", async () => {
       await expect(service.createUser({ ...createInput, email: "not-an-email" })).rejects.toThrow(
         "メールアドレスの形式が正しくありません"
       );
     });
 
-    it("createUser_valid_input_calls_repo_create_with_role_STUDENT", async () => {
+    it("test_createUser_valid_input_calls_repo_create_with_role_STUDENT", async () => {
       await service.createUser(createInput);
 
       expect(mockRepo.create).toHaveBeenCalledWith(
@@ -189,7 +189,7 @@ describe("UserManagementService", () => {
       );
     });
 
-    it("createUser_valid_input_calls_repo_create_with_status_PENDING_REGISTRATION", async () => {
+    it("test_createUser_valid_input_calls_repo_create_with_status_PENDING_REGISTRATION", async () => {
       await service.createUser(createInput);
 
       expect(mockRepo.create).toHaveBeenCalledWith(

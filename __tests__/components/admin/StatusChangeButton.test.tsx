@@ -73,4 +73,16 @@ describe("StatusChangeButton", () => {
       expect(mockRefresh).toHaveBeenCalled();
     });
   });
+
+  it("test_StatusChangeButton_click_error_shows_error_message", async () => {
+    mockPatchUserStatus.mockRejectedValue(new Error("無効なステータス遷移です"));
+
+    renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("無効なステータス遷移です");
+    });
+  });
 });
