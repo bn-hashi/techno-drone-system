@@ -3,12 +3,12 @@ import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserManagementService } from "@/services/userManagementService";
 
 describe("getUserManagementService", () => {
-  it("should return an instance of UserManagementService", () => {
+  it("test_getUserManagementService_returns_UserManagementService_instance", () => {
     const service = getUserManagementService();
     expect(service).toBeInstanceOf(UserManagementService);
   });
 
-  it("should return a new instance on each call", () => {
+  it("test_getUserManagementService_returns_new_instance_on_each_call", () => {
     const service1 = getUserManagementService();
     const service2 = getUserManagementService();
     expect(service1).not.toBe(service2);

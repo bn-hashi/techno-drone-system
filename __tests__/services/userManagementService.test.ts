@@ -47,7 +47,7 @@ describe("UserManagementService", () => {
   // listUsers
   // -----------------------------------------------
   describe("listUsers", () => {
-    it("listUsers_no_filter_returns_all_users_without_passwordHash", async () => {
+    it("test_listUsers_no_filter_returns_users_without_passwordHash", async () => {
       mockRepo.findAll.mockResolvedValue([mockUser]);
 
       const result = await service.listUsers();
@@ -55,7 +55,7 @@ describe("UserManagementService", () => {
       expect(result[0]).not.toHaveProperty("passwordHash");
     });
 
-    it("listUsers_no_filter_returns_correct_user_data", async () => {
+    it("test_listUsers_no_filter_returns_correct_user_data", async () => {
       mockRepo.findAll.mockResolvedValue([mockUser]);
 
       const result = await service.listUsers();
@@ -63,7 +63,7 @@ describe("UserManagementService", () => {
       expect(result[0].email).toBe(mockUser.email);
     });
 
-    it("listUsers_with_status_filter_passes_filter_to_repository", async () => {
+    it("test_listUsers_with_status_filter_passes_filter_to_repository", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
       await service.listUsers({ status: UserStatus.ACTIVE });
@@ -71,7 +71,7 @@ describe("UserManagementService", () => {
       expect(mockRepo.findAll).toHaveBeenCalledWith({ status: UserStatus.ACTIVE });
     });
 
-    it("listUsers_empty_result_returns_empty_array", async () => {
+    it("test_listUsers_empty_result_returns_empty_array", async () => {
       mockRepo.findAll.mockResolvedValue([]);
 
       const result = await service.listUsers();
@@ -103,25 +103,25 @@ describe("UserManagementService", () => {
       vi.mocked(bcrypt.hash).mockResolvedValue("hashed_pw" as never);
     });
 
-    it("createUser_valid_input_returns_user_without_passwordHash", async () => {
+    it("test_createUser_valid_input_returns_user_without_passwordHash", async () => {
       const result = await service.createUser(createInput);
 
       expect(result).not.toHaveProperty("passwordHash");
     });
 
-    it("createUser_valid_input_returns_correct_email", async () => {
+    it("test_createUser_valid_input_returns_correct_email", async () => {
       const result = await service.createUser(createInput);
 
       expect(result.email).toBe(createInput.email);
     });
 
-    it("createUser_valid_input_hashes_password_with_salt_10", async () => {
+    it("test_createUser_valid_input_hashes_password_with_salt_10", async () => {
       await service.createUser(createInput);
 
       expect(bcrypt.hash).toHaveBeenCalledWith(createInput.password, 10);
     });
 
-    it("createUser_valid_input_sets_role_to_STUDENT", async () => {
+    it("test_createUser_valid_input_sets_role_to_STUDENT", async () => {
       mockRepo.create.mockResolvedValue({
         ...mockUser,
         role: UserRole.STUDENT,
@@ -132,7 +132,7 @@ describe("UserManagementService", () => {
       expect(result.role).toBe(UserRole.STUDENT);
     });
 
-    it("createUser_valid_input_sets_initial_status_to_PENDING_REGISTRATION", async () => {
+    it("test_createUser_valid_input_sets_initial_status_to_PENDING_REGISTRATION", async () => {
       mockRepo.create.mockResolvedValue({
         ...mockUser,
         status: UserStatus.PENDING_REGISTRATION,
@@ -147,7 +147,7 @@ describe("UserManagementService", () => {
       mockRepo.findByEmail.mockResolvedValue(mockUser);
 
       await expect(service.createUser(createInput)).rejects.toThrow(
-        "このメールアドレスはすでに使用されています"
+        "このメールアドレスはすでに使用されています: new@example.com"
       );
     });
 
@@ -202,7 +202,7 @@ describe("UserManagementService", () => {
   // updateStatus
   // -----------------------------------------------
   describe("updateStatus", () => {
-    it("updateStatus_valid_transition_returns_user_without_passwordHash", async () => {
+    it("test_updateStatus_valid_transition_returns_user_without_passwordHash", async () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
       mockRepo.updateStatus.mockResolvedValue({
         ...mockUser,
@@ -214,7 +214,7 @@ describe("UserManagementService", () => {
       expect(result).not.toHaveProperty("passwordHash");
     });
 
-    it("updateStatus_valid_transition_returns_new_status", async () => {
+    it("test_updateStatus_valid_transition_returns_new_status", async () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
       mockRepo.updateStatus.mockResolvedValue({
         ...mockUser,
@@ -226,7 +226,7 @@ describe("UserManagementService", () => {
       expect(result.status).toBe(UserStatus.EXAM_PASSED);
     });
 
-    it("updateStatus_invalid_transition_throws_error", async () => {
+    it("test_updateStatus_invalid_transition_throws_error", async () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
 
       // ACTIVE -> PENDING_REGISTRATION は不正
@@ -235,7 +235,7 @@ describe("UserManagementService", () => {
       );
     });
 
-    it("updateStatus_nonexistent_user_throws_not_found_error", async () => {
+    it("test_updateStatus_nonexistent_user_throws_not_found_error", async () => {
       mockRepo.findById.mockResolvedValue(null);
 
       await expect(service.updateStatus("nonexistent", UserStatus.EXAM_PASSED)).rejects.toThrow(
@@ -243,7 +243,7 @@ describe("UserManagementService", () => {
       );
     });
 
-    it("updateStatus_same_status_throws_error", async () => {
+    it("test_updateStatus_same_status_throws_error", async () => {
       mockRepo.findById.mockResolvedValue(mockUser); // status: ACTIVE
 
       await expect(service.updateStatus("user-1", UserStatus.ACTIVE)).rejects.toThrow(
@@ -251,7 +251,7 @@ describe("UserManagementService", () => {
       );
     });
 
-    it("updateStatus_DIPS_LINKED_throws_error", async () => {
+    it("test_updateStatus_DIPS_LINKED_throws_error", async () => {
       mockRepo.findById.mockResolvedValue({
         ...mockUser,
         status: UserStatus.DIPS_LINKED,

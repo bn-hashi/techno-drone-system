@@ -30,19 +30,19 @@ describe("StatusChangeButton", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
-  it("renders_next_status_label_for_ACTIVE", () => {
+  it("test_StatusChangeButton_renders_next_status_label_for_ACTIVE", () => {
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
     expect(screen.getByRole("button", { name: /EXAM_PASSED/ })).toBeInTheDocument();
   });
 
-  it("renders_disabled_button_for_DIPS_LINKED", () => {
+  it("test_StatusChangeButton_renders_disabled_button_for_DIPS_LINKED", () => {
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.DIPS_LINKED} />);
 
     expect(screen.getByRole("button")).toBeDisabled();
   });
 
-  it("click_shows_confirm_dialog", () => {
+  it("test_StatusChangeButton_click_shows_confirm_dialog", () => {
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
     fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
@@ -50,7 +50,7 @@ describe("StatusChangeButton", () => {
     expect(window.confirm).toHaveBeenCalled();
   });
 
-  it("click_confirmed_calls_patchUserStatus_with_correct_args", async () => {
+  it("test_StatusChangeButton_click_confirmed_calls_patchUserStatus_with_correct_args", async () => {
     mockPatchUserStatus.mockResolvedValue(undefined);
 
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
@@ -62,7 +62,7 @@ describe("StatusChangeButton", () => {
     });
   });
 
-  it("click_confirmed_calls_router_refresh_on_success", async () => {
+  it("test_StatusChangeButton_click_confirmed_calls_router_refresh_on_success", async () => {
     mockPatchUserStatus.mockResolvedValue(undefined);
 
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);

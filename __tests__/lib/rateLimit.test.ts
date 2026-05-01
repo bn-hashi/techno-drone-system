@@ -10,18 +10,18 @@ describe("checkRateLimit", () => {
     vi.useRealTimers();
   });
 
-  it("should allow the first request", () => {
+  it("test_checkRateLimit_allows_the_first_request", () => {
     expect(checkRateLimit("test-key-1")).toBe(true);
   });
 
-  it("should allow up to 10 requests within the window", () => {
+  it("test_checkRateLimit_allows_up_to_10_requests_within_window", () => {
     const key = "test-key-2";
     for (let i = 0; i < 10; i++) {
       expect(checkRateLimit(key)).toBe(true);
     }
   });
 
-  it("should reject the 11th request within the window", () => {
+  it("test_checkRateLimit_rejects_11th_request_within_window", () => {
     const key = "test-key-3";
     for (let i = 0; i < 10; i++) {
       checkRateLimit(key);
@@ -29,7 +29,7 @@ describe("checkRateLimit", () => {
     expect(checkRateLimit(key)).toBe(false);
   });
 
-  it("should reset after the 15-minute window expires", () => {
+  it("test_checkRateLimit_resets_after_15_minute_window_expires", () => {
     const key = "test-key-4";
     for (let i = 0; i < 10; i++) {
       checkRateLimit(key);
@@ -42,7 +42,7 @@ describe("checkRateLimit", () => {
     expect(checkRateLimit(key)).toBe(true);
   });
 
-  it("should track different keys independently", () => {
+  it("test_checkRateLimit_tracks_different_keys_independently", () => {
     const keyA = "test-key-a";
     const keyB = "test-key-b";
 
@@ -54,7 +54,7 @@ describe("checkRateLimit", () => {
     expect(checkRateLimit(keyB)).toBe(true);
   });
 
-  it("should purge expired entries on each call", () => {
+  it("test_checkRateLimit_purges_expired_entries_on_each_call", () => {
     const expiredKey = "test-expired";
     checkRateLimit(expiredKey);
 

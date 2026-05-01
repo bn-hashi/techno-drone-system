@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
+import { UserNotFoundError, InvalidTransitionError } from "@/services/errors";
 
 vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
@@ -40,7 +41,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     } as unknown as ReturnType<typeof getUserManagementService>);
   });
 
-  it("PATCH_authenticated_admin_valid_transition_returns_200", async () => {
+  it("test_PATCH_authenticated_admin_valid_transition_returns_200", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockResolvedValue(mockSafeUser);
 
@@ -54,7 +55,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(200);
   });
 
-  it("PATCH_unauthenticated_returns_401", async () => {
+  it("test_PATCH_unauthenticated_returns_401", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     const request = new Request("http://localhost/api/admin/users/user-1/status", {
@@ -67,7 +68,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(401);
   });
 
-  it("PATCH_student_role_returns_403", async () => {
+  it("test_PATCH_student_role_returns_403", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "u-1", email: "s@example.com", role: UserRole.STUDENT },
     });
@@ -82,9 +83,11 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(403);
   });
 
-  it("PATCH_invalid_transition_returns_400", async () => {
+  it("test_PATCH_invalid_transition_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    mockUpdateStatus.mockRejectedValue(new Error("無効なステータス遷移です"));
+    mockUpdateStatus.mockRejectedValue(
+      new InvalidTransitionError("ACTIVE", "PENDING_REGISTRATION")
+    );
 
     const request = new Request("http://localhost/api/admin/users/user-1/status", {
       method: "PATCH",
@@ -96,9 +99,9 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(400);
   });
 
-  it("PATCH_nonexistent_user_returns_404", async () => {
+  it("test_PATCH_nonexistent_user_returns_404", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    mockUpdateStatus.mockRejectedValue(new Error("ユーザーが見つかりません"));
+    mockUpdateStatus.mockRejectedValue(new UserNotFoundError("nonexistent"));
 
     const request = new Request("http://localhost/api/admin/users/nonexistent/status", {
       method: "PATCH",
@@ -110,7 +113,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(404);
   });
 
-  it("PATCH_missing_status_field_returns_400", async () => {
+  it("test_PATCH_missing_status_field_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
 
     const request = new Request("http://localhost/api/admin/users/user-1/status", {
@@ -123,7 +126,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(400);
   });
 
-  it("PATCH_unexpected_error_returns_500_with_generic_message", async () => {
+  it("test_PATCH_unexpected_error_returns_500_with_generic_message", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockRejectedValue(new Error("DB connection failed"));
 
@@ -137,7 +140,7 @@ describe("PATCH /api/admin/users/[id]/status", () => {
     expect(response.status).toBe(500);
   });
 
-  it("PATCH_unexpected_error_does_not_expose_internal_message", async () => {
+  it("test_PATCH_unexpected_error_does_not_expose_internal_message", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateStatus.mockRejectedValue(new Error("DB connection failed"));
 

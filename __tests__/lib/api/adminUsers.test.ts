@@ -7,7 +7,7 @@ describe("postCreateUser", () => {
     vi.restoreAllMocks();
   });
 
-  it("should send POST request with correct body", async () => {
+  it("test_postCreateUser_sends_POST_request_with_correct_body", async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     global.fetch = mockFetch;
 
@@ -27,7 +27,7 @@ describe("postCreateUser", () => {
     });
   });
 
-  it("should throw error with server message when response is not ok", async () => {
+  it("test_postCreateUser_throws_error_with_server_message_when_not_ok", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({ error: "メールアドレスが重複しています" }),
@@ -43,7 +43,7 @@ describe("postCreateUser", () => {
     ).rejects.toThrow("メールアドレスが重複しています");
   });
 
-  it("should throw default error message when server returns no error field", async () => {
+  it("test_postCreateUser_throws_default_error_when_no_error_field", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({}),
@@ -65,7 +65,7 @@ describe("patchUserStatus", () => {
     vi.restoreAllMocks();
   });
 
-  it("should send PATCH request with correct userId and status", async () => {
+  it("test_patchUserStatus_sends_PATCH_request_with_correct_args", async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     global.fetch = mockFetch;
 
@@ -78,25 +78,25 @@ describe("patchUserStatus", () => {
     });
   });
 
-  it("should throw error with server message when response is not ok", async () => {
+  it("test_patchUserStatus_throws_error_with_server_message_when_not_ok", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({ error: "無効なステータス遷移です" }),
     });
 
-    await expect(
-      patchUserStatus("user-123", UserStatus.ACTIVE)
-    ).rejects.toThrow("無効なステータス遷移です");
+    await expect(patchUserStatus("user-123", UserStatus.ACTIVE)).rejects.toThrow(
+      "無効なステータス遷移です"
+    );
   });
 
-  it("should throw default error message when server returns no error field", async () => {
+  it("test_patchUserStatus_throws_default_error_when_no_error_field", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({}),
     });
 
-    await expect(
-      patchUserStatus("user-123", UserStatus.ACTIVE)
-    ).rejects.toThrow("ステータス変更に失敗しました");
+    await expect(patchUserStatus("user-123", UserStatus.ACTIVE)).rejects.toThrow(
+      "ステータス変更に失敗しました"
+    );
   });
 });

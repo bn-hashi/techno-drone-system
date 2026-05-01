@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
+import { DuplicateEmailError, BusinessError } from "@/services/errors";
 
 // NextAuth のセッションモック
 vi.mock("next-auth", () => ({
@@ -43,7 +44,7 @@ describe("GET /api/admin/users", () => {
     } as unknown as ReturnType<typeof getUserManagementService>);
   });
 
-  it("GET_authenticated_admin_returns_200_with_users", async () => {
+  it("test_GET_authenticated_admin_returns_200_with_users", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListUsers.mockResolvedValue([mockSafeUser]);
 
@@ -53,7 +54,7 @@ describe("GET /api/admin/users", () => {
     expect(response.status).toBe(200);
   });
 
-  it("GET_authenticated_admin_response_contains_users_array", async () => {
+  it("test_GET_authenticated_admin_response_contains_users_array", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListUsers.mockResolvedValue([mockSafeUser]);
 
@@ -64,7 +65,7 @@ describe("GET /api/admin/users", () => {
     expect(body.users).toHaveLength(1);
   });
 
-  it("GET_with_status_query_param_passes_filter_to_service", async () => {
+  it("test_GET_with_status_query_param_passes_filter_to_service", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListUsers.mockResolvedValue([]);
 
@@ -74,7 +75,7 @@ describe("GET /api/admin/users", () => {
     expect(mockListUsers).toHaveBeenCalledWith({ status: UserStatus.ACTIVE });
   });
 
-  it("GET_unauthenticated_returns_401", async () => {
+  it("test_GET_unauthenticated_returns_401", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     const request = new Request("http://localhost/api/admin/users");
@@ -83,7 +84,7 @@ describe("GET /api/admin/users", () => {
     expect(response.status).toBe(401);
   });
 
-  it("GET_student_role_returns_403", async () => {
+  it("test_GET_student_role_returns_403", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "u-1", email: "s@example.com", role: UserRole.STUDENT },
     });
@@ -94,7 +95,7 @@ describe("GET /api/admin/users", () => {
     expect(response.status).toBe(403);
   });
 
-  it("GET_invalid_status_param_returns_400", async () => {
+  it("test_GET_invalid_status_param_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
 
     const request = new Request("http://localhost/api/admin/users?status=INVALID_STATUS");
@@ -124,7 +125,7 @@ describe("POST /api/admin/users", () => {
     } as unknown as ReturnType<typeof getUserManagementService>);
   });
 
-  it("POST_authenticated_admin_valid_body_returns_201", async () => {
+  it("test_POST_authenticated_admin_valid_body_returns_201", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockCreateUser.mockResolvedValue({
       id: "user-new",
@@ -143,7 +144,7 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(201);
   });
 
-  it("POST_unauthenticated_returns_401", async () => {
+  it("test_POST_unauthenticated_returns_401", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     const request = new Request("http://localhost/api/admin/users", {
@@ -156,7 +157,7 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(401);
   });
 
-  it("POST_student_role_returns_403", async () => {
+  it("test_POST_student_role_returns_403", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "u-1", email: "s@example.com", role: UserRole.STUDENT },
     });
@@ -171,7 +172,7 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(403);
   });
 
-  it("POST_missing_required_fields_returns_400", async () => {
+  it("test_POST_missing_required_fields_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
 
     const request = new Request("http://localhost/api/admin/users", {
@@ -184,9 +185,9 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(400);
   });
 
-  it("POST_duplicate_email_returns_409", async () => {
+  it("test_POST_duplicate_email_returns_409", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    mockCreateUser.mockRejectedValue(new Error("このメールアドレスはすでに使用されています"));
+    mockCreateUser.mockRejectedValue(new DuplicateEmailError("new@example.com"));
 
     const request = new Request("http://localhost/api/admin/users", {
       method: "POST",
@@ -198,7 +199,7 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(409);
   });
 
-  it("POST_unexpected_error_returns_500_with_generic_message", async () => {
+  it("test_POST_unexpected_error_returns_500_with_generic_message", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockCreateUser.mockRejectedValue(new Error("DB connection failed"));
 
@@ -212,7 +213,7 @@ describe("POST /api/admin/users", () => {
     expect(response.status).toBe(500);
   });
 
-  it("POST_unexpected_error_does_not_expose_internal_message", async () => {
+  it("test_POST_unexpected_error_does_not_expose_internal_message", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockCreateUser.mockRejectedValue(new Error("DB connection failed"));
 
