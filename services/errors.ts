@@ -35,3 +35,19 @@ export class InvalidTransitionError extends BusinessError {
     this.name = "InvalidTransitionError";
   }
 }
+
+/** 入学申請が見つからない (404 Not Found 相当) */
+export class EnrollmentNotFoundError extends Error {
+  constructor(id: string) {
+    super(`入学申請が見つかりません: ${id}`);
+    this.name = "EnrollmentNotFoundError";
+  }
+}
+
+/** 入学申請の重複 (409 Conflict 相当) */
+export class DuplicateEnrollmentError extends BusinessError {
+  constructor(userId: string) {
+    super(`この受講者はすでに入学申請済みです: ${userId}`);
+    this.name = "DuplicateEnrollmentError";
+  }
+}
