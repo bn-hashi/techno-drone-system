@@ -239,7 +239,7 @@ describe("UserManagementService", () => {
       mockRepo.findById.mockResolvedValue(null);
 
       await expect(service.updateStatus("nonexistent", UserStatus.EXAM_PASSED)).rejects.toThrow(
-        "ユーザーが見つかりません"
+        "指定された受講者が見つかりません"
       );
     });
 

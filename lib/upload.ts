@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { resolve, sep } from "node:path";
 import { BusinessError } from "@/services/errors";
 
 // ファイルアップロード先のベースディレクトリ
@@ -23,10 +24,7 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
  * @param subdirectory - 保存先サブディレクトリ (例: "id-documents", "photos")
  * @returns 保存先のフルパス
  */
-export async function saveUploadedFile(
-  file: File,
-  subdirectory: string
-): Promise<string> {
+export async function saveUploadedFile(file: File, subdirectory: string): Promise<string> {
   if (file.size === 0) {
     throw new BusinessError("ファイルが空です");
   }
@@ -40,7 +38,14 @@ export async function saveUploadedFile(
     throw new BusinessError("許可されていないファイル形式です");
   }
 
-  const dirPath = `${UPLOAD_BASE_DIR}${subdirectory}`;
+  // パストラバーサル攻撃を防ぐため、解決後のパスがベースディレクトリ内に収まることを確認する
+  const resolvedBase = resolve(UPLOAD_BASE_DIR);
+  const resolvedDir = resolve(UPLOAD_BASE_DIR, subdirectory);
+  if (!resolvedDir.startsWith(resolvedBase + sep)) {
+    throw new BusinessError("不正なサブディレクトリです");
+  }
+
+  const dirPath = resolvedDir;
   await mkdir(dirPath, { recursive: true });
 
   const fileName = `${randomUUID()}${extension}`;

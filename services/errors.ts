@@ -20,10 +20,18 @@ export class DuplicateEmailError extends BusinessError {
   }
 }
 
+/** リソースが見つからない (404 Not Found 相当) */
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
 /** ユーザーが見つからない (404 Not Found 相当) */
-export class UserNotFoundError extends Error {
-  constructor(userId: string) {
-    super(`ユーザーが見つかりません: ${userId}`);
+export class UserNotFoundError extends NotFoundError {
+  constructor(_userId: string) {
+    super("指定された受講者が見つかりません");
     this.name = "UserNotFoundError";
   }
 }
@@ -37,17 +45,17 @@ export class InvalidTransitionError extends BusinessError {
 }
 
 /** 入学申請が見つからない (404 Not Found 相当) */
-export class EnrollmentNotFoundError extends Error {
-  constructor(id: string) {
-    super(`入学申請が見つかりません: ${id}`);
+export class EnrollmentNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された入学申請が見つかりません");
     this.name = "EnrollmentNotFoundError";
   }
 }
 
 /** 入学申請の重複 (409 Conflict 相当) */
 export class DuplicateEnrollmentError extends BusinessError {
-  constructor(userId: string) {
-    super(`この受講者はすでに入学申請済みです: ${userId}`);
+  constructor(_userId: string) {
+    super("この受講者はすでに入学申請済みです");
     this.name = "DuplicateEnrollmentError";
   }
 }

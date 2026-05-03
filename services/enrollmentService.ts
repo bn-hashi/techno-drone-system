@@ -1,7 +1,7 @@
 import type { EnrollmentApplication } from "@prisma/client";
 import type { IEnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
-import { saveUploadedFile } from "@/lib/upload";
+import { UserStatus } from "@/types/prisma";
 import {
   BusinessError,
   DuplicateEnrollmentError,
@@ -15,18 +15,6 @@ export interface CreateEnrollmentInput {
   address: string;
   phoneNumber: string;
 }
-
-// ドキュメント種別と保存先サブディレクトリのマッピング
-const DOCUMENT_TYPE_MAP: Record<
-  DocumentType,
-  { subdirectory: string; field: keyof Pick<EnrollmentApplication, "idDocumentPath" | "photoPath" | "experienceCertPath"> }
-> = {
-  idDocument: { subdirectory: "id-documents", field: "idDocumentPath" },
-  photo: { subdirectory: "photos", field: "photoPath" },
-  experienceCert: { subdirectory: "experience-certs", field: "experienceCertPath" },
-};
-
-export type DocumentType = "idDocument" | "photo" | "experienceCert";
 
 export class EnrollmentService {
   constructor(
@@ -52,22 +40,6 @@ export class EnrollmentService {
     return this.enrollmentRepo.create(input);
   }
 
-  async uploadDocument(
-    applicationId: string,
-    documentType: DocumentType,
-    file: File
-  ): Promise<EnrollmentApplication> {
-    const application = await this.enrollmentRepo.findById(applicationId);
-    if (application === null) {
-      throw new EnrollmentNotFoundError(applicationId);
-    }
-
-    const { subdirectory, field } = DOCUMENT_TYPE_MAP[documentType];
-    const filePath = await saveUploadedFile(file, subdirectory);
-
-    return this.enrollmentRepo.update(applicationId, { [field]: filePath });
-  }
-
   async acceptEnrollment(
     applicationId: string
   ): Promise<EnrollmentApplication> {
@@ -76,14 +48,23 @@ export class EnrollmentService {
       throw new EnrollmentNotFoundError(applicationId);
     }
 
-    return this.enrollmentRepo.update(applicationId, {
+    const updated = await this.enrollmentRepo.update(applicationId, {
       acceptedAt: new Date(),
     });
+
+    // 入学申請受理と同時にユーザーステータスを本登録待ちに遷移させる
+    await this.userRepo.updateStatus(application.userId, UserStatus.PENDING_ACTIVATION);
+
+    return updated;
   }
 
   private validateInput(input: CreateEnrollmentInput): void {
     if (!input.dateOfBirth) {
       throw new BusinessError("生年月日は必須です");
+    }
+    const now = new Date();
+    if (input.dateOfBirth > now) {
+      throw new BusinessError("生年月日に未来の日付は使用できません");
     }
     if (!input.address) {
       throw new BusinessError("住所は必須です");

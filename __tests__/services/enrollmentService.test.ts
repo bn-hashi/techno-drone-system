@@ -10,12 +10,6 @@ import {
   UserNotFoundError,
 } from "@/services/errors";
 
-// saveUploadedFile をモック
-const mockSaveUploadedFile = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/upload", () => ({
-  saveUploadedFile: mockSaveUploadedFile,
-}));
-
 describe("EnrollmentService", () => {
   let service: EnrollmentService;
   let mockEnrollmentRepo: Mocked<IEnrollmentApplicationRepository>;
@@ -141,65 +135,17 @@ describe("EnrollmentService", () => {
         service.createEnrollment({ ...createInput, dateOfBirth: null as unknown as Date })
       ).rejects.toThrow("生年月日は必須です");
     });
-  });
 
-  // -----------------------------------------------
-  // uploadDocument
-  // -----------------------------------------------
-  describe("uploadDocument", () => {
-    const mockFile = new File(["test"], "doc.jpg", { type: "image/jpeg" });
-
-    beforeEach(() => {
-      mockEnrollmentRepo.findById.mockResolvedValue(mockApplication);
-      mockSaveUploadedFile.mockResolvedValue("/home/ubuntu/uploads/id-documents/uuid.jpg");
-      mockEnrollmentRepo.update.mockResolvedValue({
-        ...mockApplication,
-        idDocumentPath: "/home/ubuntu/uploads/id-documents/uuid.jpg",
-      });
-    });
-
-    it("test_uploadDocument_valid_id_document_saves_path", async () => {
-      const result = await service.uploadDocument("app-1", "idDocument", mockFile);
-
-      expect(result.idDocumentPath).toBe("/home/ubuntu/uploads/id-documents/uuid.jpg");
-    });
-
-    it("test_uploadDocument_valid_photo_saves_path", async () => {
-      mockSaveUploadedFile.mockResolvedValue("/home/ubuntu/uploads/photos/uuid.jpg");
-      mockEnrollmentRepo.update.mockResolvedValue({
-        ...mockApplication,
-        photoPath: "/home/ubuntu/uploads/photos/uuid.jpg",
-      });
-
-      const result = await service.uploadDocument("app-1", "photo", mockFile);
-
-      expect(result.photoPath).toBe("/home/ubuntu/uploads/photos/uuid.jpg");
-    });
-
-    it("test_uploadDocument_experience_cert_saves_path", async () => {
-      mockSaveUploadedFile.mockResolvedValue("/home/ubuntu/uploads/experience-certs/uuid.pdf");
-      mockEnrollmentRepo.update.mockResolvedValue({
-        ...mockApplication,
-        experienceCertPath: "/home/ubuntu/uploads/experience-certs/uuid.pdf",
-      });
-
-      const result = await service.uploadDocument("app-1", "experienceCert", mockFile);
-
-      expect(result.experienceCertPath).toBe("/home/ubuntu/uploads/experience-certs/uuid.pdf");
-    });
-
-    it("test_uploadDocument_nonexistent_application_throws_error", async () => {
-      mockEnrollmentRepo.findById.mockResolvedValue(null);
+    it("test_createEnrollment_future_dateOfBirth_throws_validation_error", async () => {
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 1);
 
       await expect(
-        service.uploadDocument("nonexistent", "idDocument", mockFile)
-      ).rejects.toThrow(EnrollmentNotFoundError);
-    });
-
-    it("test_uploadDocument_calls_saveUploadedFile_with_correct_subdirectory", async () => {
-      await service.uploadDocument("app-1", "idDocument", mockFile);
-
-      expect(mockSaveUploadedFile).toHaveBeenCalledWith(mockFile, "id-documents");
+        service.createEnrollment({ ...createInput, dateOfBirth: futureDate })
+      ).rejects.toThrow(BusinessError);
+      await expect(
+        service.createEnrollment({ ...createInput, dateOfBirth: futureDate })
+      ).rejects.toThrow("生年月日に未来の日付は使用できません");
     });
   });
 
@@ -211,6 +157,7 @@ describe("EnrollmentService", () => {
       mockEnrollmentRepo.findById.mockResolvedValue(mockApplication);
       const acceptedApp = { ...mockApplication, acceptedAt: new Date() };
       mockEnrollmentRepo.update.mockResolvedValue(acceptedApp);
+      mockUserRepo.updateStatus.mockResolvedValue({ ...mockUser, status: UserStatus.PENDING_ACTIVATION } as never);
 
       const result = await service.acceptEnrollment("app-1");
 
@@ -218,6 +165,19 @@ describe("EnrollmentService", () => {
       expect(mockEnrollmentRepo.update).toHaveBeenCalledWith(
         "app-1",
         expect.objectContaining({ acceptedAt: expect.any(Date) })
+      );
+    });
+
+    it("test_acceptEnrollment_updates_user_status_to_pending_activation", async () => {
+      mockEnrollmentRepo.findById.mockResolvedValue(mockApplication);
+      mockEnrollmentRepo.update.mockResolvedValue({ ...mockApplication, acceptedAt: new Date() });
+      mockUserRepo.updateStatus.mockResolvedValue({ ...mockUser, status: UserStatus.PENDING_ACTIVATION } as never);
+
+      await service.acceptEnrollment("app-1");
+
+      expect(mockUserRepo.updateStatus).toHaveBeenCalledWith(
+        "user-1",
+        UserStatus.PENDING_ACTIVATION
       );
     });
 

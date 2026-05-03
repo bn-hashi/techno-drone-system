@@ -18,7 +18,9 @@ export default async function EnrollmentNewPage({ searchParams }: PageProps) {
   }
 
   const { userId } = searchParams;
-  if (!userId) {
+  // Prisma の cuid 形式を検証し、不正な値によるリクエストを弾く
+  const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]{10,50}$/;
+  if (!userId || !VALID_ID_PATTERN.test(userId)) {
     redirect("/admin/users");
   }
 
