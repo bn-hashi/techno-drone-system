@@ -58,6 +58,7 @@ describe("EnrollmentService", () => {
       findById: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      accept: vi.fn(),
     } as Mocked<IEnrollmentApplicationRepository>;
 
     mockUserRepo = {
@@ -96,53 +97,64 @@ describe("EnrollmentService", () => {
     it("test_createEnrollment_duplicate_user_throws_error", async () => {
       mockEnrollmentRepo.findByUserId.mockResolvedValue(mockApplication);
 
-      await expect(service.createEnrollment(createInput)).rejects.toThrow(
-        DuplicateEnrollmentError
-      );
+      await expect(service.createEnrollment(createInput)).rejects.toThrow(DuplicateEnrollmentError);
     });
 
     it("test_createEnrollment_nonexistent_user_throws_error", async () => {
       mockUserRepo.findById.mockResolvedValue(null);
 
-      await expect(service.createEnrollment(createInput)).rejects.toThrow(
-        UserNotFoundError
+      await expect(service.createEnrollment(createInput)).rejects.toThrow(UserNotFoundError);
+    });
+
+    it("test_createEnrollment_empty_address_throws_business_error", async () => {
+      await expect(service.createEnrollment({ ...createInput, address: "" })).rejects.toThrow(
+        BusinessError
       );
     });
 
-    it("test_createEnrollment_empty_address_throws_validation_error", async () => {
-      await expect(
-        service.createEnrollment({ ...createInput, address: "" })
-      ).rejects.toThrow(BusinessError);
-      await expect(
-        service.createEnrollment({ ...createInput, address: "" })
-      ).rejects.toThrow("住所は必須です");
+    it("test_createEnrollment_empty_address_throws_correct_message", async () => {
+      await expect(service.createEnrollment({ ...createInput, address: "" })).rejects.toThrow(
+        "住所は必須です"
+      );
     });
 
-    it("test_createEnrollment_empty_phoneNumber_throws_validation_error", async () => {
-      await expect(
-        service.createEnrollment({ ...createInput, phoneNumber: "" })
-      ).rejects.toThrow(BusinessError);
-      await expect(
-        service.createEnrollment({ ...createInput, phoneNumber: "" })
-      ).rejects.toThrow("電話番号は必須です");
+    it("test_createEnrollment_empty_phoneNumber_throws_business_error", async () => {
+      await expect(service.createEnrollment({ ...createInput, phoneNumber: "" })).rejects.toThrow(
+        BusinessError
+      );
     });
 
-    it("test_createEnrollment_missing_dateOfBirth_throws_validation_error", async () => {
+    it("test_createEnrollment_empty_phoneNumber_throws_correct_message", async () => {
+      await expect(service.createEnrollment({ ...createInput, phoneNumber: "" })).rejects.toThrow(
+        "電話番号は必須です"
+      );
+    });
+
+    it("test_createEnrollment_missing_dateOfBirth_throws_business_error", async () => {
       await expect(
         service.createEnrollment({ ...createInput, dateOfBirth: null as unknown as Date })
       ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_createEnrollment_missing_dateOfBirth_throws_correct_message", async () => {
       await expect(
         service.createEnrollment({ ...createInput, dateOfBirth: null as unknown as Date })
       ).rejects.toThrow("生年月日は必須です");
     });
 
-    it("test_createEnrollment_future_dateOfBirth_throws_validation_error", async () => {
+    it("test_createEnrollment_future_dateOfBirth_throws_business_error", async () => {
       const futureDate = new Date();
       futureDate.setFullYear(futureDate.getFullYear() + 1);
 
       await expect(
         service.createEnrollment({ ...createInput, dateOfBirth: futureDate })
       ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_createEnrollment_future_dateOfBirth_throws_correct_message", async () => {
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 1);
+
       await expect(
         service.createEnrollment({ ...createInput, dateOfBirth: futureDate })
       ).rejects.toThrow("生年月日に未来の日付は使用できません");
@@ -153,32 +165,23 @@ describe("EnrollmentService", () => {
   // acceptEnrollment
   // -----------------------------------------------
   describe("acceptEnrollment", () => {
-    it("test_acceptEnrollment_sets_acceptedAt", async () => {
+    it("test_acceptEnrollment_returns_accepted_application", async () => {
       mockEnrollmentRepo.findById.mockResolvedValue(mockApplication);
       const acceptedApp = { ...mockApplication, acceptedAt: new Date() };
-      mockEnrollmentRepo.update.mockResolvedValue(acceptedApp);
-      mockUserRepo.updateStatus.mockResolvedValue({ ...mockUser, status: UserStatus.PENDING_ACTIVATION } as never);
+      mockEnrollmentRepo.accept.mockResolvedValue(acceptedApp);
 
       const result = await service.acceptEnrollment("app-1");
 
       expect(result.acceptedAt).not.toBeNull();
-      expect(mockEnrollmentRepo.update).toHaveBeenCalledWith(
-        "app-1",
-        expect.objectContaining({ acceptedAt: expect.any(Date) })
-      );
     });
 
-    it("test_acceptEnrollment_updates_user_status_to_pending_activation", async () => {
+    it("test_acceptEnrollment_calls_repo_accept_with_correct_args", async () => {
       mockEnrollmentRepo.findById.mockResolvedValue(mockApplication);
-      mockEnrollmentRepo.update.mockResolvedValue({ ...mockApplication, acceptedAt: new Date() });
-      mockUserRepo.updateStatus.mockResolvedValue({ ...mockUser, status: UserStatus.PENDING_ACTIVATION } as never);
+      mockEnrollmentRepo.accept.mockResolvedValue({ ...mockApplication, acceptedAt: new Date() });
 
       await service.acceptEnrollment("app-1");
 
-      expect(mockUserRepo.updateStatus).toHaveBeenCalledWith(
-        "user-1",
-        UserStatus.PENDING_ACTIVATION
-      );
+      expect(mockEnrollmentRepo.accept).toHaveBeenCalledWith("app-1", "user-1");
     });
 
     it("test_acceptEnrollment_nonexistent_application_throws_error", async () => {

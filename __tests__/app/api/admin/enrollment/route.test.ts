@@ -55,7 +55,6 @@ describe("POST /api/admin/enrollment", () => {
     vi.clearAllMocks();
     vi.mocked(getEnrollmentService).mockReturnValue({
       createEnrollment: mockCreateEnrollment,
-      uploadDocument: vi.fn(),
       acceptEnrollment: vi.fn(),
     } as unknown as ReturnType<typeof getEnrollmentService>);
   });
