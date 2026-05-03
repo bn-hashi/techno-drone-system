@@ -4,11 +4,6 @@
 
 language: ja-JP  # レビューコメントを日本語で出す
 
-# TypeScript は型定義が自己文書化になるため、JSDoc カバレッジチェックは無効化する
-finishing_touches:
-  docstrings:
-    enabled: false
-
 reviews:
   profile: assertive          # 厳しめにレビューさせる
   request_changes_workflow: true  # 問題があれば changes requested を出す
@@ -29,7 +24,7 @@ reviews:
     drafts: false             # ドラフト PR はスキップ
     base_branches:
       - main
-      - develop
+      - dev
 
   # ファイルごとに追加で見てほしい観点を自然言語で指定
   path_instructions:
