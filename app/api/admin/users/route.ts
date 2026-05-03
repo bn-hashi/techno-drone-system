@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role !== UserRole.ADMIN) {
+  if (!session.user || session.user.role !== UserRole.ADMIN) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role !== UserRole.ADMIN) {
+  if (!session.user || session.user.role !== UserRole.ADMIN) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

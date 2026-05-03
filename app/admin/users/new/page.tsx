@@ -9,7 +9,7 @@ export const metadata = { title: "受講者新規登録" };
 
 export default async function AdminUsersNewPage() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== UserRole.ADMIN) {
+  if (!session?.user || session.user.role !== UserRole.ADMIN) {
     redirect("/login");
   }
 
