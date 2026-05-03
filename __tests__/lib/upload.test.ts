@@ -55,29 +55,45 @@ describe("saveUploadedFile", () => {
     expect(result).toBe(`${UPLOAD_BASE_DIR}certificates/test-uuid-1234.pdf`);
   });
 
-  it("test_saveUploadedFile_exceeds_max_size_throws_error", async () => {
+  it("test_saveUploadedFile_exceeds_max_size_throws_business_error", async () => {
     const oversizeBytes = MAX_FILE_SIZE_BYTES + 1;
     const file = createMockFile("large.jpg", "image/jpeg", oversizeBytes);
 
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow(BusinessError);
+  });
+
+  it("test_saveUploadedFile_exceeds_max_size_throws_correct_message", async () => {
+    const oversizeBytes = MAX_FILE_SIZE_BYTES + 1;
+    const file = createMockFile("large.jpg", "image/jpeg", oversizeBytes);
+
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow(
       "ファイルサイズが上限を超えています"
     );
   });
 
-  it("test_saveUploadedFile_invalid_mime_type_throws_error", async () => {
+  it("test_saveUploadedFile_invalid_mime_type_throws_business_error", async () => {
     const file = createMockFile("script.sh", "application/x-sh", 100);
 
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow(BusinessError);
+  });
+
+  it("test_saveUploadedFile_invalid_mime_type_throws_correct_message", async () => {
+    const file = createMockFile("script.sh", "application/x-sh", 100);
+
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow(
       "許可されていないファイル形式です"
     );
   });
 
-  it("test_saveUploadedFile_empty_file_throws_error", async () => {
+  it("test_saveUploadedFile_empty_file_throws_business_error", async () => {
     const file = createMockFile("empty.jpg", "image/jpeg", 0);
 
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow(BusinessError);
+  });
+
+  it("test_saveUploadedFile_empty_file_throws_correct_message", async () => {
+    const file = createMockFile("empty.jpg", "image/jpeg", 0);
+
     await expect(saveUploadedFile(file, "docs")).rejects.toThrow("ファイルが空です");
   });
 

@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
+import { UserStatus } from "@/types/prisma";
 
 const mockFindUnique = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
+const mockUserUpdate = vi.fn();
+const mockTransaction = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
@@ -12,6 +15,10 @@ vi.mock("@/lib/db", () => ({
       create: mockCreate,
       update: mockUpdate,
     },
+    user: {
+      update: mockUserUpdate,
+    },
+    $transaction: mockTransaction,
   }),
 }));
 
@@ -37,6 +44,10 @@ describe("EnrollmentApplicationRepository", () => {
     mockFindUnique.mockReset();
     mockCreate.mockReset();
     mockUpdate.mockReset();
+    mockUserUpdate.mockReset();
+    mockTransaction.mockReset();
+    // $transaction はオペレーション配列を受け取り Promise.all で解決する
+    mockTransaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
     repository = new EnrollmentApplicationRepository();
   });
 
@@ -121,6 +132,40 @@ describe("EnrollmentApplicationRepository", () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: "app-1" },
         data: { photoPath: "/uploads/photo.jpg" },
+      });
+    });
+  });
+
+  describe("accept", () => {
+    const acceptedApp = { ...mockApplication, acceptedAt: new Date() };
+    const mockUserRecord = { id: "user-1", status: UserStatus.PENDING_ACTIVATION };
+
+    beforeEach(() => {
+      mockUpdate.mockResolvedValue(acceptedApp);
+      mockUserUpdate.mockResolvedValue(mockUserRecord);
+    });
+
+    it("test_accept_valid_ids_returns_accepted_application", async () => {
+      const result = await repository.accept("app-1", "user-1");
+
+      expect(result).toEqual(acceptedApp);
+    });
+
+    it("test_accept_valid_ids_calls_enrollment_update_with_acceptedAt", async () => {
+      await repository.accept("app-1", "user-1");
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: "app-1" },
+        data: { acceptedAt: expect.any(Date) },
+      });
+    });
+
+    it("test_accept_valid_ids_calls_user_update_with_pending_activation", async () => {
+      await repository.accept("app-1", "user-1");
+
+      expect(mockUserUpdate).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { status: UserStatus.PENDING_ACTIVATION },
       });
     });
   });
