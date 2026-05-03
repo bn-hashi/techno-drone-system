@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { BusinessError } from "@/services/errors";
 
 // ファイルアップロード先のベースディレクトリ
@@ -41,7 +41,7 @@ export async function saveUploadedFile(file: File, subdirectory: string): Promis
   // パストラバーサル攻撃を防ぐため、解決後のパスがベースディレクトリ内に収まることを確認する
   const resolvedBase = resolve(UPLOAD_BASE_DIR);
   const resolvedDir = resolve(UPLOAD_BASE_DIR, subdirectory);
-  if (!resolvedDir.startsWith(resolvedBase + sep)) {
+  if (!resolvedDir.startsWith(resolvedBase + "/")) {
     throw new BusinessError("不正なサブディレクトリです");
   }
 

@@ -1,7 +1,6 @@
 import type { EnrollmentApplication } from "@prisma/client";
 import type { IEnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
-import { UserStatus } from "@/types/prisma";
 import {
   BusinessError,
   DuplicateEnrollmentError,
@@ -22,9 +21,7 @@ export class EnrollmentService {
     private readonly userRepo: IUserRepository
   ) {}
 
-  async createEnrollment(
-    input: CreateEnrollmentInput
-  ): Promise<EnrollmentApplication> {
+  async createEnrollment(input: CreateEnrollmentInput): Promise<EnrollmentApplication> {
     this.validateInput(input);
 
     const user = await this.userRepo.findById(input.userId);
@@ -40,23 +37,19 @@ export class EnrollmentService {
     return this.enrollmentRepo.create(input);
   }
 
-  async acceptEnrollment(
-    applicationId: string
-  ): Promise<EnrollmentApplication> {
+  async acceptEnrollment(applicationId: string): Promise<EnrollmentApplication> {
     const application = await this.enrollmentRepo.findById(applicationId);
     if (application === null) {
       throw new EnrollmentNotFoundError(applicationId);
     }
 
-    const updated = await this.enrollmentRepo.update(applicationId, {
-      acceptedAt: new Date(),
-    });
-
-    // 入学申請受理と同時にユーザーステータスを本登録待ちに遷移させる
-    await this.userRepo.updateStatus(application.userId, UserStatus.PENDING_ACTIVATION);
-
-    return updated;
+    // 申請受理とユーザーステータス遷移（PENDING_ACTIVATION）を1トランザクションでアトミックに実行する
+    return this.enrollmentRepo.accept(applicationId, application.userId);
   }
+
+  // NOTE: 書類アップロード機能（idDocument / photo / experienceCert）は次PRのスコープ。
+  // lib/upload.ts の saveUploadedFile および EnrollmentApplication の各パスフィールドは
+  // uploadDocument API エンドポイントと合わせて次のブランチで実装する。
 
   private validateInput(input: CreateEnrollmentInput): void {
     if (!input.dateOfBirth) {
