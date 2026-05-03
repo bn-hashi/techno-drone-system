@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Table } from "@/components/ui/Table";
+import { Table, type Column } from "@/components/ui/Table";
 
 type User = { id: string; name: string; email: string };
 
-const COLUMNS = [
+const COLUMNS: Column<User>[] = [
   { key: "name", header: "名前" },
   { key: "email", header: "メール" },
 ];

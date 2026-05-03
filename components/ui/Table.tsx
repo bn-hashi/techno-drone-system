@@ -5,7 +5,7 @@ type KeyFieldOf<T> = {
   [K in keyof T]: T[K] extends string | number ? K : never;
 }[keyof T];
 
-interface Column<T> {
+export interface Column<T> {
   // keyof T に限定することで、存在しないプロパティ名をコンパイル時に検出できる
   key: keyof T;
   header: string;

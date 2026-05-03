@@ -10,7 +10,7 @@ export const metadata = { title: "受講者管理" };
 
 export default async function AdminUsersPage() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== UserRole.ADMIN) {
+  if (!session?.user || session.user.role !== UserRole.ADMIN) {
     redirect("/login");
   }
 
@@ -35,6 +35,7 @@ export default async function AdminUsersPage() {
             <th className="border border-gray-300 px-4 py-2 text-left">メール</th>
             <th className="border border-gray-300 px-4 py-2 text-left">ステータス</th>
             <th className="border border-gray-300 px-4 py-2 text-left">操作</th>
+            <th className="border border-gray-300 px-4 py-2 text-left">入学申請</th>
           </tr>
         </thead>
         <tbody>
@@ -46,12 +47,20 @@ export default async function AdminUsersPage() {
               <td className="border border-gray-300 px-4 py-2">
                 <StatusChangeButton userId={user.id} currentStatus={user.status as UserStatus} />
               </td>
+              <td className="border border-gray-300 px-4 py-2">
+                <a
+                  href={`/admin/enrollment/new?userId=${user.id}`}
+                  className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+                >
+                  入学申請
+                </a>
+              </td>
             </tr>
           ))}
           {users.length === 0 && (
             <tr>
               <td
-                colSpan={4}
+                colSpan={5}
                 className="border border-gray-300 px-4 py-2 text-center text-gray-500"
               >
                 受講者が登録されていません

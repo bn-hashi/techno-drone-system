@@ -51,7 +51,7 @@ describe("AuthService", () => {
 
       beforeEach(async () => {
         mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        vi.mocked(bcrypt.compare).mockImplementation(() => Promise.resolve(true));
         result = await authService.login("test@example.com", "password123");
       });
 
@@ -82,7 +82,7 @@ describe("AuthService", () => {
 
       beforeEach(async () => {
         mockUserRepository.findByEmail.mockResolvedValue(mockUser);
-        vi.mocked(bcrypt.compare).mockResolvedValue(false);
+        vi.mocked(bcrypt.compare).mockImplementation(() => Promise.resolve(false));
         result = await authService.login("test@example.com", "wrongpassword");
       });
 
@@ -126,7 +126,7 @@ describe("AuthService", () => {
       beforeEach(async () => {
         const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_REGISTRATION };
         mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        vi.mocked(bcrypt.compare).mockImplementation(() => Promise.resolve(true));
         result = await authService.login("test@example.com", "password123");
       });
 
@@ -149,7 +149,7 @@ describe("AuthService", () => {
       beforeEach(async () => {
         const pendingUser: User = { ...mockUser, status: UserStatus.PENDING_ACTIVATION };
         mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
-        vi.mocked(bcrypt.compare).mockResolvedValue(true);
+        vi.mocked(bcrypt.compare).mockImplementation(() => Promise.resolve(true));
         result = await authService.login("test@example.com", "password123");
       });
 
