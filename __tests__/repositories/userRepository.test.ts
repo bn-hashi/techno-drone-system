@@ -214,4 +214,50 @@ describe("UserRepository", () => {
       });
     });
   });
+
+  describe("updatePassword", () => {
+    it("test_updatePassword_valid_args_returns_updated_user", async () => {
+      // Arrange
+      const updatedUser = { ...mockUser, passwordHash: "$2b$10$newhashedpassword" };
+      mockUpdate.mockResolvedValue(updatedUser);
+
+      // Act
+      const result = await repository.updatePassword("user-1", "$2b$10$newhashedpassword");
+
+      // Assert
+      expect(result).toEqual(updatedUser);
+    });
+
+    it("test_updatePassword_valid_args_calls_prisma_update_with_correct_id", async () => {
+      // Arrange
+      mockUpdate.mockResolvedValue({ ...mockUser });
+
+      // Act
+      await repository.updatePassword("user-1", "$2b$10$newhashedpassword");
+
+      // Assert
+      const callArgs = mockUpdate.mock.calls[0][0];
+      expect(callArgs.where).toEqual({ id: "user-1" });
+    });
+
+    it("test_updatePassword_valid_args_calls_prisma_update_with_passwordHash", async () => {
+      // Arrange
+      mockUpdate.mockResolvedValue({ ...mockUser });
+
+      // Act
+      await repository.updatePassword("user-1", "$2b$10$newhashedpassword");
+
+      // Assert
+      const callArgs = mockUpdate.mock.calls[0][0];
+      expect(callArgs.data).toEqual({ passwordHash: "$2b$10$newhashedpassword" });
+    });
+
+    it("test_updatePassword_prisma_error_propagates", async () => {
+      // Arrange
+      mockUpdate.mockRejectedValue(new Error("DB error"));
+
+      // Act & Assert
+      await expect(repository.updatePassword("user-1", "hash")).rejects.toThrow("DB error");
+    });
+  });
 });

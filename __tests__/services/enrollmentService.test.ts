@@ -67,6 +67,7 @@ describe("EnrollmentService", () => {
       findById: vi.fn(),
       create: vi.fn(),
       updateStatus: vi.fn(),
+      updatePassword: vi.fn(),
     } as Mocked<IUserRepository>;
 
     service = new EnrollmentService(mockEnrollmentRepo, mockUserRepo);

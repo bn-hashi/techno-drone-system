@@ -38,6 +38,7 @@ describe("UserManagementService", () => {
       findById: vi.fn(),
       create: vi.fn(),
       updateStatus: vi.fn(),
+      updatePassword: vi.fn(),
     } as Mocked<IUserRepository>;
 
     service = new UserManagementService(mockRepo);
