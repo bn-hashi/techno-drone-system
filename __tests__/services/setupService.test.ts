@@ -144,6 +144,7 @@ describe("SetupService", () => {
       vi.mocked(tokenModule.verifyInviteToken).mockReturnValue({
         userId: "user-1",
       });
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       vi.mocked(bcrypt.hash).mockResolvedValue("$2b$10$hashed" as never);
       mockUserRepo.updatePassword.mockResolvedValue(mockUser);
 
@@ -159,6 +160,7 @@ describe("SetupService", () => {
       vi.mocked(tokenModule.verifyInviteToken).mockReturnValue({
         userId: "user-1",
       });
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       vi.mocked(bcrypt.hash).mockResolvedValue("$2b$10$hashed" as never);
       mockUserRepo.updatePassword.mockResolvedValue(mockUser);
 
@@ -175,6 +177,7 @@ describe("SetupService", () => {
       vi.mocked(tokenModule.verifyInviteToken).mockReturnValue({
         userId: "user-1",
       });
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       vi.mocked(bcrypt.hash).mockResolvedValue("$2b$10$hashed" as never);
       mockUserRepo.updatePassword.mockResolvedValue(mockUser);
 
@@ -232,6 +235,7 @@ describe("SetupService", () => {
       vi.mocked(tokenModule.verifyInviteToken).mockReturnValue({
         userId: "user-1",
       });
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       vi.mocked(bcrypt.hash).mockResolvedValue("$2b$10$hashed" as never);
       mockUserRepo.updatePassword.mockResolvedValue(mockUser);
 
@@ -246,11 +250,13 @@ describe("SetupService", () => {
   describe("agreeToTerms", () => {
     it("test_agreeToTerms_valid_userId_creates_agreement_log", async () => {
       // Arrange
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       mockAgreementLogRepo.create.mockResolvedValue({
         id: "log-1",
         userId: "user-1",
         version: "1.0",
         agreedAt: new Date(),
+        ipAddress: null,
       });
       mockUserRepo.updateStatus.mockResolvedValue({
         ...mockUser,
@@ -266,11 +272,13 @@ describe("SetupService", () => {
 
     it("test_agreeToTerms_valid_userId_calls_create_with_userId", async () => {
       // Arrange
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       mockAgreementLogRepo.create.mockResolvedValue({
         id: "log-1",
         userId: "user-1",
         version: "1.0",
         agreedAt: new Date(),
+        ipAddress: null,
       });
       mockUserRepo.updateStatus.mockResolvedValue({
         ...mockUser,
@@ -287,11 +295,13 @@ describe("SetupService", () => {
 
     it("test_agreeToTerms_valid_userId_updates_user_status_to_active", async () => {
       // Arrange
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       mockAgreementLogRepo.create.mockResolvedValue({
         id: "log-1",
         userId: "user-1",
         version: "1.0",
         agreedAt: new Date(),
+        ipAddress: null,
       });
       mockUserRepo.updateStatus.mockResolvedValue({
         ...mockUser,
@@ -307,11 +317,13 @@ describe("SetupService", () => {
 
     it("test_agreeToTerms_valid_userId_passes_ip_address_to_log", async () => {
       // Arrange
+      mockUserRepo.findById.mockResolvedValue(mockUser);
       mockAgreementLogRepo.create.mockResolvedValue({
         id: "log-1",
         userId: "user-1",
         version: "1.0",
         agreedAt: new Date(),
+        ipAddress: null,
       });
       mockUserRepo.updateStatus.mockResolvedValue({
         ...mockUser,

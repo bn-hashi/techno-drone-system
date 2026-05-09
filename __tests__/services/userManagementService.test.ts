@@ -116,10 +116,10 @@ describe("UserManagementService", () => {
       expect(result.email).toBe(createInput.email);
     });
 
-    it("test_createUser_valid_input_hashes_password_with_salt_10", async () => {
+    it("test_createUser_valid_input_hashes_password_with_salt_12", async () => {
       await service.createUser(createInput);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith(createInput.password, 10);
+      expect(bcrypt.hash).toHaveBeenCalledWith(createInput.password, 12);
     });
 
     it("test_createUser_valid_input_sets_role_to_STUDENT", async () => {
@@ -148,7 +148,7 @@ describe("UserManagementService", () => {
       mockRepo.findByEmail.mockResolvedValue(mockUser);
 
       await expect(service.createUser(createInput)).rejects.toThrow(
-        "このメールアドレスはすでに使用されています: new@example.com"
+        "このメールアドレスはすでに使用されています"
       );
     });
 
