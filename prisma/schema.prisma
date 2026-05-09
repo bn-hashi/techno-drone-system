@@ -107,6 +107,7 @@ model AgreementLog {
   userId    String
   version   String
   agreedAt  DateTime @default(now())
+  ipAddress String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

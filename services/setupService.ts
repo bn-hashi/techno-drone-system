@@ -21,9 +21,7 @@ const PASSWORD_MIN_LENGTH = 8;
  */
 function validatePasswordPolicy(rawPassword: string): void {
   if (rawPassword.length < PASSWORD_MIN_LENGTH) {
-    throw new BusinessError(
-      `パスワードは${PASSWORD_MIN_LENGTH}文字以上で入力してください`
-    );
+    throw new BusinessError(`パスワードは${PASSWORD_MIN_LENGTH}文字以上で入力してください`);
   }
   if (!/[A-Z]/.test(rawPassword)) {
     throw new BusinessError("パスワードには大文字を1文字以上含めてください");
@@ -75,6 +73,14 @@ export class SetupService {
       );
     }
 
+    // トークン再利用攻撃を防ぐため、PENDING_ACTIVATION ステータスのユーザーのみ許可する
+    const user = await this.userRepo.findById(payload.userId);
+    if (!user || user.status !== UserStatus.PENDING_ACTIVATION) {
+      throw new BusinessError(
+        "トークンが無効または期限切れです。管理者に再送信を依頼してください。"
+      );
+    }
+
     validatePasswordPolicy(rawPassword);
 
     const hashedPassword = await bcrypt.hash(rawPassword, BCRYPT_SALT_ROUNDS);
@@ -88,6 +94,11 @@ export class SetupService {
    * @param ipAddress - リクエスト元の IP アドレス (ログ記録用)
    */
   async agreeToTerms(userId: string, ipAddress: string): Promise<void> {
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new UserNotFoundError(userId);
+    }
+
     await this.agreementLogRepo.create({
       userId,
       agreedAt: new Date(),

@@ -7,13 +7,25 @@ export interface SendInviteEmailParams {
   studentName: string;
 }
 
+/** HTML 特殊文字をエスケープして XSS を防止する */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function buildEmailHtml(studentName: string, setupUrl: string): string {
+  const safeName = escapeHtml(studentName);
+  const safeUrl = escapeHtml(setupUrl);
   return `
-<p>${studentName} 様</p>
+<p>${safeName} 様</p>
 <p>この度はドローンスクールにお申し込みいただきありがとうございます。</p>
 <p>以下のURLよりパスワードの設定と受講規約への同意を行い、本登録を完了してください。</p>
 <p>
-  <a href="${setupUrl}">${setupUrl}</a>
+  <a href="${safeUrl}">${safeUrl}</a>
 </p>
 <p>このURLの有効期限は72時間です。期限を過ぎた場合は管理者にお問い合わせください。</p>
 <p>ドローンスクール事務局</p>
