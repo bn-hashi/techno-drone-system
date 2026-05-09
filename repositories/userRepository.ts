@@ -19,6 +19,7 @@ export interface IUserRepository {
     status: UserStatus;
   }): Promise<User>;
   updateStatus(id: string, status: UserStatus): Promise<User>;
+  updatePassword(id: string, hashedPassword: string): Promise<User>;
 }
 
 export class UserRepository implements IUserRepository {
@@ -29,10 +30,7 @@ export class UserRepository implements IUserRepository {
     });
   }
 
-  async findAll(
-    filter?: { status?: UserStatus },
-    limit = 500
-  ): Promise<User[]> {
+  async findAll(filter?: { status?: UserStatus }, limit = 500): Promise<User[]> {
     const prisma = getPrisma();
     const where = filter?.status ? { status: filter.status } : undefined;
     return prisma.user.findMany({ where, take: limit });
@@ -60,6 +58,14 @@ export class UserRepository implements IUserRepository {
     return prisma.user.update({
       where: { id },
       data: { status },
+    });
+  }
+
+  async updatePassword(id: string, hashedPassword: string): Promise<User> {
+    const prisma = getPrisma();
+    return prisma.user.update({
+      where: { id },
+      data: { passwordHash: hashedPassword },
     });
   }
 }

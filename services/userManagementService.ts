@@ -37,6 +37,12 @@ export interface UserListFilter {
 export class UserManagementService {
   constructor(private readonly userRepository: IUserRepository) {}
 
+  async getUserById(id: string): Promise<SafeUser | null> {
+    const user = await this.userRepository.findById(id);
+    if (user === null) return null;
+    return this.toSafeUser(user);
+  }
+
   async listUsers(filter?: UserListFilter): Promise<SafeUser[]> {
     const users = await this.userRepository.findAll(filter);
     return users.map(this.toSafeUser);
