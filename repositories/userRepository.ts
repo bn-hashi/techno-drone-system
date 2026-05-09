@@ -2,14 +2,22 @@ import { getPrisma } from "@/lib/db";
 import { User } from "@prisma/client";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 
-// User Repository Interface
-// Prisma 操作を抽象化し、テストで注入可能にする
-// Service 層はこのインターフェース経由でのみ DB にアクセスする
+/**
+ * ユーザーの永続化を担うリポジトリインターフェース。
+ * Prisma 操作を抽象化し、Service 層がテストで差し替え可能にする。
+ */
 export interface IUserRepository {
+  /** メールアドレスでユーザーを検索する */
   findByEmail(email: string): Promise<User | null>;
-  // limit: 全件取得によるメモリ消費を防ぐため上限を設ける（デフォルト: 500）
+  /**
+   * ユーザー一覧を取得する
+   * @param filter - ステータスによる絞り込み条件
+   * @param limit - 取得上限（デフォルト: 500、全件取得によるメモリ消費を防ぐ）
+   */
   findAll(filter?: { status?: UserStatus }, limit?: number): Promise<User[]>;
+  /** ID でユーザーを検索する */
   findById(id: string): Promise<User | null>;
+  /** ユーザーを新規作成する */
   create(data: {
     email: string;
     name: string;
@@ -18,7 +26,9 @@ export interface IUserRepository {
     role: UserRole;
     status: UserStatus;
   }): Promise<User>;
+  /** ユーザーのステータスを更新する */
   updateStatus(id: string, status: UserStatus): Promise<User>;
+  /** ユーザーのパスワードハッシュを更新する */
   updatePassword(id: string, hashedPassword: string): Promise<User>;
 }
 

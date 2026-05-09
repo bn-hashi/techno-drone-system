@@ -5,6 +5,12 @@ import { getSetupService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { NotFoundError } from "@/services/errors";
 
+/**
+ * 招待メール送信エンドポイント（管理者専用）
+ *
+ * 管理者が受講者に対してパスワード設定用の招待メールを送信する。
+ * ADMIN ロール以外のアクセスは 403 を返す。
+ */
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }

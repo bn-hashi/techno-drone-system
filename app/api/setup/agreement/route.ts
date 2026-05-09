@@ -3,7 +3,10 @@ import { verifyInviteToken } from "@/lib/token";
 import { getSetupService } from "@/lib/serviceFactory";
 import { checkRateLimit } from "@/lib/rateLimit";
 
-// x-forwarded-for はカンマ区切りのリストになる場合があるため先頭の IP のみ使用する
+/**
+ * リクエストから送信元 IP アドレスを取得する。
+ * x-forwarded-for はカンマ区切りのリストになる場合があるため先頭の IP のみ使用する。
+ */
 function extractIpAddress(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -12,6 +15,12 @@ function extractIpAddress(request: Request): string {
   return "unknown";
 }
 
+/**
+ * 受講規約同意エンドポイント
+ *
+ * トークンを検証し、同意ログを記録してユーザーステータスを ACTIVE に更新する。
+ * IP アドレスごとに 15分間・最大 10回のレート制限を設ける。
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   const ipAddress = extractIpAddress(request);
 

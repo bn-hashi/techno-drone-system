@@ -17,6 +17,13 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#039;");
 }
 
+/**
+ * 招待メールの HTML 本文を生成する
+ *
+ * @param studentName - 受講者氏名 (XSS エスケープ済み)
+ * @param setupUrl - セットアップページの URL (XSS エスケープ済み)
+ * @returns HTML 文字列
+ */
 function buildEmailHtml(studentName: string, setupUrl: string): string {
   const safeName = escapeHtml(studentName);
   const safeUrl = escapeHtml(setupUrl);

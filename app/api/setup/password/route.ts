@@ -3,6 +3,10 @@ import { getSetupService } from "@/lib/serviceFactory";
 import { BusinessError } from "@/services/errors";
 import { checkRateLimit } from "@/lib/rateLimit";
 
+/**
+ * リクエストから送信元 IP アドレスを取得する。
+ * x-forwarded-for はカンマ区切りのリストになる場合があるため先頭の IP のみ使用する。
+ */
 function extractIpAddress(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -11,6 +15,12 @@ function extractIpAddress(request: Request): string {
   return "unknown";
 }
 
+/**
+ * パスワード設定エンドポイント
+ *
+ * 招待トークンを検証し、パスワードをハッシュ化して保存する。
+ * IP アドレスごとに 15分間・最大 10回のレート制限を設ける。
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   const ipAddress = extractIpAddress(request);
 
