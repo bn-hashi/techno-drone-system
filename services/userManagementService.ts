@@ -11,8 +11,8 @@ import {
 } from "@/services/errors";
 
 // パスワードハッシュ化のソルトラウンド数
-// OWASP 推奨の最小値: 10
-const BCRYPT_SALT_ROUNDS = 10;
+// OWASP 推奨の最小値: 12 (setupService と統一)
+const BCRYPT_SALT_ROUNDS = 12;
 
 // メールアドレス書式の正規表現
 // ローカル部@ドメイン の基本形式を検証する
