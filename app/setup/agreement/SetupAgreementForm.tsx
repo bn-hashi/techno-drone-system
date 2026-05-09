@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AGREEMENT_TEXT } from "@/lib/constants/agreementText";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +8,16 @@ import { Button } from "@/components/ui/Button";
 export function SetupAgreementForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  // sessionStorage を優先し、フォールバックとして URL クエリパラメータを使用する
+  // URL にトークンを乗せるとブラウザ履歴・サーバーログに残るため sessionStorage を推奨する
+  const [token, setToken] = useState(() => searchParams.get("token") ?? "");
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("setup_token");
+    if (stored) {
+      setToken(stored);
+    }
+  }, []);
 
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +55,9 @@ export function SetupAgreementForm() {
   if (!token) {
     return (
       <div className="bg-white rounded-lg shadow p-8 max-w-2xl w-full">
-        <p className="text-red-600 text-sm">無効なリンクです。招待メールのリンクを再度ご確認ください。</p>
+        <p className="text-red-600 text-sm">
+          無効なリンクです。招待メールのリンクを再度ご確認ください。
+        </p>
       </div>
     );
   }
@@ -72,9 +83,7 @@ export function SetupAgreementForm() {
             onChange={(e) => setAgreed(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
-          <span className="text-sm text-gray-700">
-            受講規約を読み、内容に同意します
-          </span>
+          <span className="text-sm text-gray-700">受講規約を読み、内容に同意します</span>
         </label>
 
         {error && (

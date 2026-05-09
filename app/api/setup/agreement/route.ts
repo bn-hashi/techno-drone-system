@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 import { verifyInviteToken } from "@/lib/token";
 import { getSetupService } from "@/lib/serviceFactory";
+import { checkRateLimit } from "@/lib/rateLimit";
 
+// x-forwarded-for はカンマ区切りのリストになる場合があるため先頭の IP のみ使用する
 function extractIpAddress(request: Request): string {
-  return request.headers.get("x-forwarded-for") ?? "unknown";
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return "unknown";
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const ipAddress = extractIpAddress(request);
+
+  if (!checkRateLimit(`setup-agreement:${ipAddress}`)) {
+    return NextResponse.json(
+      { error: "リクエストが多すぎます。しばらくしてから再試行してください。" },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
 
   if (!body || typeof body.token !== "string") {
@@ -15,13 +30,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const payload = verifyInviteToken(body.token);
   if (!payload) {
-    return NextResponse.json(
-      { error: "トークンが無効または期限切れです" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "トークンが無効または期限切れです" }, { status: 400 });
   }
-
-  const ipAddress = extractIpAddress(request);
 
   try {
     await getSetupService().agreeToTerms(payload.userId, ipAddress);

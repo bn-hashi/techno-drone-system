@@ -46,7 +46,8 @@ export function SetupPasswordForm() {
         return;
       }
 
-      router.push(`/setup/agreement?token=${encodeURIComponent(token)}`);
+      sessionStorage.setItem("setup_token", token);
+      router.push("/setup/agreement");
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +56,9 @@ export function SetupPasswordForm() {
   if (!token) {
     return (
       <div className="bg-white rounded-lg shadow p-8 max-w-md w-full">
-        <p className="text-red-600 text-sm">無効なリンクです。招待メールのリンクを再度ご確認ください。</p>
+        <p className="text-red-600 text-sm">
+          無効なリンクです。招待メールのリンクを再度ご確認ください。
+        </p>
       </div>
     );
   }
