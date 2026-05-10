@@ -269,8 +269,8 @@ describe("EnrollmentService", () => {
       await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
     });
 
-    // Issue #13: ファイル保存途中で失敗した場合は保存済みファイルを全て削除する
-    it("test_uploadDocuments_file_save_failure_cleans_up_already_saved_files", async () => {
+    // Issue #13: ファイル保存途中で失敗した場合はエラーを re-throw する
+    it("test_uploadDocuments_file_save_failure_rethrows_error", async () => {
       // Arrange
       const photoFile = new File(["content"], "photo.jpg", { type: "image/jpeg" });
       const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
@@ -284,11 +284,30 @@ describe("EnrollmentService", () => {
 
       // Act & Assert
       await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow("Disk full");
+    });
+
+    // Issue #13: ファイル保存途中で失敗した場合は保存済みファイルを全て削除する
+    it("test_uploadDocuments_file_save_failure_cleans_up_already_saved_files", async () => {
+      // Arrange
+      const photoFile = new File(["content"], "photo.jpg", { type: "image/jpeg" });
+      const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
+      vi.mocked(saveUploadedFile)
+        .mockResolvedValueOnce(savedPath)
+        .mockRejectedValueOnce(new Error("Disk full"));
+      const fileEntries = [
+        { field: "idDocument" as const, file: validFile },
+        { field: "photo" as const, file: photoFile },
+      ];
+
+      // Act
+      await service.uploadDocuments("user-1", fileEntries).catch(() => undefined);
+
+      // Assert
       expect(unlinkFile).toHaveBeenCalledWith(savedPath);
     });
 
-    // Issue #13: DB更新失敗時は全ファイルを削除する
-    it("test_uploadDocuments_db_update_failure_cleans_up_all_saved_files", async () => {
+    // Issue #13: DB更新失敗時はエラーを re-throw する
+    it("test_uploadDocuments_db_update_failure_rethrows_error", async () => {
       // Arrange
       const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
       vi.mocked(saveUploadedFile).mockResolvedValue(savedPath);
@@ -299,6 +318,20 @@ describe("EnrollmentService", () => {
       await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(
         "DB connection lost"
       );
+    });
+
+    // Issue #13: DB更新失敗時は全ファイルを削除する
+    it("test_uploadDocuments_db_update_failure_cleans_up_all_saved_files", async () => {
+      // Arrange
+      const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
+      vi.mocked(saveUploadedFile).mockResolvedValue(savedPath);
+      mockEnrollmentRepo.update.mockRejectedValue(new Error("DB connection lost"));
+      const fileEntries = [{ field: "idDocument" as const, file: validFile }];
+
+      // Act
+      await service.uploadDocuments("user-1", fileEntries).catch(() => undefined);
+
+      // Assert
       expect(unlinkFile).toHaveBeenCalledWith(savedPath);
     });
   });

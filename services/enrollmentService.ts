@@ -75,10 +75,10 @@ export class EnrollmentService {
       throw new BusinessError("ファイルが1件も提供されていません");
     }
 
-    // Issue #12: 0 バイトファイルが混在していたら即座に BusinessError
-    const hasZeroByteFile = fileEntries.some(({ file }) => file.size === 0);
-    if (hasZeroByteFile) {
-      throw new BusinessError("0バイトのファイルが含まれています");
+    // Issue #12: 0 バイトファイルが混在していたら即座に BusinessError（フィールド名を含めて報告）
+    const zeroByteEntry = fileEntries.find(({ file }) => file.size === 0);
+    if (zeroByteEntry !== undefined) {
+      throw new BusinessError(`${zeroByteEntry.field} に0バイトのファイルが含まれています`);
     }
 
     const application = await this.enrollmentRepo.findByUserId(userId);
