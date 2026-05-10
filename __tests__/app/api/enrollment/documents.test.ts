@@ -87,7 +87,10 @@ describe("POST /api/enrollment/documents", () => {
 
   it("test_POST_no_files_returns_400", async () => {
     // Arrange
+    // ファイルなし → Service が BusinessError → 400
     vi.mocked(getServerSession).mockResolvedValue(studentSession);
+    const { BusinessError } = await import("@/services/errors");
+    mockUploadDocuments.mockRejectedValue(new BusinessError("ファイルが1件も提供されていません"));
     const request = createRequestWithFormData(new FormData());
 
     // Act

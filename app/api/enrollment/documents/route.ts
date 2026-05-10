@@ -24,15 +24,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const formData = await request.formData();
 
   // フォームデータからファイルエントリを抽出する（Controller の責務はここまで）
+  // 空チェックは Service 層の BusinessError に委譲する
   const fileEntries = DOCUMENT_FIELD_NAMES.flatMap((field) => {
-    const file = formData.get(field) as File | null;
-    if (file === null) return [];
-    return [{ field, file }];
+    const entry = formData.get(field);
+    if (!(entry instanceof File)) return [];
+    return [{ field, file: entry }];
   });
-
-  if (fileEntries.length === 0) {
-    return NextResponse.json({ error: "ファイルが1件も提供されていません" }, { status: 400 });
-  }
 
   try {
     const service = getEnrollmentService();
