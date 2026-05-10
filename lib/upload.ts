@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { BusinessError } from "@/services/errors";
+import { fileTypeFromBuffer } from "file-type";
 
 // ファイルアップロード先のベースディレクトリ
 export const UPLOAD_BASE_DIR = "/home/ubuntu/uploads/";
@@ -33,8 +34,21 @@ export async function saveUploadedFile(file: File, subdirectory: string): Promis
     throw new BusinessError("ファイルサイズが上限を超えています");
   }
 
+  // クライアント申告の MIME タイプを事前チェックする
   const extension = ALLOWED_MIME_TYPES[file.type];
   if (!extension) {
+    throw new BusinessError("許可されていないファイル形式です");
+  }
+
+  // マジックバイト検証: クライアントが申告する MIME タイプとファイル実体を照合する
+  // これにより .exe を image/jpeg と偽るなりすまし攻撃を防ぐ
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const detected = await fileTypeFromBuffer(buffer);
+  if (!detected || !ALLOWED_MIME_TYPES[detected.mime]) {
+    throw new BusinessError("許可されていないファイル形式です");
+  }
+  if (detected.mime !== file.type) {
     throw new BusinessError("許可されていないファイル形式です");
   }
 
@@ -51,8 +65,7 @@ export async function saveUploadedFile(file: File, subdirectory: string): Promis
   const fileName = `${randomUUID()}${extension}`;
   const filePath = `${dirPath}/${fileName}`;
 
-  const arrayBuffer = await file.arrayBuffer();
-  await writeFile(filePath, Buffer.from(arrayBuffer));
+  await writeFile(filePath, buffer);
 
   return filePath;
 }
