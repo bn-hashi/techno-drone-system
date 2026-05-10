@@ -1,6 +1,3 @@
-// メール送信元アドレス (Resend の認証済みドメインを使用)
-const FROM_ADDRESS = "noreply@drone-school.example.com";
-
 export interface SendInviteEmailParams {
   to: string;
   setupUrl: string;
@@ -54,6 +51,11 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<vo
     throw new Error("環境変数 RESEND_API_KEY が設定されていません");
   }
 
+  const fromAddress = process.env.RESEND_FROM_ADDRESS;
+  if (!fromAddress) {
+    throw new Error("環境変数 RESEND_FROM_ADDRESS が設定されていません");
+  }
+
   const { Resend } = await import("resend");
   const resend = new Resend(apiKey);
 
@@ -61,7 +63,7 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<vo
   const html = buildEmailHtml(studentName, setupUrl);
 
   const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+    from: fromAddress,
     to,
     subject: "【ドローンスクール】本登録のご案内",
     html,

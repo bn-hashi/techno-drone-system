@@ -13,7 +13,7 @@ import { NotFoundError } from "@/services/errors";
  */
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
 
@@ -24,10 +24,11 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const { id } = await params;
   const baseUrl = new URL(request.url).origin;
 
   try {
-    await getSetupService().sendInviteEmail(params.id, baseUrl);
+    await getSetupService().sendInviteEmail(id, baseUrl);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
     if (err instanceof NotFoundError) {

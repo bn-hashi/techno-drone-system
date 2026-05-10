@@ -60,12 +60,12 @@ export async function saveUploadedFile(file: File, subdirectory: string): Promis
   }
 
   const dirPath = resolvedDir;
-  await mkdir(dirPath, { recursive: true });
+  await mkdir(dirPath, { recursive: true, mode: 0o700 });
 
   const fileName = `${randomUUID()}${extension}`;
   const filePath = `${dirPath}/${fileName}`;
 
-  await writeFile(filePath, buffer);
+  await writeFile(filePath, buffer, { mode: 0o600 });
 
   return filePath;
 }
