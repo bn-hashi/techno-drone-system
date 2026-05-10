@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPrisma } from "@/lib/db";
-import { saveUploadedFile } from "@/lib/upload";
+import { getEnrollmentService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
+import { BusinessError, EnrollmentNotFoundError } from "@/services/errors";
+import type { DocumentFieldName } from "@/services/enrollmentService";
 
-const DOCUMENT_SUBDIRECTORIES = {
-  idDocument: "id-documents",
-  photo: "photos",
-  experienceCert: "experience-certs",
-} as const;
-
-type DocumentFieldName = keyof typeof DOCUMENT_SUBDIRECTORIES;
+// ドキュメントフィールド名とアップロード先サブディレクトリのマッピング
+// Controller はファイルの抽出のみ行い、保存・DB更新は Service に委譲する
+const DOCUMENT_FIELD_NAMES: DocumentFieldName[] = ["idDocument", "photo", "experienceCert"];
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -24,40 +21,30 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const userId = session.user.id;
-
   const formData = await request.formData();
 
-  const fileEntries = (Object.keys(DOCUMENT_SUBDIRECTORIES) as DocumentFieldName[])
-    .map((field) => ({ field, file: formData.get(field) as File | null }))
-    .filter(({ file }) => file !== null && file.size > 0);
+  // フォームデータからファイルエントリを抽出する（Controller の責務はここまで）
+  const fileEntries = DOCUMENT_FIELD_NAMES.flatMap((field) => {
+    const file = formData.get(field) as File | null;
+    if (file === null) return [];
+    return [{ field, file }];
+  });
 
   if (fileEntries.length === 0) {
     return NextResponse.json({ error: "ファイルが1件も提供されていません" }, { status: 400 });
   }
 
-  const prisma = getPrisma();
-  const application = await prisma.enrollmentApplication.findUnique({
-    where: { userId },
-  });
-
-  if (!application) {
-    return NextResponse.json({ error: "申請が見つかりません" }, { status: 404 });
+  try {
+    const service = getEnrollmentService();
+    await service.uploadDocuments(userId, fileEntries);
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    if (error instanceof BusinessError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof EnrollmentNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    return NextResponse.json({ error: "内部サーバーエラーが発生しました" }, { status: 500 });
   }
-
-  const savedPaths: Partial<Record<DocumentFieldName, string>> = {};
-  for (const { field, file } of fileEntries) {
-    const savedPath = await saveUploadedFile(file as File, DOCUMENT_SUBDIRECTORIES[field]);
-    savedPaths[field] = savedPath;
-  }
-
-  await prisma.enrollmentApplication.update({
-    where: { id: application.id },
-    data: {
-      ...(savedPaths.idDocument && { idDocumentPath: savedPaths.idDocument }),
-      ...(savedPaths.photo && { photoPath: savedPaths.photo }),
-      ...(savedPaths.experienceCert && { experienceCertPath: savedPaths.experienceCert }),
-    },
-  });
-
-  return NextResponse.json({ success: true }, { status: 200 });
 }
