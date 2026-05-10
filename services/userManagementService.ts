@@ -9,6 +9,7 @@ import {
   UserNotFoundError,
   InvalidTransitionError,
 } from "@/services/errors";
+import { validatePasswordPolicy } from "@/lib/passwordPolicy";
 
 // パスワードハッシュ化のソルトラウンド数
 // OWASP 推奨の最小値: 12 (setupService と統一)
@@ -17,9 +18,6 @@ const BCRYPT_SALT_ROUNDS = 12;
 // メールアドレス書式の正規表現
 // ローカル部@ドメイン の基本形式を検証する
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// OWASP 推奨の最小パスワード長
-const MIN_PASSWORD_LENGTH = 8;
 
 export type SafeUser = Omit<User, "passwordHash">;
 
@@ -97,12 +95,7 @@ export class UserManagementService {
     if (!input.name) {
       throw new BusinessError("氏名は必須です");
     }
-    if (!input.password) {
-      throw new BusinessError("パスワードは必須です");
-    }
-    if (input.password.length < MIN_PASSWORD_LENGTH) {
-      throw new BusinessError("パスワードは8文字以上で入力してください");
-    }
+    validatePasswordPolicy(input.password);
   }
 
   private toSafeUser(user: User): SafeUser {
