@@ -14,8 +14,9 @@ export class BusinessError extends Error {
 
 /** メールアドレス重複 (409 Conflict 相当) */
 export class DuplicateEmailError extends BusinessError {
-  constructor(email: string) {
-    super(`このメールアドレスはすでに使用されています: ${email}`);
+  // メールアドレスをメッセージに含めるとユーザー列挙攻撃に利用されるため含めない
+  constructor(_email: string) {
+    super("このメールアドレスはすでに使用されています");
     this.name = "DuplicateEmailError";
   }
 }

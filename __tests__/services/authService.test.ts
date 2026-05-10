@@ -40,6 +40,7 @@ describe("AuthService", () => {
       findById: vi.fn(),
       create: vi.fn(),
       updateStatus: vi.fn(),
+      updatePassword: vi.fn(),
     } as Mocked<IUserRepository>;
 
     authService = new AuthService(mockUserRepository);
