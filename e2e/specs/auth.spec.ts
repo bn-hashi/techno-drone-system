@@ -70,20 +70,12 @@ test.describe("Login flow — error handling", () => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
 
-    // Submit wrong password; NextAuth signIn with redirect:true will
-    // redirect back to /login?error=CredentialsSignin on failure
     await loginPage.emailInput.fill("nonexistent@example.com");
     await loginPage.passwordInput.fill("WrongPassword#999");
 
-    // Wait for NextAuth to redirect back to /login?error=CredentialsSignin
-    await Promise.all([page.waitForURL(/error=/), loginPage.submitButton.click()]);
-
-    // URL should contain error param (redirect:true path)
-    // or DOM error may be visible (redirect:false path)
-    const urlHasError = page.url().includes("error");
-    const domErrorVisible = await loginPage.errorMessage.isVisible().catch(() => false);
-
-    expect(urlHasError || domErrorVisible).toBe(true);
+    // LoginForm uses redirect:false — error appears in DOM, URL does not change
+    await loginPage.submitButton.click();
+    await loginPage.expectErrorVisible();
   });
 
   test("PENDING_REGISTRATION user is rejected at login", async ({ page }) => {
@@ -93,13 +85,9 @@ test.describe("Login flow — error handling", () => {
     await loginPage.emailInput.fill(TEST_USERS.pendingUser.email);
     await loginPage.passwordInput.fill(TEST_USERS.pendingUser.password);
 
-    // Wait for NextAuth to redirect back to /login?error=CredentialsSignin
-    await Promise.all([page.waitForURL(/error=/), loginPage.submitButton.click()]);
-
-    const urlHasError = page.url().includes("error");
-    const domErrorVisible = await loginPage.errorMessage.isVisible().catch(() => false);
-
-    expect(urlHasError || domErrorVisible).toBe(true);
+    // LoginForm uses redirect:false — error appears in DOM, URL does not change
+    await loginPage.submitButton.click();
+    await loginPage.expectErrorVisible();
   });
 });
 

@@ -12,6 +12,14 @@
  * Never use real user credentials in E2E tests.
  */
 
+// Load env files here so this module works when imported before dotenv is
+// configured by the caller (e.g. seed-e2e-users.ts, which imports this module
+// before its own dotenv.config() call executes).
+import * as dotenv from "dotenv";
+import * as path from "path";
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test.local"), override: true });
+
 function requireEnvVar(name: string): string {
   const value = process.env[name];
   if (!value) {

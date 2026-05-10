@@ -19,8 +19,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcryptjs";
 import { TEST_USERS } from "./test-users";
 
-// Load .env.local
+// Load .env.local then .env.test.local (test-local takes precedence)
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test.local"), override: true });
 
 const BCRYPT_ROUNDS = 12;
 
