@@ -10,6 +10,17 @@ import {
   UserNotFoundError,
 } from "@/services/errors";
 
+vi.mock("@/lib/upload", () => ({
+  saveUploadedFile: vi.fn(),
+}));
+
+vi.mock("@/lib/fsAdapter", () => ({
+  unlinkFile: vi.fn(),
+}));
+
+import { saveUploadedFile } from "@/lib/upload";
+import { unlinkFile } from "@/lib/fsAdapter";
+
 describe("EnrollmentService", () => {
   let service: EnrollmentService;
   let mockEnrollmentRepo: Mocked<IEnrollmentApplicationRepository>;
@@ -159,6 +170,136 @@ describe("EnrollmentService", () => {
       await expect(
         service.createEnrollment({ ...createInput, dateOfBirth: futureDate })
       ).rejects.toThrow("生年月日に未来の日付は使用できません");
+    });
+  });
+
+  // -----------------------------------------------
+  // uploadDocuments
+  // -----------------------------------------------
+  describe("uploadDocuments", () => {
+    const validFile = new File(["content"], "id.jpg", { type: "image/jpeg" });
+    beforeEach(() => {
+      vi.mocked(saveUploadedFile).mockResolvedValue("/home/ubuntu/uploads/id-documents/uuid.jpg");
+      mockEnrollmentRepo.findByUserId.mockResolvedValue(mockApplication);
+      mockEnrollmentRepo.update.mockResolvedValue(mockApplication);
+      vi.mocked(unlinkFile).mockResolvedValue(undefined);
+    });
+
+    it("test_uploadDocuments_valid_single_file_saves_and_updates_db", async () => {
+      // Arrange
+      const fileEntries = [{ field: "idDocument" as const, file: validFile }];
+
+      // Act
+      await service.uploadDocuments("user-1", fileEntries);
+
+      // Assert
+      expect(saveUploadedFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("test_uploadDocuments_valid_multiple_files_saves_all", async () => {
+      // Arrange
+      const photoFile = new File(["content"], "photo.jpg", { type: "image/jpeg" });
+      const fileEntries = [
+        { field: "idDocument" as const, file: validFile },
+        { field: "photo" as const, file: photoFile },
+      ];
+
+      // Act
+      await service.uploadDocuments("user-1", fileEntries);
+
+      // Assert
+      expect(saveUploadedFile).toHaveBeenCalledTimes(2);
+    });
+
+    it("test_uploadDocuments_calls_repo_update_with_saved_paths", async () => {
+      // Arrange
+      const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
+      vi.mocked(saveUploadedFile).mockResolvedValue(savedPath);
+      const fileEntries = [{ field: "idDocument" as const, file: validFile }];
+
+      // Act
+      await service.uploadDocuments("user-1", fileEntries);
+
+      // Assert
+      expect(mockEnrollmentRepo.update).toHaveBeenCalledWith("app-1", {
+        idDocumentPath: savedPath,
+      });
+    });
+
+    it("test_uploadDocuments_no_application_throws_EnrollmentNotFoundError", async () => {
+      // Arrange
+      mockEnrollmentRepo.findByUserId.mockResolvedValue(null);
+      const fileEntries = [{ field: "idDocument" as const, file: validFile }];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(
+        EnrollmentNotFoundError
+      );
+    });
+
+    it("test_uploadDocuments_empty_file_entries_throws_BusinessError", async () => {
+      // Arrange
+      const fileEntries: Array<{ field: "idDocument" | "photo" | "experienceCert"; file: File }> =
+        [];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
+    });
+
+    // Issue #12: 0バイトファイルと有効ファイルの混在で400を返すべき
+    it("test_uploadDocuments_zero_byte_file_mixed_with_valid_throws_BusinessError", async () => {
+      // Arrange
+      const zeroByteFile = new File([], "empty.jpg", { type: "image/jpeg" });
+      const fileEntries = [
+        { field: "idDocument" as const, file: validFile },
+        { field: "photo" as const, file: zeroByteFile },
+      ];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
+    });
+
+    // Issue #12: 0バイトファイルのみの場合も BusinessError
+    it("test_uploadDocuments_zero_byte_file_only_throws_BusinessError", async () => {
+      // Arrange
+      const zeroByteFile = new File([], "empty.jpg", { type: "image/jpeg" });
+      const fileEntries = [{ field: "idDocument" as const, file: zeroByteFile }];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
+    });
+
+    // Issue #13: ファイル保存途中で失敗した場合は保存済みファイルを全て削除する
+    it("test_uploadDocuments_file_save_failure_cleans_up_already_saved_files", async () => {
+      // Arrange
+      const photoFile = new File(["content"], "photo.jpg", { type: "image/jpeg" });
+      const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
+      vi.mocked(saveUploadedFile)
+        .mockResolvedValueOnce(savedPath)
+        .mockRejectedValueOnce(new Error("Disk full"));
+      const fileEntries = [
+        { field: "idDocument" as const, file: validFile },
+        { field: "photo" as const, file: photoFile },
+      ];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow("Disk full");
+      expect(unlinkFile).toHaveBeenCalledWith(savedPath);
+    });
+
+    // Issue #13: DB更新失敗時は全ファイルを削除する
+    it("test_uploadDocuments_db_update_failure_cleans_up_all_saved_files", async () => {
+      // Arrange
+      const savedPath = "/home/ubuntu/uploads/id-documents/uuid.jpg";
+      vi.mocked(saveUploadedFile).mockResolvedValue(savedPath);
+      mockEnrollmentRepo.update.mockRejectedValue(new Error("DB connection lost"));
+      const fileEntries = [{ field: "idDocument" as const, file: validFile }];
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(
+        "DB connection lost"
+      );
+      expect(unlinkFile).toHaveBeenCalledWith(savedPath);
     });
   });
 
