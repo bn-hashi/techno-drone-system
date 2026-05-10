@@ -73,6 +73,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
       },
+      dependencies: ["setup-admin"],
     },
   ],
   // Start Next.js dev server automatically when running locally
