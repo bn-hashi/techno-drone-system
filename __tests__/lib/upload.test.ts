@@ -6,6 +6,7 @@ import { BusinessError } from "@/services/errors";
 const mockMkdir = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn());
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => "test-uuid-1234"));
+const mockFileTypeFromBuffer = vi.hoisted(() => vi.fn());
 
 vi.mock("node:fs/promises", () => ({
   mkdir: mockMkdir,
@@ -14,6 +15,10 @@ vi.mock("node:fs/promises", () => ({
 
 vi.mock("node:crypto", () => ({
   randomUUID: mockRandomUUID,
+}));
+
+vi.mock("file-type", () => ({
+  fileTypeFromBuffer: mockFileTypeFromBuffer,
 }));
 
 import { saveUploadedFile, MAX_FILE_SIZE_BYTES, UPLOAD_BASE_DIR } from "@/lib/upload";
@@ -27,11 +32,15 @@ describe("saveUploadedFile", () => {
   beforeEach(() => {
     mockMkdir.mockReset();
     mockWriteFile.mockReset();
+    mockFileTypeFromBuffer.mockReset();
     mockMkdir.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
+    // デフォルトでは宣言された MIME タイプと一致するものを返す (各テストで上書き可能)
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/jpeg", ext: "jpg" });
   });
 
   it("test_saveUploadedFile_valid_jpeg_returns_file_path", async () => {
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/jpeg", ext: "jpg" });
     const file = createMockFile("photo.jpg", "image/jpeg", 1024);
 
     const result = await saveUploadedFile(file, "id-documents");
@@ -40,6 +49,7 @@ describe("saveUploadedFile", () => {
   });
 
   it("test_saveUploadedFile_valid_png_returns_file_path", async () => {
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/png", ext: "png" });
     const file = createMockFile("photo.png", "image/png", 1024);
 
     const result = await saveUploadedFile(file, "photos");
@@ -48,6 +58,7 @@ describe("saveUploadedFile", () => {
   });
 
   it("test_saveUploadedFile_valid_pdf_returns_file_path", async () => {
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/pdf", ext: "pdf" });
     const file = createMockFile("doc.pdf", "application/pdf", 1024);
 
     const result = await saveUploadedFile(file, "certificates");
@@ -107,10 +118,36 @@ describe("saveUploadedFile", () => {
   });
 
   it("test_saveUploadedFile_creates_subdirectory_if_not_exists", async () => {
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "image/jpeg", ext: "jpg" });
     const file = createMockFile("photo.jpg", "image/jpeg", 1024);
 
     await saveUploadedFile(file, "id-documents");
 
     expect(mockMkdir).toHaveBeenCalledWith(`${UPLOAD_BASE_DIR}id-documents`, { recursive: true });
+  });
+
+  it("test_saveUploadedFile_spoofed_mime_type_throws_business_error", async () => {
+    // クライアントが image/jpeg と申告しているが実体は application/x-sh のケース
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/x-sh", ext: "sh" });
+    const file = createMockFile("evil.jpg", "image/jpeg", 1024);
+
+    await expect(saveUploadedFile(file, "docs")).rejects.toThrow(BusinessError);
+  });
+
+  it("test_saveUploadedFile_spoofed_mime_type_throws_correct_message", async () => {
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: "application/x-sh", ext: "sh" });
+    const file = createMockFile("evil.jpg", "image/jpeg", 1024);
+
+    await expect(saveUploadedFile(file, "docs")).rejects.toThrow(
+      "許可されていないファイル形式です"
+    );
+  });
+
+  it("test_saveUploadedFile_undetectable_file_type_throws_business_error", async () => {
+    // file-type がマジックバイトを認識できない場合
+    mockFileTypeFromBuffer.mockResolvedValue(undefined);
+    const file = createMockFile("unknown.jpg", "image/jpeg", 1024);
+
+    await expect(saveUploadedFile(file, "docs")).rejects.toThrow(BusinessError);
   });
 });

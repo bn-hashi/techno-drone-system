@@ -60,6 +60,7 @@ describe("SetupService", () => {
 
     mockAgreementLogRepo = {
       create: vi.fn(),
+      createAndActivateUser: vi.fn(),
     } as Mocked<IAgreementLogRepository>;
 
     service = new SetupService(mockUserRepo, mockAgreementLogRepo);
@@ -248,94 +249,69 @@ describe("SetupService", () => {
   // agreeToTerms
   // -----------------------------------------------
   describe("agreeToTerms", () => {
-    it("test_agreeToTerms_valid_userId_creates_agreement_log", async () => {
+    const mockLog = {
+      id: "log-1",
+      userId: "user-1",
+      version: "1.0",
+      agreedAt: new Date(),
+      ipAddress: "127.0.0.1",
+    };
+
+    it("test_agreeToTerms_valid_userId_calls_createAndActivateUser", async () => {
       // Arrange
       mockUserRepo.findById.mockResolvedValue(mockUser);
-      mockAgreementLogRepo.create.mockResolvedValue({
-        id: "log-1",
-        userId: "user-1",
-        version: "1.0",
-        agreedAt: new Date(),
-        ipAddress: null,
-      });
-      mockUserRepo.updateStatus.mockResolvedValue({
-        ...mockUser,
-        status: UserStatus.ACTIVE as "ACTIVE",
-      });
+      mockAgreementLogRepo.createAndActivateUser.mockResolvedValue(mockLog);
 
       // Act
       await service.agreeToTerms("user-1", "127.0.0.1");
 
       // Assert
-      expect(mockAgreementLogRepo.create).toHaveBeenCalledOnce();
+      expect(mockAgreementLogRepo.createAndActivateUser).toHaveBeenCalledOnce();
     });
 
-    it("test_agreeToTerms_valid_userId_calls_create_with_userId", async () => {
+    it("test_agreeToTerms_valid_userId_calls_createAndActivateUser_with_userId", async () => {
       // Arrange
       mockUserRepo.findById.mockResolvedValue(mockUser);
-      mockAgreementLogRepo.create.mockResolvedValue({
-        id: "log-1",
-        userId: "user-1",
-        version: "1.0",
-        agreedAt: new Date(),
-        ipAddress: null,
-      });
-      mockUserRepo.updateStatus.mockResolvedValue({
-        ...mockUser,
-        status: UserStatus.ACTIVE as "ACTIVE",
-      });
+      mockAgreementLogRepo.createAndActivateUser.mockResolvedValue(mockLog);
 
       // Act
       await service.agreeToTerms("user-1", "127.0.0.1");
 
       // Assert
-      const callArgs = mockAgreementLogRepo.create.mock.calls[0][0];
+      const callArgs = mockAgreementLogRepo.createAndActivateUser.mock.calls[0][0];
       expect(callArgs.userId).toBe("user-1");
-    });
-
-    it("test_agreeToTerms_valid_userId_updates_user_status_to_active", async () => {
-      // Arrange
-      mockUserRepo.findById.mockResolvedValue(mockUser);
-      mockAgreementLogRepo.create.mockResolvedValue({
-        id: "log-1",
-        userId: "user-1",
-        version: "1.0",
-        agreedAt: new Date(),
-        ipAddress: null,
-      });
-      mockUserRepo.updateStatus.mockResolvedValue({
-        ...mockUser,
-        status: UserStatus.ACTIVE as "ACTIVE",
-      });
-
-      // Act
-      await service.agreeToTerms("user-1", "127.0.0.1");
-
-      // Assert
-      expect(mockUserRepo.updateStatus).toHaveBeenCalledWith("user-1", UserStatus.ACTIVE);
     });
 
     it("test_agreeToTerms_valid_userId_passes_ip_address_to_log", async () => {
       // Arrange
       mockUserRepo.findById.mockResolvedValue(mockUser);
-      mockAgreementLogRepo.create.mockResolvedValue({
-        id: "log-1",
-        userId: "user-1",
-        version: "1.0",
-        agreedAt: new Date(),
-        ipAddress: null,
-      });
-      mockUserRepo.updateStatus.mockResolvedValue({
-        ...mockUser,
-        status: UserStatus.ACTIVE as "ACTIVE",
-      });
+      mockAgreementLogRepo.createAndActivateUser.mockResolvedValue(mockLog);
 
       // Act
       await service.agreeToTerms("user-1", "192.168.1.100");
 
       // Assert
-      const callArgs = mockAgreementLogRepo.create.mock.calls[0][0];
+      const callArgs = mockAgreementLogRepo.createAndActivateUser.mock.calls[0][0];
       expect(callArgs.ipAddress).toBe("192.168.1.100");
+    });
+
+    it("test_agreeToTerms_nonexistent_user_throws_UserNotFoundError", async () => {
+      // Arrange
+      mockUserRepo.findById.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.agreeToTerms("unknown-user", "127.0.0.1")).rejects.toThrow(
+        "指定された受講者が見つかりません"
+      );
+    });
+
+    it("test_agreeToTerms_already_active_user_throws_BusinessError", async () => {
+      // Arrange
+      const activeUser = { ...mockUser, status: UserStatus.ACTIVE as "ACTIVE" };
+      mockUserRepo.findById.mockResolvedValue(activeUser);
+
+      // Act & Assert
+      await expect(service.agreeToTerms("user-1", "127.0.0.1")).rejects.toThrow(BusinessError);
     });
   });
 });

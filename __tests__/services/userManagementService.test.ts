@@ -88,7 +88,7 @@ describe("UserManagementService", () => {
     const createInput = {
       email: "new@example.com",
       name: "New Student",
-      password: "password123",
+      password: "Password1",
       courseType: CourseType.BEGINNER,
     };
 
