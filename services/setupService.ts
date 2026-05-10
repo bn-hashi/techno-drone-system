@@ -5,31 +5,10 @@ import type { IUserRepository } from "@/repositories/userRepository";
 import type { IAgreementLogRepository } from "@/repositories/agreementLogRepository";
 import { BusinessError, UserNotFoundError } from "@/services/errors";
 import { UserStatus } from "@/types/prisma";
+import { validatePasswordPolicy } from "@/lib/passwordPolicy";
 
 // bcrypt ソルトラウンド数 (OWASP 推奨: 12以上)
 const BCRYPT_SALT_ROUNDS = 12;
-
-// パスワード最小文字数
-const PASSWORD_MIN_LENGTH = 8;
-
-/**
- * パスワードポリシーを検証する
- *
- * - 8文字以上
- * - 大文字1文字以上
- * - 数字1文字以上
- */
-function validatePasswordPolicy(rawPassword: string): void {
-  if (rawPassword.length < PASSWORD_MIN_LENGTH) {
-    throw new BusinessError(`パスワードは${PASSWORD_MIN_LENGTH}文字以上で入力してください`);
-  }
-  if (!/[A-Z]/.test(rawPassword)) {
-    throw new BusinessError("パスワードには大文字を1文字以上含めてください");
-  }
-  if (!/[0-9]/.test(rawPassword)) {
-    throw new BusinessError("パスワードには数字を1文字以上含めてください");
-  }
-}
 
 export class SetupService {
   constructor(
@@ -99,11 +78,18 @@ export class SetupService {
       throw new UserNotFoundError(userId);
     }
 
-    await this.agreementLogRepo.create({
+    // トークン再利用攻撃を防ぐため、PENDING_ACTIVATION ステータスのユーザーのみ許可する
+    if (user.status !== UserStatus.PENDING_ACTIVATION) {
+      throw new BusinessError(
+        "トークンが無効または期限切れです。管理者に再送信を依頼してください。"
+      );
+    }
+
+    // ログ作成とステータス更新をアトミックに実行して部分的な書き込みを防止する
+    await this.agreementLogRepo.createAndActivateUser({
       userId,
       agreedAt: new Date(),
       ipAddress,
     });
-    await this.userRepo.updateStatus(userId, UserStatus.ACTIVE);
   }
 }
