@@ -15,7 +15,11 @@ describe("emailService", () => {
 
   beforeEach(() => {
     vi.resetModules();
-    process.env = { ...ORIGINAL_ENV, RESEND_API_KEY: "test-api-key" };
+    process.env = {
+      ...ORIGINAL_ENV,
+      RESEND_API_KEY: "test-api-key",
+      RESEND_FROM_ADDRESS: "noreply@example.com",
+    };
     mockSend.mockReset();
   });
 

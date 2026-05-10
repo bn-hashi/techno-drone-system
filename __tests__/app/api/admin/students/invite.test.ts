@@ -39,7 +39,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     const response = await POST(request, params);
@@ -56,7 +56,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     await POST(request, params);
@@ -73,7 +73,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     const response = await POST(request, params);
@@ -91,7 +91,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     const response = await POST(request, params);
@@ -109,7 +109,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     const response = await POST(request, params);
@@ -126,7 +126,7 @@ describe("POST /api/admin/students/[id]/invite", () => {
     const request = new Request("http://localhost/api/admin/students/user-1/invite", {
       method: "POST",
     });
-    const params = { params: { id: "user-1" } };
+    const params = { params: Promise.resolve({ id: "user-1" }) };
 
     // Act
     const response = await POST(request, params);

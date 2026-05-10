@@ -123,7 +123,10 @@ describe("saveUploadedFile", () => {
 
     await saveUploadedFile(file, "id-documents");
 
-    expect(mockMkdir).toHaveBeenCalledWith(`${UPLOAD_BASE_DIR}id-documents`, { recursive: true });
+    expect(mockMkdir).toHaveBeenCalledWith(`${UPLOAD_BASE_DIR}id-documents`, {
+      recursive: true,
+      mode: 0o700,
+    });
   });
 
   it("test_saveUploadedFile_spoofed_mime_type_throws_business_error", async () => {

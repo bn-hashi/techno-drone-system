@@ -186,7 +186,7 @@ describe("SetupService", () => {
       await service.setPassword("valid-token", "Password1");
 
       // Assert
-      expect(bcrypt.hash).toHaveBeenCalledWith("Password1", expect.any(Number));
+      expect(bcrypt.hash).toHaveBeenCalledWith("Password1", 12);
     });
 
     it("test_setPassword_invalid_token_throws_BusinessError", async () => {
