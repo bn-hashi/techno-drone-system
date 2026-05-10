@@ -15,9 +15,9 @@
  */
 
 import { config } from "dotenv";
-import { createHmac } from "crypto";
 import path from "path";
 import fs from "fs";
+import { generateInviteToken } from "../../lib/token";
 
 // E2E-only fallback secret used when INVITE_TOKEN_SECRET is not present in
 // .env.local.  The value must match what is passed to webServer.env in
@@ -26,22 +26,6 @@ const E2E_FALLBACK_INVITE_TOKEN_SECRET = "e2e-invite-token-secret-for-playwright
 
 // Path where the probe result is written so test workers can read it
 const PROBE_RESULT_PATH = path.resolve(process.cwd(), "e2e/test-results/.server-probe.json");
-
-function buildProbeToken(secret: string): string {
-  const TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
-  const payload = { userId: "probe-user-id", exp: Date.now() + TOKEN_EXPIRY_MS };
-  const payloadBase64 = Buffer.from(JSON.stringify(payload))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payloadBase64);
-  const signature = hmac.digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
-  return `${payloadBase64}.${signature}`;
-}
 
 export default async function globalSetup(): Promise<void> {
   // Merge .env.local into process.env (does not override already-set vars)
@@ -60,7 +44,7 @@ export default async function globalSetup(): Promise<void> {
   // A 400 "token invalid" response means the server has a DIFFERENT secret.
   // A 400 "user not found" / "ステータス" response means the secret matches.
   const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-  const probeToken = buildProbeToken(process.env.INVITE_TOKEN_SECRET);
+  const probeToken = generateInviteToken("probe-user-id");
 
   let serverSecretMismatch = false;
   try {

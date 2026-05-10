@@ -44,26 +44,12 @@ async function isServerSecretMismatch(baseUrl: string): Promise<boolean> {
     return _serverSecretMismatchCache;
   }
 
-  const secret = process.env.INVITE_TOKEN_SECRET ?? "";
-  if (!secret) {
+  if (!process.env.INVITE_TOKEN_SECRET) {
     _serverSecretMismatchCache = true;
     return true;
   }
 
-  const { createHmac } = await import("crypto");
-  const TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
-  const payload = { userId: "probe-user-id", exp: Date.now() + TOKEN_EXPIRY_MS };
-  const payloadBase64 = Buffer.from(JSON.stringify(payload))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payloadBase64);
-  const signature = hmac.digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
-  const token = `${payloadBase64}.${signature}`;
+  const token = buildInviteToken("probe-user-id");
 
   try {
     const response = await fetch(`${baseUrl}/api/setup/password`, {

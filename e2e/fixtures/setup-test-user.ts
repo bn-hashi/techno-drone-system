@@ -10,6 +10,7 @@ import * as path from "path";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { generateInviteToken } from "../../lib/token";
 
 // Load .env.local so DATABASE_URL and INVITE_TOKEN_SECRET are available
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -75,41 +76,14 @@ export async function deletePendingActivationUser(email: string): Promise<void> 
 }
 
 /**
- * Generate an invite token for the given user ID by calling the token module
- * directly.  This allows tests to bypass the email step and navigate to
- * /setup/password?token=<token> directly.
+ * Generate an invite token for the given user ID.
  *
- * The INVITE_TOKEN_SECRET env var must be set (loaded from .env.local above).
+ * Delegates to lib/token.ts generateInviteToken so the token format stays
+ * in sync with the production implementation.
+ *
+ * INVITE_TOKEN_SECRET must be set in process.env before calling this function
+ * (loaded from .env.local via dotenv.config above).
  */
 export function buildInviteToken(userId: string): string {
-  // Inline the token generation logic so we avoid cross-module TS compilation
-  // issues (the token module uses process.env.INVITE_TOKEN_SECRET which must
-  // already be available when this helper is imported).
-  const secret = process.env.INVITE_TOKEN_SECRET;
-  if (!secret) {
-    throw new Error(
-      "INVITE_TOKEN_SECRET is not set. Add it to .env.local before running E2E tests."
-    );
-  }
-
-  const { createHmac } = require("crypto") as typeof import("crypto");
-
-  const TOKEN_EXPIRY_MS = 72 * 60 * 60 * 1000;
-
-  const payload = { userId, exp: Date.now() + TOKEN_EXPIRY_MS };
-  const payloadBase64 = Buffer.from(JSON.stringify(payload))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  const hmac = createHmac("sha256", secret);
-  hmac.update(payloadBase64);
-  const signature = hmac
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  return `${payloadBase64}.${signature}`;
+  return generateInviteToken(userId);
 }
