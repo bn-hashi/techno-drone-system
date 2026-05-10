@@ -2,18 +2,7 @@ import { NextResponse } from "next/server";
 import { getSetupService } from "@/lib/serviceFactory";
 import { BusinessError } from "@/services/errors";
 import { checkRateLimit } from "@/lib/rateLimit";
-
-/**
- * リクエストから送信元 IP アドレスを取得する。
- * x-forwarded-for はカンマ区切りのリストになる場合があるため先頭の IP のみ使用する。
- */
-function extractIpAddress(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
-  return "unknown";
-}
+import { extractIpAddress } from "@/lib/ipAddress";
 
 /**
  * パスワード設定エンドポイント
