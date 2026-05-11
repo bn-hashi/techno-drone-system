@@ -1,0 +1,47 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { AdminLayout } from "@/components/layouts/AdminLayout";
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
+
+vi.mock("@/components/auth/LogoutButton", () => ({
+  LogoutButton: () => <button>ログアウト</button>,
+}));
+
+describe("AdminLayout", () => {
+  it("test_AdminLayout_on_render_children_are_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>管理コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByText("管理コンテンツ")).toBeInTheDocument();
+  });
+
+  it("test_AdminLayout_on_render_navigation_link_student_list_is_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByText("受講者一覧")).toBeInTheDocument();
+  });
+
+  it("test_AdminLayout_on_render_navigation_link_applications_is_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByText("入学申請")).toBeInTheDocument();
+  });
+
+  it("test_AdminLayout_on_render_logout_button_is_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
+  });
+});

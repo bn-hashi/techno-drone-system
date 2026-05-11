@@ -86,6 +86,9 @@ model EnrollmentApplication {
   id                   String    @id @default(cuid())
   userId               String    @unique
   applicationDate      DateTime  @default(now())
+  dateOfBirth          DateTime
+  address              String
+  phoneNumber          String
   idDocumentPath       String?
   photoPath            String?
   experienceCertPath   String?
@@ -104,6 +107,7 @@ model AgreementLog {
   userId    String
   version   String
   agreedAt  DateTime @default(now())
+  ipAddress String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

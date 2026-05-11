@@ -34,8 +34,14 @@ function getJSTYearMonth(date: Date): { year: string; month: string } {
   });
 
   const parts = jstFormatter.formatToParts(date);
-  const year = parts.find((p) => p.type === "year")?.value ?? "";
-  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+
+  if (!year || !month) {
+    throw new Error(
+      `Failed to extract year/month from Intl.DateTimeFormat.formatToParts() for date: ${date.toISOString()}`
+    );
+  }
 
   return {
     year: year.slice(-2),

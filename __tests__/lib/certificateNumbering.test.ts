@@ -61,6 +61,14 @@ describe("formatCertificateNumber", () => {
       sequence: 1,
     });
     expect(result).toMatch(/^第TC/);
+  });
+
+  it("test_format_certificate_number_ends_with_go", () => {
+    const result = formatCertificateNumber({
+      institutionCode: "0515",
+      issuedAt: new Date("2024-09-25"),
+      sequence: 1,
+    });
     expect(result).toMatch(/号$/);
   });
 
@@ -80,30 +88,51 @@ describe("formatCertificateNumber", () => {
 // ===========================
 
 describe("calculateExpiryDate", () => {
-  it("test_calculate_expiry_date_is_one_year_minus_one_day", () => {
-    const issuedAt = new Date("2024-09-25");
-    const expiry = calculateExpiryDate(issuedAt);
-    // 2024/09/25 修了 → 2025/09/24 まで有効
+  it("test_calculate_expiry_date_year_is_one_year_later", () => {
+    const expiry = calculateExpiryDate(new Date("2024-09-25"));
     expect(expiry.getFullYear()).toBe(2025);
+  });
+
+  it("test_calculate_expiry_date_month_is_same_month", () => {
+    const expiry = calculateExpiryDate(new Date("2024-09-25"));
     expect(expiry.getMonth()).toBe(8); // 0-indexed: 8 = September
+  });
+
+  it("test_calculate_expiry_date_day_is_one_day_before", () => {
+    const expiry = calculateExpiryDate(new Date("2024-09-25"));
+    // 2024/09/25 修了 → 2025/09/24 まで有効
     expect(expiry.getDate()).toBe(24);
   });
 
-  it("test_calculate_expiry_date_for_last_day_of_year", () => {
-    const issuedAt = new Date("2024-12-31");
-    const expiry = calculateExpiryDate(issuedAt);
-    // 2024/12/31 修了 → 2025/12/30 まで有効
+  it("test_calculate_expiry_date_for_last_day_year_is_one_year_later", () => {
+    const expiry = calculateExpiryDate(new Date("2024-12-31"));
     expect(expiry.getFullYear()).toBe(2025);
+  });
+
+  it("test_calculate_expiry_date_for_last_day_month_is_december", () => {
+    const expiry = calculateExpiryDate(new Date("2024-12-31"));
     expect(expiry.getMonth()).toBe(11); // December
+  });
+
+  it("test_calculate_expiry_date_for_last_day_day_is_30", () => {
+    const expiry = calculateExpiryDate(new Date("2024-12-31"));
+    // 2024/12/31 修了 → 2025/12/30 まで有効
     expect(expiry.getDate()).toBe(30);
   });
 
-  it("test_calculate_expiry_date_for_leap_year_feb_29", () => {
-    const issuedAt = new Date("2024-02-29");
-    const expiry = calculateExpiryDate(issuedAt);
-    // 2024/02/29 修了 → 2025/02/28 まで有効 (2025年は閏年でない)
+  it("test_calculate_expiry_date_for_leap_year_year_is_one_year_later", () => {
+    const expiry = calculateExpiryDate(new Date("2024-02-29"));
     expect(expiry.getFullYear()).toBe(2025);
+  });
+
+  it("test_calculate_expiry_date_for_leap_year_month_is_february", () => {
+    const expiry = calculateExpiryDate(new Date("2024-02-29"));
     expect(expiry.getMonth()).toBe(1); // February
+  });
+
+  it("test_calculate_expiry_date_for_leap_year_day_is_28", () => {
+    const expiry = calculateExpiryDate(new Date("2024-02-29"));
+    // 2024/02/29 修了 → 2025/02/28 まで有効 (2025年は閏年でない)
     expect(expiry.getDate()).toBe(28);
   });
 });

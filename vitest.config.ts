@@ -14,7 +14,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov"],
       include: ["app/**", "components/**", "lib/**", "services/**", "repositories/**", "hooks/**"],
-      exclude: ["**/*.test.*", "**/*.spec.*", "**/node_modules/**"],
+      exclude: ["**/*.test.*", "**/*.spec.*", "**/node_modules/**", "lib/db.ts"],
     },
   },
   resolve: {
