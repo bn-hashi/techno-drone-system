@@ -64,7 +64,7 @@ export default async function globalSetup(): Promise<void> {
           "\n[E2E WARNING] INVITE_TOKEN_SECRET mismatch detected.\n" +
             "The dev server uses a different INVITE_TOKEN_SECRET than the test worker.\n" +
             "Token-dependent tests will be marked as fixme.\n" +
-            `Fix: Add INVITE_TOKEN_SECRET=${process.env.INVITE_TOKEN_SECRET} to .env.local and restart the server.\n`
+            "Fix: Ensure INVITE_TOKEN_SECRET is set in .env.local and restart the server.\n"
         );
       }
     }

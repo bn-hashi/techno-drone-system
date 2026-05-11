@@ -30,6 +30,18 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL environment variable is required");
 }
 
+// Fail-closed: prevent accidental writes to non-test databases
+if (process.env.NODE_ENV !== "test") {
+  throw new Error(
+    "E2E seeding must run with NODE_ENV=test to prevent accidental production writes"
+  );
+}
+if (!/-test\b|_test\b/i.test(databaseUrl)) {
+  throw new Error(
+    "DATABASE_URL must contain '-test' or '_test' suffix to confirm test database target"
+  );
+}
+
 const pool = new Pool({ connectionString: databaseUrl });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -103,8 +115,9 @@ async function seedE2EUsers(): Promise<void> {
 seedE2EUsers()
   .catch((error: unknown) => {
     console.error("Seeding failed:", error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });
