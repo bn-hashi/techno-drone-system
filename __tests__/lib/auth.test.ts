@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import type { JWT } from "next-auth/jwt";
+import type { Session } from "next-auth";
 
 vi.mock("@/repositories/userRepository", () => ({
   UserRepository: vi.fn().mockImplementation(() => ({})),
@@ -21,7 +23,8 @@ const sessionCallback = authOptions.callbacks!.session!;
 // -----------------------------------------------------------------------
 
 describe("authOptions.callbacks.jwt", () => {
-  const baseToken = { sub: "user-1" };
+  // Cast to satisfy JWT type: id/role/status are set by the callback on first sign-in
+  const baseToken = { sub: "user-1" } as unknown as JWT;
 
   it("test_jwt_with_user_sets_id_on_token", async () => {
     // Arrange
@@ -57,8 +60,8 @@ describe("authOptions.callbacks.jwt", () => {
   });
 
   it("test_jwt_without_user_returns_token_unchanged", async () => {
-    // Arrange
-    const token = { ...baseToken, id: "existing-id", role: UserRole.STUDENT };
+    // Arrange — status required because JWT type has it as mandatory
+    const token = { ...baseToken, id: "existing-id", role: UserRole.STUDENT, status: UserStatus.ACTIVE };
 
     // Act
     const result = await jwtCallback({ token, user: null as never, account: null, trigger: "update" });
@@ -79,12 +82,19 @@ describe("authOptions.callbacks.session", () => {
     user: { id: "", email: "a@test.com", name: "A", role: undefined as unknown as UserRole, status: undefined as unknown as UserStatus },
   };
 
+  // Helper to call sessionCallback without requiring AdapterUser (not available on "update" trigger)
+  type SessionCallbackArg = Parameters<typeof sessionCallback>[0];
+
   it("test_session_with_valid_role_and_status_sets_user_id", async () => {
     // Arrange
-    const token = { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE };
+    const token = { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE } as JWT;
 
     // Act
-    const result = await sessionCallback({ session: { ...baseSession, user: { ...baseSession.user } }, token, trigger: "update" });
+    const result = (await sessionCallback({
+      session: { ...baseSession, user: { ...baseSession.user } },
+      token,
+      trigger: "update",
+    } as SessionCallbackArg)) as Session;
 
     // Assert
     expect(result.user?.id).toBe("user-1");
@@ -92,32 +102,44 @@ describe("authOptions.callbacks.session", () => {
 
   it("test_session_with_valid_role_and_status_sets_role", async () => {
     // Arrange
-    const token = { id: "user-1", role: UserRole.ADMIN, status: UserStatus.ACTIVE };
+    const token = { id: "user-1", role: UserRole.ADMIN, status: UserStatus.ACTIVE } as JWT;
 
     // Act
-    const result = await sessionCallback({ session: { ...baseSession, user: { ...baseSession.user } }, token, trigger: "update" });
+    const result = (await sessionCallback({
+      session: { ...baseSession, user: { ...baseSession.user } },
+      token,
+      trigger: "update",
+    } as SessionCallbackArg)) as Session;
 
     // Assert
     expect(result.user?.role).toBe(UserRole.ADMIN);
   });
 
   it("test_session_with_invalid_role_returns_session_without_user", async () => {
-    // Arrange
-    const token = { id: "user-1", role: "INVALID_ROLE", status: UserStatus.ACTIVE };
+    // Arrange — deliberately invalid role to test fail-closed behaviour
+    const token = { id: "user-1", role: "INVALID_ROLE" as unknown as UserRole, status: UserStatus.ACTIVE } as JWT;
 
     // Act
-    const result = await sessionCallback({ session: { ...baseSession, user: { ...baseSession.user } }, token, trigger: "update" });
+    const result = (await sessionCallback({
+      session: { ...baseSession, user: { ...baseSession.user } },
+      token,
+      trigger: "update",
+    } as SessionCallbackArg)) as Session;
 
     // Assert
     expect(result.user).toBeUndefined();
   });
 
   it("test_session_with_invalid_status_returns_session_without_user", async () => {
-    // Arrange
-    const token = { id: "user-1", role: UserRole.STUDENT, status: "INVALID_STATUS" };
+    // Arrange — deliberately invalid status to test fail-closed behaviour
+    const token = { id: "user-1", role: UserRole.STUDENT, status: "INVALID_STATUS" as unknown as UserStatus } as JWT;
 
     // Act
-    const result = await sessionCallback({ session: { ...baseSession, user: { ...baseSession.user } }, token, trigger: "update" });
+    const result = (await sessionCallback({
+      session: { ...baseSession, user: { ...baseSession.user } },
+      token,
+      trigger: "update",
+    } as SessionCallbackArg)) as Session;
 
     // Assert
     expect(result.user).toBeUndefined();
