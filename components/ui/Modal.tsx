@@ -5,11 +5,14 @@ import React, { useEffect, useId, useRef } from "react";
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** モーダルのタイトル。未指定の場合は ariaLabel を必ず指定してください。 */
   title?: string;
+  /** title 未指定時に role="dialog" のアクセシブル名を提供します。 */
+  ariaLabel?: string;
   children: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, ariaLabel, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   // モーダルを閉じた後にフォーカスを元の要素へ戻すために保持する
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -65,6 +68,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-label={!title ? ariaLabel : undefined}
         tabIndex={-1}
         className="relative z-10 bg-white rounded-lg shadow-xl p-6 w-full max-w-md focus:outline-none"
       >

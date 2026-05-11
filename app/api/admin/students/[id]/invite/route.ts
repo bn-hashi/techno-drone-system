@@ -25,7 +25,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const baseUrl = new URL(request.url).origin;
+  // APP_BASE_URL を優先し、未設定の場合のみ request.url から取得する。
+  // request.url はリバースプロキシ経由時に Host ヘッダを含むため偽装リスクがある。
+  const baseUrl = process.env.APP_BASE_URL ?? new URL(request.url).origin;
 
   try {
     await getSetupService().sendInviteEmail(id, baseUrl);
