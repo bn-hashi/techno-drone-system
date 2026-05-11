@@ -2,15 +2,12 @@
 
 import React, { useEffect, useId, useRef } from "react";
 
-interface ModalProps {
+/** title と ariaLabel の少なくとも一方が必須。role="dialog" のアクセシブル名を保証します。 */
+type ModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  /** モーダルのタイトル。未指定の場合は ariaLabel を必ず指定してください。 */
-  title?: string;
-  /** title 未指定時に role="dialog" のアクセシブル名を提供します。 */
-  ariaLabel?: string;
   children: React.ReactNode;
-}
+} & ({ title: string; ariaLabel?: string } | { title?: never; ariaLabel: string });
 
 export function Modal({ isOpen, onClose, title, ariaLabel, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);

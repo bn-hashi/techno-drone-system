@@ -24,6 +24,8 @@ const adminSession = {
 describe("POST /api/admin/students/[id]/invite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // APP_BASE_URL は必須環境変数。テストでは固定値を設定する
+    process.env.APP_BASE_URL = "http://localhost:3000";
     vi.mocked(getSetupService).mockReturnValue({
       sendInviteEmail: mockSendInviteEmail,
       setPassword: vi.fn(),
@@ -116,6 +118,23 @@ describe("POST /api/admin/students/[id]/invite", () => {
 
     // Assert
     expect(response.status).toBe(404);
+  });
+
+  it("test_POST_missing_app_base_url_returns_500", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    delete process.env.APP_BASE_URL;
+
+    const request = new Request("http://localhost/api/admin/students/user-1/invite", {
+      method: "POST",
+    });
+    const params = { params: Promise.resolve({ id: "user-1" }) };
+
+    // Act
+    const response = await POST(request, params);
+
+    // Assert
+    expect(response.status).toBe(500);
   });
 
   it("test_POST_unexpected_error_returns_500", async () => {

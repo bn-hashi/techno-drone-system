@@ -28,10 +28,21 @@ describe("authOptions.callbacks.jwt", () => {
 
   it("test_jwt_with_user_sets_id_on_token", async () => {
     // Arrange
-    const user = { id: "user-1", email: "a@test.com", name: "A", role: UserRole.STUDENT, status: UserStatus.ACTIVE };
+    const user = {
+      id: "user-1",
+      email: "a@test.com",
+      name: "A",
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+    };
 
     // Act
-    const result = await jwtCallback({ token: { ...baseToken }, user, account: null, trigger: "signIn" });
+    const result = await jwtCallback({
+      token: { ...baseToken },
+      user,
+      account: null,
+      trigger: "signIn",
+    });
 
     // Assert
     expect(result.id).toBe("user-1");
@@ -39,10 +50,21 @@ describe("authOptions.callbacks.jwt", () => {
 
   it("test_jwt_with_user_sets_role_on_token", async () => {
     // Arrange
-    const user = { id: "user-1", email: "a@test.com", name: "A", role: UserRole.ADMIN, status: UserStatus.ACTIVE };
+    const user = {
+      id: "user-1",
+      email: "a@test.com",
+      name: "A",
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+    };
 
     // Act
-    const result = await jwtCallback({ token: { ...baseToken }, user, account: null, trigger: "signIn" });
+    const result = await jwtCallback({
+      token: { ...baseToken },
+      user,
+      account: null,
+      trigger: "signIn",
+    });
 
     // Assert
     expect(result.role).toBe(UserRole.ADMIN);
@@ -50,24 +72,65 @@ describe("authOptions.callbacks.jwt", () => {
 
   it("test_jwt_with_user_sets_status_on_token", async () => {
     // Arrange
-    const user = { id: "user-1", email: "a@test.com", name: "A", role: UserRole.STUDENT, status: UserStatus.ACTIVE };
+    const user = {
+      id: "user-1",
+      email: "a@test.com",
+      name: "A",
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+    };
 
     // Act
-    const result = await jwtCallback({ token: { ...baseToken }, user, account: null, trigger: "signIn" });
+    const result = await jwtCallback({
+      token: { ...baseToken },
+      user,
+      account: null,
+      trigger: "signIn",
+    });
 
     // Assert
     expect(result.status).toBe(UserStatus.ACTIVE);
   });
 
-  it("test_jwt_without_user_returns_token_unchanged", async () => {
+  it("test_jwt_without_user_preserves_id_on_token", async () => {
     // Arrange — status required because JWT type has it as mandatory
-    const token = { ...baseToken, id: "existing-id", role: UserRole.STUDENT, status: UserStatus.ACTIVE };
+    const token = {
+      ...baseToken,
+      id: "existing-id",
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+    };
 
     // Act
-    const result = await jwtCallback({ token, user: null as never, account: null, trigger: "update" });
+    const result = await jwtCallback({
+      token,
+      user: null as never,
+      account: null,
+      trigger: "update",
+    });
 
     // Assert
     expect(result.id).toBe("existing-id");
+  });
+
+  it("test_jwt_without_user_preserves_role_on_token", async () => {
+    // Arrange
+    const token = {
+      ...baseToken,
+      id: "existing-id",
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+    };
+
+    // Act
+    const result = await jwtCallback({
+      token,
+      user: null as never,
+      account: null,
+      trigger: "update",
+    });
+
+    // Assert
     expect(result.role).toBe(UserRole.STUDENT);
   });
 });
@@ -79,7 +142,13 @@ describe("authOptions.callbacks.jwt", () => {
 describe("authOptions.callbacks.session", () => {
   const baseSession = {
     expires: "2099-01-01",
-    user: { id: "", email: "a@test.com", name: "A", role: undefined as unknown as UserRole, status: undefined as unknown as UserStatus },
+    user: {
+      id: "",
+      email: "a@test.com",
+      name: "A",
+      role: undefined as unknown as UserRole,
+      status: undefined as unknown as UserStatus,
+    },
   };
 
   // Helper to call sessionCallback without requiring AdapterUser (not available on "update" trigger)
@@ -117,7 +186,11 @@ describe("authOptions.callbacks.session", () => {
 
   it("test_session_with_invalid_role_returns_session_without_user", async () => {
     // Arrange — deliberately invalid role to test fail-closed behaviour
-    const token = { id: "user-1", role: "INVALID_ROLE" as unknown as UserRole, status: UserStatus.ACTIVE } as JWT;
+    const token = {
+      id: "user-1",
+      role: "INVALID_ROLE" as unknown as UserRole,
+      status: UserStatus.ACTIVE,
+    } as JWT;
 
     // Act
     const result = (await sessionCallback({
@@ -132,7 +205,11 @@ describe("authOptions.callbacks.session", () => {
 
   it("test_session_with_invalid_status_returns_session_without_user", async () => {
     // Arrange — deliberately invalid status to test fail-closed behaviour
-    const token = { id: "user-1", role: UserRole.STUDENT, status: "INVALID_STATUS" as unknown as UserStatus } as JWT;
+    const token = {
+      id: "user-1",
+      role: UserRole.STUDENT,
+      status: "INVALID_STATUS" as unknown as UserStatus,
+    } as JWT;
 
     // Act
     const result = (await sessionCallback({

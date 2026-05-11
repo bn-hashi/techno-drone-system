@@ -7,7 +7,7 @@ describe("Modal", () => {
   it("test_Modal_when_isOpen_false_dialog_is_not_rendered", () => {
     // Arrange / Act
     render(
-      <Modal isOpen={false} onClose={vi.fn()}>
+      <Modal isOpen={false} onClose={vi.fn()} ariaLabel="テストモーダル">
         コンテンツ
       </Modal>
     );
@@ -19,7 +19,7 @@ describe("Modal", () => {
   it("test_Modal_when_isOpen_true_dialog_is_rendered", () => {
     // Arrange / Act
     render(
-      <Modal isOpen={true} onClose={vi.fn()}>
+      <Modal isOpen={true} onClose={vi.fn()} ariaLabel="テストモーダル">
         コンテンツ
       </Modal>
     );
@@ -31,7 +31,7 @@ describe("Modal", () => {
   it("test_Modal_when_isOpen_true_children_content_is_displayed", () => {
     // Arrange / Act
     render(
-      <Modal isOpen={true} onClose={vi.fn()}>
+      <Modal isOpen={true} onClose={vi.fn()} ariaLabel="テストモーダル">
         モーダルの内容
       </Modal>
     );
@@ -52,11 +52,23 @@ describe("Modal", () => {
     expect(screen.getByText("確認")).toBeInTheDocument();
   });
 
+  it("test_Modal_with_ariaLabel_prop_dialog_has_accessible_name", () => {
+    // Arrange / Act
+    render(
+      <Modal isOpen={true} onClose={vi.fn()} ariaLabel="カスタムラベル">
+        コンテンツ
+      </Modal>
+    );
+
+    // Assert — title がないとき aria-label が付与されること
+    expect(screen.getByRole("dialog", { name: "カスタムラベル" })).toBeInTheDocument();
+  });
+
   it("test_Modal_on_close_button_click_onClose_is_called", async () => {
     // Arrange
     const handleClose = vi.fn();
     render(
-      <Modal isOpen={true} onClose={handleClose}>
+      <Modal isOpen={true} onClose={handleClose} ariaLabel="テストモーダル">
         コンテンツ
       </Modal>
     );

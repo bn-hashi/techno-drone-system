@@ -25,9 +25,14 @@ export async function POST(
   }
 
   const { id } = await params;
-  // APP_BASE_URL を優先し、未設定の場合のみ request.url から取得する。
-  // request.url はリバースプロキシ経由時に Host ヘッダを含むため偽装リスクがある。
-  const baseUrl = process.env.APP_BASE_URL ?? new URL(request.url).origin;
+  // APP_BASE_URL は必須。未設定の場合は Host ヘッダ偽装のリスクがあるため 500 を返す。
+  const baseUrl = process.env.APP_BASE_URL;
+  if (!baseUrl) {
+    return NextResponse.json(
+      { error: "サーバー設定エラー: APP_BASE_URL が未設定です" },
+      { status: 500 }
+    );
+  }
 
   try {
     await getSetupService().sendInviteEmail(id, baseUrl);

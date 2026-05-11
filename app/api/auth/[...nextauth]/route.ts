@@ -15,7 +15,8 @@ export { nextAuthHandler as GET };
 export async function POST(req: NextRequest, ctx: { params: { nextauth: string[] } }) {
   if (ctx.params.nextauth.join("/") === "callback/credentials") {
     const ip = extractIpAddress(req);
-    if (!checkRateLimit(ip)) {
+    // "auth-login:" プレフィックスで他エンドポイントのキーと衝突しないよう名前空間を付与する
+    if (!checkRateLimit(`auth-login:${ip}`)) {
       return new NextResponse("Too Many Requests", { status: 429 });
     }
   }
