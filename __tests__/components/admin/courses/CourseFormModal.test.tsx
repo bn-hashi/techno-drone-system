@@ -37,6 +37,24 @@ describe("CourseFormModal — 新規作成モード", () => {
     expect(screen.getByLabelText("コース名")).toBeInTheDocument();
   });
 
+  it("test_CourseFormModal_has_dialog_role", () => {
+    renderWithQuery(<CourseFormModal mode="create" onClose={noop} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("test_CourseFormModal_dialog_is_modal", () => {
+    renderWithQuery(<CourseFormModal mode="create" onClose={noop} />);
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
+  it("test_CourseFormModal_dialog_is_labelled_by_heading", () => {
+    renderWithQuery(<CourseFormModal mode="create" onClose={noop} />);
+    const dialog = screen.getByRole("dialog");
+    const labelId = dialog.getAttribute("aria-labelledby");
+    expect(labelId).not.toBeNull();
+    expect(document.getElementById(labelId as string)?.textContent).toBe("コースを作成");
+  });
+
   it("test_CourseFormModal_create_renders_type_select", () => {
     renderWithQuery(<CourseFormModal mode="create" onClose={noop} />);
     expect(screen.getByLabelText("コースタイプ")).toBeInTheDocument();

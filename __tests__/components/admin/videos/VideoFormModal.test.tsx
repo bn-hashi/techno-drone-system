@@ -58,6 +58,30 @@ describe("VideoFormModal — 新規作成モード", () => {
     expect(screen.getByLabelText("タイトル")).toBeInTheDocument();
   });
 
+  it("test_VideoFormModal_has_dialog_role", () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={subjects} courses={courses} onClose={noop} />
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("test_VideoFormModal_dialog_is_modal", () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={subjects} courses={courses} onClose={noop} />
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
+  it("test_VideoFormModal_dialog_is_labelled_by_heading", () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={subjects} courses={courses} onClose={noop} />
+    );
+    const dialog = screen.getByRole("dialog");
+    const labelId = dialog.getAttribute("aria-labelledby");
+    expect(labelId).not.toBeNull();
+    expect(document.getElementById(labelId as string)?.textContent).toBe("動画を作成");
+  });
+
   it("test_VideoFormModal_create_renders_subject_select", () => {
     renderWithQuery(
       <VideoFormModal mode="create" subjects={subjects} courses={courses} onClose={noop} />

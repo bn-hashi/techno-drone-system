@@ -101,8 +101,13 @@ export function VideoFormModal({ mode, video, subjects, courses, onClose }: Prop
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="video-form-modal-title"
+        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg"
+      >
+        <h2 id="video-form-modal-title" className="mb-4 text-lg font-semibold">
           {mode === "edit" ? "動画を編集" : "動画を作成"}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
