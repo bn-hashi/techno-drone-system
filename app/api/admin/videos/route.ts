@@ -25,7 +25,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (subjectId !== null) filter.subjectId = subjectId;
 
   const isPublishedParam = searchParams.get("isPublished");
-  if (isPublishedParam !== null) filter.isPublished = isPublishedParam === "true";
+  if (isPublishedParam !== null) {
+    if (isPublishedParam !== "true" && isPublishedParam !== "false") {
+      return NextResponse.json(
+        { error: "isPublished には true または false を指定してください" },
+        { status: 400 }
+      );
+    }
+    filter.isPublished = isPublishedParam === "true";
+  }
 
   try {
     const videos = await getVideoService().listVideos(

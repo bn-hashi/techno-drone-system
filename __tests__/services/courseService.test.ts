@@ -67,7 +67,10 @@ describe("CourseService", () => {
     it("test_createCourse_valid_data_returns_created_course", async () => {
       mockCourseRepo.create.mockResolvedValue(mockCourse);
 
-      const result = await service.createCourse({ name: "初学者コース", type: CourseType.BEGINNER });
+      const result = await service.createCourse({
+        name: "初学者コース",
+        type: CourseType.BEGINNER,
+      });
 
       expect(result).toEqual(mockCourse);
       expect(mockCourseRepo.create).toHaveBeenCalledWith({
@@ -77,15 +80,26 @@ describe("CourseService", () => {
     });
 
     it("test_createCourse_empty_name_throws_BusinessError", async () => {
-      await expect(
-        service.createCourse({ name: "", type: CourseType.BEGINNER })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createCourse({ name: "", type: CourseType.BEGINNER })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createCourse_whitespace_only_name_throws_BusinessError", async () => {
       await expect(
         service.createCourse({ name: "   ", type: CourseType.BEGINNER })
       ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_createCourse_persists_trimmed_name", async () => {
+      mockCourseRepo.create.mockResolvedValue(mockCourse);
+
+      await service.createCourse({ name: "  初学者コース  ", type: CourseType.BEGINNER });
+
+      expect(mockCourseRepo.create).toHaveBeenCalledWith({
+        name: "初学者コース",
+        type: CourseType.BEGINNER,
+      });
     });
   });
 
@@ -112,6 +126,15 @@ describe("CourseService", () => {
       mockCourseRepo.findById.mockResolvedValue(mockCourse);
 
       await expect(service.updateCourse("course-1", { name: "" })).rejects.toThrow(BusinessError);
+    });
+
+    it("test_updateCourse_persists_trimmed_name", async () => {
+      mockCourseRepo.findById.mockResolvedValue(mockCourse);
+      mockCourseRepo.update.mockResolvedValue(mockCourse);
+
+      await service.updateCourse("course-1", { name: "  改訂版コース  " });
+
+      expect(mockCourseRepo.update).toHaveBeenCalledWith("course-1", { name: "改訂版コース" });
     });
   });
 

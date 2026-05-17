@@ -23,14 +23,11 @@ const mockSupervisor = {
 };
 
 const makeRequest = (method: string, body?: unknown) =>
-  new Request(
-    `http://localhost/api/admin/videos/${params.id}/supervisors/${params.supervisorId}`,
-    {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }
-  );
+  new Request(`http://localhost/api/admin/videos/${params.id}/supervisors/${params.supervisorId}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
 
 const mockService = () =>
   vi.mocked(getVideoService).mockReturnValue({
@@ -77,7 +74,9 @@ describe("PATCH /api/admin/videos/[id]/supervisors/[supervisorId]", () => {
 
     expect(response.status).toBe(200);
     expect(body.supervisor.name).toBe("鈴木花子");
-    expect(mockUpdateSupervisor).toHaveBeenCalledWith("supervisor-1", { name: "鈴木花子" });
+    expect(mockUpdateSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1", {
+      name: "鈴木花子",
+    });
   });
 
   it("test_PATCH_supervisor_not_found_returns_404", async () => {
@@ -121,7 +120,7 @@ describe("DELETE /api/admin/videos/[id]/supervisors/[supervisorId]", () => {
     const response = await DELETE(makeRequest("DELETE"), { params });
 
     expect(response.status).toBe(204);
-    expect(mockRemoveSupervisor).toHaveBeenCalledWith("supervisor-1");
+    expect(mockRemoveSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1");
   });
 
   it("test_DELETE_supervisor_not_found_returns_404", async () => {

@@ -87,6 +87,48 @@ describe("VideoFormModal — 新規作成モード", () => {
     await waitFor(() => expect(screen.getByText("タイトルは必須です")).toBeInTheDocument());
   });
 
+  it("test_VideoFormModal_create_empty_filepath_shows_validation_error", async () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={subjects} courses={courses} onClose={noop} />
+    );
+
+    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "ドローン基礎" } });
+    fireEvent.change(screen.getByLabelText("視聴時間（秒）"), { target: { value: "3600" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(screen.getByText("ファイルパスは必須です")).toBeInTheDocument());
+  });
+
+  it("test_VideoFormModal_create_empty_subject_shows_validation_error", async () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={[]} courses={courses} onClose={noop} />
+    );
+
+    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "ドローン基礎" } });
+    fireEvent.change(screen.getByLabelText("ファイルパス"), {
+      target: { value: "/videos/basic.mp4" },
+    });
+    fireEvent.change(screen.getByLabelText("視聴時間（秒）"), { target: { value: "3600" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(screen.getByText("科目を選択してください")).toBeInTheDocument());
+  });
+
+  it("test_VideoFormModal_create_empty_course_shows_validation_error", async () => {
+    renderWithQuery(
+      <VideoFormModal mode="create" subjects={subjects} courses={[]} onClose={noop} />
+    );
+
+    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "ドローン基礎" } });
+    fireEvent.change(screen.getByLabelText("ファイルパス"), {
+      target: { value: "/videos/basic.mp4" },
+    });
+    fireEvent.change(screen.getByLabelText("視聴時間（秒）"), { target: { value: "3600" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(screen.getByText("コースを選択してください")).toBeInTheDocument());
+  });
+
   it("test_VideoFormModal_create_valid_submission_calls_postCreateVideo", async () => {
     mockPostCreateVideo.mockResolvedValue(undefined);
     renderWithQuery(

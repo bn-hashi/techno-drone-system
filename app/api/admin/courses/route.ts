@@ -7,7 +7,7 @@ import { BusinessError } from "@/services/errors";
 
 const VALID_COURSE_TYPES = new Set<string>(Object.values(CourseType));
 
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(_request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
 
   if (!session) {

@@ -61,6 +61,21 @@ export function VideoFormModal({ mode, video, subjects, courses, onClose }: Prop
       return;
     }
 
+    if (!subjectId) {
+      setValidationError("科目を選択してください");
+      return;
+    }
+
+    if (!courseId) {
+      setValidationError("コースを選択してください");
+      return;
+    }
+
+    if (!filePath.trim()) {
+      setValidationError("ファイルパスは必須です");
+      return;
+    }
+
     const durationNumber = Number(duration);
     if (!Number.isInteger(durationNumber) || durationNumber <= 0) {
       setValidationError("視聴時間は1以上の整数を入力してください");
@@ -181,10 +196,7 @@ export function VideoFormModal({ mode, video, subjects, courses, onClose }: Prop
               />
             </div>
             <div>
-              <label
-                htmlFor="video-sort-order"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="video-sort-order" className="block text-sm font-medium text-gray-700">
                 表示順
               </label>
               <input

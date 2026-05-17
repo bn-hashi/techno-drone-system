@@ -104,6 +104,14 @@ describe("GET /api/admin/videos", () => {
 
     expect(mockListVideos).toHaveBeenCalledWith({ isPublished: true });
   });
+
+  it("test_GET_with_invalid_isPublished_returns_400", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+
+    const response = await GET(new Request("http://localhost/api/admin/videos?isPublished=foo"));
+
+    expect(response.status).toBe(400);
+  });
 });
 
 describe("POST /api/admin/videos", () => {

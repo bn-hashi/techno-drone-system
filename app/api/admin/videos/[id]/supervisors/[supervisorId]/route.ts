@@ -25,7 +25,7 @@ export async function PATCH(
   }
 
   try {
-    const supervisor = await getVideoService().updateSupervisor(params.supervisorId, {
+    const supervisor = await getVideoService().updateSupervisor(params.id, params.supervisorId, {
       name: body.name,
     });
     return NextResponse.json({ supervisor }, { status: 200 });
@@ -54,7 +54,7 @@ export async function DELETE(
   }
 
   try {
-    await getVideoService().removeSupervisor(params.supervisorId);
+    await getVideoService().removeSupervisor(params.id, params.supervisorId);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     if (err instanceof SupervisorNotFoundError) {

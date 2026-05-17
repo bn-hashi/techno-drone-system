@@ -1,5 +1,9 @@
 import type { Course } from "@prisma/client";
-import type { ICourseRepository, CreateCourseInput, UpdateCourseInput } from "@/repositories/courseRepository";
+import type {
+  ICourseRepository,
+  CreateCourseInput,
+  UpdateCourseInput,
+} from "@/repositories/courseRepository";
 import { BusinessError, CourseNotFoundError } from "@/services/errors";
 
 export class CourseService {
@@ -18,10 +22,11 @@ export class CourseService {
   }
 
   async createCourse(data: CreateCourseInput): Promise<Course> {
-    if (data.name.trim() === "") {
+    const trimmedName = data.name.trim();
+    if (trimmedName === "") {
       throw new BusinessError("コース名は必須です");
     }
-    return this.courseRepo.create(data);
+    return this.courseRepo.create({ ...data, name: trimmedName });
   }
 
   async updateCourse(id: string, data: UpdateCourseInput): Promise<Course> {
@@ -30,11 +35,16 @@ export class CourseService {
       throw new CourseNotFoundError(id);
     }
 
-    if (data.name !== undefined && data.name.trim() === "") {
-      throw new BusinessError("コース名は必須です");
+    const normalized: UpdateCourseInput = { ...data };
+    if (data.name !== undefined) {
+      const trimmedName = data.name.trim();
+      if (trimmedName === "") {
+        throw new BusinessError("コース名は必須です");
+      }
+      normalized.name = trimmedName;
     }
 
-    return this.courseRepo.update(id, data);
+    return this.courseRepo.update(id, normalized);
   }
 
   async deleteCourse(id: string): Promise<void> {

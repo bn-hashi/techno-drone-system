@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach, vi, type Mocked } from "vitest";
 import { VideoService } from "@/services/videoService";
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import type { IVideoSupervisorRepository } from "@/repositories/videoSupervisorRepository";
-import {
-  VideoNotFoundError,
-  SupervisorNotFoundError,
-  BusinessError,
-} from "@/services/errors";
+import { VideoNotFoundError, SupervisorNotFoundError, BusinessError } from "@/services/errors";
 
 describe("VideoService", () => {
   let service: VideoService;
@@ -127,21 +123,21 @@ describe("VideoService", () => {
     });
 
     it("test_createVideo_empty_title_throws_BusinessError", async () => {
-      await expect(
-        service.createVideo({ ...createInput, title: "" })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createVideo({ ...createInput, title: "" })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createVideo_negative_duration_throws_BusinessError", async () => {
-      await expect(
-        service.createVideo({ ...createInput, duration: -1 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createVideo({ ...createInput, duration: -1 })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createVideo_zero_duration_throws_BusinessError", async () => {
-      await expect(
-        service.createVideo({ ...createInput, duration: 0 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createVideo({ ...createInput, duration: 0 })).rejects.toThrow(
+        BusinessError
+      );
     });
   });
 
@@ -177,9 +173,27 @@ describe("VideoService", () => {
     it("test_updateVideo_publish_without_supervisor_throws_BusinessError", async () => {
       mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithNoSupervisors);
 
-      await expect(
-        service.updateVideo("video-1", { isPublished: true })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.updateVideo("video-1", { isPublished: true })).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_updateVideo_empty_title_throws_BusinessError", async () => {
+      mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithSupervisors);
+
+      await expect(service.updateVideo("video-1", { title: "  " })).rejects.toThrow(BusinessError);
+    });
+
+    it("test_updateVideo_zero_duration_throws_BusinessError", async () => {
+      mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithSupervisors);
+
+      await expect(service.updateVideo("video-1", { duration: 0 })).rejects.toThrow(BusinessError);
+    });
+
+    it("test_updateVideo_negative_duration_throws_BusinessError", async () => {
+      mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithSupervisors);
+
+      await expect(service.updateVideo("video-1", { duration: -1 })).rejects.toThrow(BusinessError);
     });
   });
 
@@ -209,9 +223,9 @@ describe("VideoService", () => {
     it("test_addSupervisor_video_not_found_throws_VideoNotFoundError", async () => {
       mockVideoRepo.findById.mockResolvedValue(null);
 
-      await expect(
-        service.addSupervisor("nonexistent", supervisorInput)
-      ).rejects.toThrow(VideoNotFoundError);
+      await expect(service.addSupervisor("nonexistent", supervisorInput)).rejects.toThrow(
+        VideoNotFoundError
+      );
     });
 
     it("test_addSupervisor_valid_data_returns_created_supervisor", async () => {
@@ -234,6 +248,14 @@ describe("VideoService", () => {
         service.addSupervisor("video-1", { name: "", instructorRegistrationNumber: "REG-001" })
       ).rejects.toThrow(BusinessError);
     });
+
+    it("test_addSupervisor_empty_instructorRegistrationNumber_throws_BusinessError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+
+      await expect(
+        service.addSupervisor("video-1", { name: "山田太郎", instructorRegistrationNumber: "  " })
+      ).rejects.toThrow(BusinessError);
+    });
   });
 
   describe("updateSupervisor", () => {
@@ -241,7 +263,18 @@ describe("VideoService", () => {
       mockSupervisorRepo.findById.mockResolvedValue(null);
 
       await expect(
-        service.updateSupervisor("nonexistent", { name: "新名前" })
+        service.updateSupervisor("video-1", "nonexistent", { name: "新名前" })
+      ).rejects.toThrow(SupervisorNotFoundError);
+    });
+
+    it("test_updateSupervisor_supervisor_belongs_to_other_video_throws_SupervisorNotFoundError", async () => {
+      mockSupervisorRepo.findById.mockResolvedValue({
+        ...mockSupervisor,
+        videoId: "other-video",
+      });
+
+      await expect(
+        service.updateSupervisor("video-1", "supervisor-1", { name: "新名前" })
       ).rejects.toThrow(SupervisorNotFoundError);
     });
 
@@ -250,9 +283,29 @@ describe("VideoService", () => {
       mockSupervisorRepo.findById.mockResolvedValue(mockSupervisor);
       mockSupervisorRepo.update.mockResolvedValue(updated);
 
-      const result = await service.updateSupervisor("supervisor-1", { name: "鈴木花子" });
+      const result = await service.updateSupervisor("video-1", "supervisor-1", {
+        name: "鈴木花子",
+      });
 
       expect(result).toEqual(updated);
+    });
+
+    it("test_updateSupervisor_empty_name_throws_BusinessError", async () => {
+      mockSupervisorRepo.findById.mockResolvedValue(mockSupervisor);
+
+      await expect(
+        service.updateSupervisor("video-1", "supervisor-1", { name: "  " })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_updateSupervisor_empty_instructorRegistrationNumber_throws_BusinessError", async () => {
+      mockSupervisorRepo.findById.mockResolvedValue(mockSupervisor);
+
+      await expect(
+        service.updateSupervisor("video-1", "supervisor-1", {
+          instructorRegistrationNumber: "  ",
+        })
+      ).rejects.toThrow(BusinessError);
     });
   });
 
@@ -260,7 +313,18 @@ describe("VideoService", () => {
     it("test_removeSupervisor_nonexistent_id_throws_SupervisorNotFoundError", async () => {
       mockSupervisorRepo.findById.mockResolvedValue(null);
 
-      await expect(service.removeSupervisor("nonexistent")).rejects.toThrow(
+      await expect(service.removeSupervisor("video-1", "nonexistent")).rejects.toThrow(
+        SupervisorNotFoundError
+      );
+    });
+
+    it("test_removeSupervisor_supervisor_belongs_to_other_video_throws_SupervisorNotFoundError", async () => {
+      mockSupervisorRepo.findById.mockResolvedValue({
+        ...mockSupervisor,
+        videoId: "other-video",
+      });
+
+      await expect(service.removeSupervisor("video-1", "supervisor-1")).rejects.toThrow(
         SupervisorNotFoundError
       );
     });
@@ -270,7 +334,7 @@ describe("VideoService", () => {
       mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithSupervisors);
       mockSupervisorRepo.delete.mockResolvedValue(undefined);
 
-      await service.removeSupervisor("supervisor-1");
+      await service.removeSupervisor("video-1", "supervisor-1");
 
       expect(mockSupervisorRepo.delete).toHaveBeenCalledWith("supervisor-1");
     });
@@ -280,7 +344,9 @@ describe("VideoService", () => {
       mockSupervisorRepo.findById.mockResolvedValue(mockSupervisor);
       mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(publishedVideo);
 
-      await expect(service.removeSupervisor("supervisor-1")).rejects.toThrow(BusinessError);
+      await expect(service.removeSupervisor("video-1", "supervisor-1")).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_removeSupervisor_last_supervisor_of_unpublished_video_succeeds", async () => {
@@ -288,7 +354,7 @@ describe("VideoService", () => {
       mockVideoRepo.findByIdWithSupervisors.mockResolvedValue(mockVideoWithSupervisors);
       mockSupervisorRepo.delete.mockResolvedValue(undefined);
 
-      await service.removeSupervisor("supervisor-1");
+      await service.removeSupervisor("video-1", "supervisor-1");
 
       expect(mockSupervisorRepo.delete).toHaveBeenCalledWith("supervisor-1");
     });
