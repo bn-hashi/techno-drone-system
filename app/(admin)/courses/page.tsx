@@ -1,6 +1,8 @@
 import { getCourseService } from "@/lib/serviceFactory";
 import { CoursePageClient } from "@/components/admin/courses/CoursePageClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function CoursesPage() {
   const courses = await getCourseService().listCourses();
 

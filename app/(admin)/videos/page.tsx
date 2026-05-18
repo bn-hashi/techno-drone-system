@@ -1,6 +1,8 @@
 import { getCourseService, getSubjectService, getVideoService } from "@/lib/serviceFactory";
 import { VideoPageClient } from "@/components/admin/videos/VideoPageClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function VideosPage() {
   const [videos, subjects, courses] = await Promise.all([
     getVideoService().listVideos(),
