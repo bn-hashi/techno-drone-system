@@ -54,8 +54,16 @@ export default async function StudentDashboardPage() {
         <h2 className="mb-3 text-sm font-medium text-gray-700">科目別進捗</h2>
         <ul className="space-y-3">
           {progress.map((p) => {
-            const ratio = Math.min(p.totalWatchedMinutes / p.requiredMinutes, 1);
+            // requiredMinutes が 0 (設定漏れ) でも除算で NaN/Infinity にならないようガード
+            const ratio =
+              p.requiredMinutes > 0
+                ? Math.min(p.totalWatchedMinutes / p.requiredMinutes, 1)
+                : p.totalWatchedMinutes > 0
+                  ? 1
+                  : 0;
             const percent = Math.floor(ratio * 100);
+            // aria-valuenow は valuemax を超えないようクランプし支援技術での解釈を安定させる
+            const ariaValueNow = Math.min(p.totalWatchedMinutes, p.requiredMinutes);
             return (
               <li key={p.subjectId} className="rounded-lg border border-gray-200 bg-white p-4">
                 <div className="mb-1 flex items-center justify-between">
@@ -72,7 +80,7 @@ export default async function StudentDashboardPage() {
                 <div
                   role="progressbar"
                   aria-label={`${p.subjectName} の進捗`}
-                  aria-valuenow={p.totalWatchedMinutes}
+                  aria-valuenow={ariaValueNow}
                   aria-valuemin={0}
                   aria-valuemax={p.requiredMinutes}
                   aria-valuetext={`${p.totalWatchedMinutes} / ${p.requiredMinutes} 分 (${percent}%)`}
