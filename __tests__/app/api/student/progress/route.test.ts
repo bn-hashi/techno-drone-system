@@ -75,4 +75,14 @@ describe("GET /api/student/progress", () => {
 
     expect(mockGetProgressByUser).toHaveBeenCalledWith("user-1", CourseType.EXPERIENCED);
   });
+
+  it("test_GET_user_without_courseType_returns_400", async () => {
+    // コース未割当ユーザーは進捗を計算できない
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetUserById.mockResolvedValue({ id: "user-1", courseType: null });
+
+    const response = await GET();
+
+    expect(response.status).toBe(400);
+  });
 });

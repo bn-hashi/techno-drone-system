@@ -59,6 +59,21 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
     expect(response.status).toBe(403);
   });
 
+  it("test_GET_pending_activation_student_returns_403", async () => {
+    // ロールは STUDENT だがステータスが ACTIVE 以外なら 403
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: {
+        id: "u-1",
+        role: UserRole.STUDENT,
+        status: UserStatus.PENDING_ACTIVATION,
+      },
+    });
+
+    const response = await GET(new Request("http://localhost/"), { params });
+
+    expect(response.status).toBe(403);
+  });
+
   it("test_GET_returns_200_with_videos", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockGetVideosWithLockStatus.mockResolvedValue([
