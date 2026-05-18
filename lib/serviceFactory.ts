@@ -11,6 +11,10 @@ import { CourseService } from "@/services/courseService";
 import { VideoRepository } from "@/repositories/videoRepository";
 import { VideoSupervisorRepository } from "@/repositories/videoSupervisorRepository";
 import { VideoService } from "@/services/videoService";
+import { ViewingLogRepository } from "@/repositories/viewingLogRepository";
+import { ViewingLogService } from "@/services/viewingLogService";
+import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
+import { FraudFlagService } from "@/services/fraudFlagService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -43,4 +47,14 @@ export function getCourseService(): CourseService {
 /** 動画 Service のインスタンスを返す */
 export function getVideoService(): VideoService {
   return new VideoService(new VideoRepository(), new VideoSupervisorRepository());
+}
+
+/** 視聴ログ Service のインスタンスを返す */
+export function getViewingLogService(): ViewingLogService {
+  return new ViewingLogService(new ViewingLogRepository(), new VideoRepository());
+}
+
+/** 不正フラグ Service のインスタンスを返す */
+export function getFraudFlagService(): FraudFlagService {
+  return new FraudFlagService(new FraudFlagRepository());
 }
