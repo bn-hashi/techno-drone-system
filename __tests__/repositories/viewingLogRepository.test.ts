@@ -4,11 +4,14 @@ import { ViewingLogRepository } from "@/repositories/viewingLogRepository";
 const mockCreate = vi.fn();
 const mockAggregate = vi.fn();
 
+const mockFindFirst = vi.fn();
+
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
     viewingLog: {
       create: mockCreate,
       aggregate: mockAggregate,
+      findFirst: mockFindFirst,
     },
   }),
 }));
@@ -34,6 +37,7 @@ describe("ViewingLogRepository", () => {
   beforeEach(() => {
     mockCreate.mockReset();
     mockAggregate.mockReset();
+    mockFindFirst.mockReset();
     repository = new ViewingLogRepository();
   });
 
@@ -80,6 +84,37 @@ describe("ViewingLogRepository", () => {
       expect(mockAggregate).toHaveBeenCalledWith({
         where: { userId: "user-1", videoId: "video-1" },
         _max: { watchedSeconds: true },
+      });
+    });
+  });
+
+  describe("findLatestCreatedAtByUserVideo", () => {
+    it("test_findLatestCreatedAt_returns_createdAt", async () => {
+      const createdAt = new Date("2026-05-18T10:00:00Z");
+      mockFindFirst.mockResolvedValue({ createdAt });
+
+      const result = await repository.findLatestCreatedAtByUserVideo("user-1", "video-1");
+
+      expect(result).toEqual(createdAt);
+    });
+
+    it("test_findLatestCreatedAt_returns_null_when_no_logs", async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      const result = await repository.findLatestCreatedAtByUserVideo("user-1", "video-1");
+
+      expect(result).toBeNull();
+    });
+
+    it("test_findLatestCreatedAt_orders_by_createdAt_desc", async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      await repository.findLatestCreatedAtByUserVideo("user-1", "video-1");
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { userId: "user-1", videoId: "video-1" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
       });
     });
   });

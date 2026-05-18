@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mocked } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mocked } from "vitest";
 import { ViewingLogService } from "@/services/viewingLogService";
 import type { IViewingLogRepository } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
@@ -8,6 +8,9 @@ describe("ViewingLogService", () => {
   let service: ViewingLogService;
   let mockLogRepo: Mocked<IViewingLogRepository>;
   let mockVideoRepo: Mocked<IVideoRepository>;
+
+  // テスト中のサーバー現在時刻を固定する基準
+  const NOW = new Date("2026-05-18T10:00:30.000Z");
 
   const mockVideo = {
     id: "video-1",
@@ -34,9 +37,13 @@ describe("ViewingLogService", () => {
   const mockLog = { id: "log-1", ...validInput, rawLog: null, createdAt: new Date() };
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
     mockLogRepo = {
       create: vi.fn(),
       findMaxWatchedSecondsByUserVideo: vi.fn(),
+      findLatestCreatedAtByUserVideo: vi.fn(),
     } as Mocked<IViewingLogRepository>;
 
     mockVideoRepo = {
@@ -48,7 +55,14 @@ describe("ViewingLogService", () => {
       delete: vi.fn(),
     } as Mocked<IVideoRepository>;
 
+    // 各テストで明示的に上書きしない限り、初回扱い (前回ログなし) を既定とする
+    mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
+
     service = new ViewingLogService(mockLogRepo, mockVideoRepo);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("recordSession", () => {
@@ -95,67 +109,59 @@ describe("ViewingLogService", () => {
       ).rejects.toThrow(BusinessError);
     });
 
-    it("test_recordSession_watchedSeconds_far_exceeds_previous_max_throws_BusinessError", async () => {
+    it("test_recordSession_first_log_within_video_duration_succeeds", async () => {
+      // 初回ログ (前回 createdAt が null) は動画長以内なら通る
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
-      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
-
-      // 既存 max=100、新規=500 (差分 400 秒は許容上限を超える)
-      await expect(service.recordSession({ ...validInput, watchedSeconds: 500 })).rejects.toThrow(
-        BusinessError
-      );
-    });
-
-    it("test_recordSession_watchedSeconds_within_increment_limit_succeeds", async () => {
-      mockVideoRepo.findById.mockResolvedValue(mockVideo);
-      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
       mockLogRepo.create.mockResolvedValue(mockLog);
 
-      // 既存 max=100、新規=115 (差分 15 秒は許容上限内、バッファ10秒+余裕)
       await expect(
-        service.recordSession({ ...validInput, watchedSeconds: 115 })
+        service.recordSession({ ...validInput, watchedSeconds: 10 })
       ).resolves.toBeDefined();
     });
 
-    it("test_recordSession_watchedSeconds_below_max_succeeds", async () => {
-      mockVideoRepo.findById.mockResolvedValue(mockVideo);
-      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(200);
-      mockLogRepo.create.mockResolvedValue(mockLog);
-
-      // 既存 max より小さい値は再視聴扱いで OK
-      await expect(
-        service.recordSession({ ...validInput, watchedSeconds: 50 })
-      ).resolves.toBeDefined();
-    });
-
-    it("test_recordSession_progress_exceeds_wallclock_throws_BusinessError", async () => {
-      // 累積攻撃対策: ウォール時刻 10 秒に対し +25 秒の進捗は不正
-      // (1.5x 再生上限 + バッファでも 15+α 秒が上限)
+    it("test_recordSession_server_time_increment_too_large_throws_BusinessError", async () => {
+      // 累積攻撃対策: クライアント時刻 (startedAt/endedAt) を 1 時間と偽装しても、
+      // サーバー側の前回ログ createdAt が直近 (10 秒前) なら拒否される
+      // サーバー側で 10 秒 * 1.5 + バッファ 10 = 25 秒が上限、+100 秒は不正
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
       mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+      const tenSecondsAgo = new Date(NOW.getTime() - 10_000);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(tenSecondsAgo);
 
       await expect(
         service.recordSession({
           ...validInput,
-          startedAt: new Date("2026-05-18T10:00:00.000Z"),
-          endedAt: new Date("2026-05-18T10:00:10.000Z"),
-          watchedSeconds: 125,
+          startedAt: new Date("2026-05-18T09:00:00.000Z"),
+          endedAt: new Date("2026-05-18T10:00:00.000Z"),
+          watchedSeconds: 200,
         })
       ).rejects.toThrow(BusinessError);
     });
 
-    it("test_recordSession_progress_within_wallclock_succeeds", async () => {
+    it("test_recordSession_server_time_increment_within_limit_succeeds", async () => {
+      // サーバー側 10 秒経過で +10 秒進捗（等倍再生）は OK
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
       mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+      const tenSecondsAgo = new Date(NOW.getTime() - 10_000);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(tenSecondsAgo);
       mockLogRepo.create.mockResolvedValue(mockLog);
 
-      // ウォール時刻 10 秒で +10 秒進捗（正常な等倍再生）
       await expect(
-        service.recordSession({
-          ...validInput,
-          startedAt: new Date("2026-05-18T10:00:00.000Z"),
-          endedAt: new Date("2026-05-18T10:00:10.000Z"),
-          watchedSeconds: 110,
-        })
+        service.recordSession({ ...validInput, watchedSeconds: 110 })
+      ).resolves.toBeDefined();
+    });
+
+    it("test_recordSession_watchedSeconds_below_max_succeeds", async () => {
+      // 既存 max より小さい値は再視聴扱い、サーバー側上限チェックを通過
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(200);
+      const tenSecondsAgo = new Date(NOW.getTime() - 10_000);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(tenSecondsAgo);
+      mockLogRepo.create.mockResolvedValue(mockLog);
+
+      await expect(
+        service.recordSession({ ...validInput, watchedSeconds: 50 })
       ).resolves.toBeDefined();
     });
   });
