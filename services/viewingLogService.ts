@@ -31,24 +31,22 @@ export class ViewingLogService {
 
     // 進捗偽装防止: クライアント送信の startedAt/endedAt は信頼できないため、
     // サーバー側の前回ログ createdAt と現在時刻の差分を基準にする。
-    // 初回ログは比較対象がないので watchedSeconds <= video.duration のみで防御。
+    // 初回ログは比較対象がないので「1 バッチ分 + バッファ余裕」を上限にする。
     const lastCreatedAt = await this.logRepo.findLatestCreatedAtByUserVideo(
       input.userId,
       input.videoId
     );
-    if (lastCreatedAt !== null) {
-      const previousMax = await this.logRepo.findMaxWatchedSecondsByUserVideo(
-        input.userId,
-        input.videoId
-      );
-      const progressIncrement = input.watchedSeconds - previousMax;
-      if (progressIncrement > 0) {
-        const elapsedServerSeconds = (Date.now() - lastCreatedAt.getTime()) / 1000;
-        const maxAllowedProgress =
-          elapsedServerSeconds * MAX_PLAYBACK_RATE + VIEWING_LOG_BUFFER_SECONDS;
-        if (progressIncrement > maxAllowedProgress) {
-          throw new BusinessError("実時間に対する進捗が許容範囲を超えています");
-        }
+    const previousMax =
+      (await this.logRepo.findMaxWatchedSecondsByUserVideo(input.userId, input.videoId)) ?? 0;
+    const progressIncrement = input.watchedSeconds - previousMax;
+    if (progressIncrement > 0) {
+      const maxAllowedProgress =
+        lastCreatedAt === null
+          ? VIEWING_LOG_BUFFER_SECONDS * 2 // 初回上限: 1 バッチ送信幅 + ネットワーク遅延余裕
+          : ((Date.now() - lastCreatedAt.getTime()) / 1000) * MAX_PLAYBACK_RATE +
+            VIEWING_LOG_BUFFER_SECONDS;
+      if (progressIncrement > maxAllowedProgress) {
+        throw new BusinessError("実時間に対する進捗が許容範囲を超えています");
       }
     }
 

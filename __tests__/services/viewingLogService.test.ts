@@ -109,15 +109,29 @@ describe("ViewingLogService", () => {
       ).rejects.toThrow(BusinessError);
     });
 
-    it("test_recordSession_first_log_within_video_duration_succeeds", async () => {
-      // 初回ログ (前回 createdAt が null) は動画長以内なら通る
+    it("test_recordSession_first_log_within_initial_limit_succeeds", async () => {
+      // 初回ログ (前回 createdAt が null) も初回上限の範囲内なら通る
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
       mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(0);
       mockLogRepo.create.mockResolvedValue(mockLog);
 
+      // 10 秒は初回上限 (VIEWING_LOG_BUFFER_SECONDS * 2 = 20 秒) 以内
       await expect(
         service.recordSession({ ...validInput, watchedSeconds: 10 })
       ).resolves.toBeDefined();
+    });
+
+    it("test_recordSession_first_log_exceeds_initial_limit_throws_BusinessError", async () => {
+      // 初回偽装攻撃対策: 初回ログで watchedSeconds = duration を送って
+      // 一度で全視聴扱いになるのを防ぐ
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(0);
+
+      await expect(service.recordSession({ ...validInput, watchedSeconds: 3600 })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_recordSession_server_time_increment_too_large_throws_BusinessError", async () => {
