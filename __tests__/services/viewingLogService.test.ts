@@ -54,6 +54,7 @@ describe("ViewingLogService", () => {
     mockLogRepo = {
       create: vi.fn(),
       findMaxWatchedSecondsByUserVideo: vi.fn(),
+      findMaxWatchedSecondsByUserVideos: vi.fn(),
       findLatestCreatedAtByUserVideo: vi.fn(),
       sumWatchedSecondsByUserSubject: vi.fn(),
     } as Mocked<IViewingLogRepository>;

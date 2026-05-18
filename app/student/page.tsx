@@ -3,13 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { getProgressService, getUserManagementService } from "@/lib/serviceFactory";
-import { UserRole, UserStatus } from "@/types/prisma";
+import { CourseType, UserRole, UserStatus } from "@/types/prisma";
 
 export const dynamic = "force-dynamic";
 
-const COURSE_TYPE_LABELS: Record<string, string> = {
-  BEGINNER: "初学者コース",
-  EXPERIENCED: "経験者コース",
+const COURSE_TYPE_LABELS: Record<CourseType, string> = {
+  [CourseType.BEGINNER]: "初学者コース",
+  [CourseType.EXPERIENCED]: "経験者コース",
 };
 
 export default async function StudentDashboardPage() {
@@ -57,10 +57,7 @@ export default async function StudentDashboardPage() {
             const ratio = Math.min(p.totalWatchedMinutes / p.requiredMinutes, 1);
             const percent = Math.floor(ratio * 100);
             return (
-              <li
-                key={p.subjectId}
-                className="rounded-lg border border-gray-200 bg-white p-4"
-              >
+              <li key={p.subjectId} className="rounded-lg border border-gray-200 bg-white p-4">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-900">{p.subjectName}</span>
                   <span className="text-xs text-gray-500">
@@ -72,7 +69,15 @@ export default async function StudentDashboardPage() {
                     )}
                   </span>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                <div
+                  role="progressbar"
+                  aria-label={`${p.subjectName} の進捗`}
+                  aria-valuenow={p.totalWatchedMinutes}
+                  aria-valuemin={0}
+                  aria-valuemax={p.requiredMinutes}
+                  aria-valuetext={`${p.totalWatchedMinutes} / ${p.requiredMinutes} 分 (${percent}%)`}
+                  className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
+                >
                   <div
                     className={`h-full ${p.isFulfilled ? "bg-green-500" : "bg-blue-500"}`}
                     style={{ width: `${percent}%` }}
