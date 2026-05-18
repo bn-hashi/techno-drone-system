@@ -5,6 +5,8 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 const NAVIGATION_LINKS = [
   { href: "/admin/students", label: "受講者一覧" },
   { href: "/admin/applications", label: "入学申請" },
+  { href: "/admin/courses", label: "コース管理" },
+  { href: "/admin/videos", label: "動画管理" },
 ] as const;
 
 interface AdminLayoutProps {
