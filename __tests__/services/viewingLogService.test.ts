@@ -126,6 +126,38 @@ describe("ViewingLogService", () => {
         service.recordSession({ ...validInput, watchedSeconds: 50 })
       ).resolves.toBeDefined();
     });
+
+    it("test_recordSession_progress_exceeds_wallclock_throws_BusinessError", async () => {
+      // 累積攻撃対策: ウォール時刻 10 秒に対し +25 秒の進捗は不正
+      // (1.5x 再生上限 + バッファでも 15+α 秒が上限)
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+
+      await expect(
+        service.recordSession({
+          ...validInput,
+          startedAt: new Date("2026-05-18T10:00:00.000Z"),
+          endedAt: new Date("2026-05-18T10:00:10.000Z"),
+          watchedSeconds: 125,
+        })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_recordSession_progress_within_wallclock_succeeds", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+      mockLogRepo.create.mockResolvedValue(mockLog);
+
+      // ウォール時刻 10 秒で +10 秒進捗（正常な等倍再生）
+      await expect(
+        service.recordSession({
+          ...validInput,
+          startedAt: new Date("2026-05-18T10:00:00.000Z"),
+          endedAt: new Date("2026-05-18T10:00:10.000Z"),
+          watchedSeconds: 110,
+        })
+      ).resolves.toBeDefined();
+    });
   });
 
   describe("getMaxWatchedSeconds", () => {
