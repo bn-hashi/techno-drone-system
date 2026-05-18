@@ -34,15 +34,7 @@ export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewing
   }, [currentSeconds]);
 
   useEffect(() => {
-    if (!isPlaying) {
-      // 停止時に未送信セッションをフラッシュ（バッチタイマー未発火分を取り逃さない）
-      const pending = sessionStartRef.current;
-      if (pending !== null) {
-        sendLog(videoId, pending, new Date(), Math.floor(currentSecondsRef.current));
-        sessionStartRef.current = null;
-      }
-      return;
-    }
+    if (!isPlaying) return;
 
     sessionStartRef.current = new Date();
 
@@ -55,7 +47,16 @@ export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewing
       sessionStartRef.current = endedAt;
     }, BUFFER_MS);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      // 停止・アンマウント・動画切替時に未送信セッションを 1 回フラッシュ
+      // (バッチタイマー未発火分を取り逃さない)
+      const pending = sessionStartRef.current;
+      if (pending !== null) {
+        sendLog(videoId, pending, new Date(), Math.floor(currentSecondsRef.current));
+        sessionStartRef.current = null;
+      }
+    };
   }, [isPlaying, videoId]);
 
   // ページ離脱時の最終送信（sendBeacon）

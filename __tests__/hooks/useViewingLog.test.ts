@@ -44,6 +44,28 @@ describe("useViewingLog", () => {
     expect(mockPostViewingLog).toHaveBeenCalledTimes(1);
   });
 
+  it("test_useViewingLog_flushes_unsent_session_on_unmount", async () => {
+    const { unmount, rerender } = renderHook(
+      ({ currentSeconds }: { currentSeconds: number }) =>
+        useViewingLog({ videoId: "video-1", isPlaying: true, currentSeconds }),
+      { initialProps: { currentSeconds: 0 } }
+    );
+
+    // 5 秒視聴後にアンマウント（バッチタイマー未発火）
+    await act(async () => {
+      rerender({ currentSeconds: 5 });
+      vi.advanceTimersByTime(5_000);
+    });
+
+    await act(async () => {
+      unmount();
+      await Promise.resolve();
+    });
+
+    // ページ遷移・動画切替時に未送信が落ちないことを担保
+    expect(mockPostViewingLog).toHaveBeenCalledTimes(1);
+  });
+
   it("test_useViewingLog_flushes_unsent_session_when_play_stops", async () => {
     const { rerender } = renderHook(
       ({ isPlaying, currentSeconds }: { isPlaying: boolean; currentSeconds: number }) =>
