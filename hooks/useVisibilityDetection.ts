@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { postFraudFlag } from "@/lib/api/studentVideos";
 import { TAB_LEAVE_THRESHOLD_SECONDS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 interface UseVisibilityDetectionParams {
   onHidden: () => void;
@@ -35,7 +36,10 @@ export function useVisibilityDetection({ onHidden }: UseVisibilityDetectionParam
           type: "TAB_LEAVE",
           durationSeconds: elapsedSeconds,
         }).catch((error) => {
-          console.error("Failed to post fraud flag", error);
+          logger.error("Failed to post fraud flag", error, {
+            type: "TAB_LEAVE",
+            durationSeconds: elapsedSeconds,
+          });
         });
       }
     }

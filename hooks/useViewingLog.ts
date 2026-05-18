@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { postViewingLog } from "@/lib/api/studentVideos";
 import { VIEWING_LOG_BUFFER_SECONDS } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 interface UseViewingLogParams {
   videoId: string;
@@ -12,19 +13,14 @@ interface UseViewingLogParams {
 
 const BUFFER_MS = VIEWING_LOG_BUFFER_SECONDS * 1000;
 
-function sendLog(
-  videoId: string,
-  startedAt: Date,
-  endedAt: Date,
-  watchedSeconds: number
-): void {
+function sendLog(videoId: string, startedAt: Date, endedAt: Date, watchedSeconds: number): void {
   void postViewingLog({
     videoId,
     startedAt: startedAt.toISOString(),
     endedAt: endedAt.toISOString(),
     watchedSeconds,
   }).catch((error) => {
-    console.error("Failed to post viewing log", error);
+    logger.error("Failed to post viewing log", error, { videoId });
   });
 }
 
