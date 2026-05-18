@@ -158,4 +158,38 @@ describe("ViewingLogRepository", () => {
       });
     });
   });
+
+  describe("findMaxWatchedSecondsByUserVideos", () => {
+    it("test_findMaxByVideos_returns_map_of_videoId_to_max", async () => {
+      mockGroupBy.mockResolvedValue([
+        { videoId: "video-1", _max: { watchedSeconds: 60 } },
+        { videoId: "video-2", _max: { watchedSeconds: 120 } },
+      ]);
+
+      const result = await repository.findMaxWatchedSecondsByUserVideos("user-1", [
+        "video-1",
+        "video-2",
+      ]);
+
+      expect(result).toEqual({ "video-1": 60, "video-2": 120 });
+    });
+
+    it("test_findMaxByVideos_empty_video_ids_returns_empty_object", async () => {
+      const result = await repository.findMaxWatchedSecondsByUserVideos("user-1", []);
+
+      expect(result).toEqual({});
+    });
+
+    it("test_findMaxByVideos_uses_in_filter", async () => {
+      mockGroupBy.mockResolvedValue([]);
+
+      await repository.findMaxWatchedSecondsByUserVideos("user-1", ["video-1", "video-2"]);
+
+      expect(mockGroupBy).toHaveBeenCalledWith({
+        by: ["videoId"],
+        where: { userId: "user-1", videoId: { in: ["video-1", "video-2"] } },
+        _max: { watchedSeconds: true },
+      });
+    });
+  });
 });

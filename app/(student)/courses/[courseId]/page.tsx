@@ -37,16 +37,10 @@ export default async function CourseVideosPage({ params }: Props) {
     notFound();
   }
 
-  const progressService = getProgressService();
-  const userId = session.user.id;
-  const videosWithLock = await Promise.all(
-    videos
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map(async (video) => ({
-        video,
-        isLocked: !(await progressService.canWatchVideo(userId, video.id)),
-      }))
-  );
+  const canWatchMap = await getProgressService().canWatchVideoBatch(session.user.id, videos);
+  const videosWithLock = [...videos]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((video) => ({ video, isLocked: !canWatchMap[video.id] }));
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">

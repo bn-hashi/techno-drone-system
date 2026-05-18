@@ -12,7 +12,7 @@ import { getVideoService, getProgressService } from "@/lib/serviceFactory";
 import { GET } from "@/app/api/student/courses/[courseId]/videos/route";
 
 const mockListVideos = vi.fn();
-const mockCanWatchVideo = vi.fn();
+const mockCanWatchVideoBatch = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -38,7 +38,8 @@ beforeEach(() => {
     listVideos: mockListVideos,
   } as unknown as ReturnType<typeof getVideoService>);
   vi.mocked(getProgressService).mockReturnValue({
-    canWatchVideo: mockCanWatchVideo,
+    canWatchVideo: vi.fn(),
+    canWatchVideoBatch: mockCanWatchVideoBatch,
     getProgressByUser: vi.fn(),
   } as unknown as ReturnType<typeof getProgressService>);
 });
@@ -65,7 +66,7 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
   it("test_GET_returns_200_with_videos", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockListVideos.mockResolvedValue([video1, video2]);
-    mockCanWatchVideo.mockResolvedValue(true);
+    mockCanWatchVideoBatch.mockResolvedValue({ "video-1": true, "video-2": true });
 
     const response = await GET(new Request("http://localhost/"), { params });
     const body = await response.json();
@@ -76,7 +77,7 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
   it("test_GET_returns_isLocked_per_video", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockListVideos.mockResolvedValue([video1, video2]);
-    mockCanWatchVideo.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    mockCanWatchVideoBatch.mockResolvedValue({ "video-1": true, "video-2": false });
 
     const response = await GET(new Request("http://localhost/"), { params });
     const body = await response.json();
@@ -87,7 +88,7 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
   it("test_GET_filters_by_courseId_and_published_only", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockListVideos.mockResolvedValue([]);
-    mockCanWatchVideo.mockResolvedValue(true);
+    mockCanWatchVideoBatch.mockResolvedValue({});
 
     await GET(new Request("http://localhost/"), { params });
 

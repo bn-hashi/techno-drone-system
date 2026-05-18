@@ -59,6 +59,7 @@ describe("ProgressService", () => {
     mockLogRepo = {
       create: vi.fn(),
       findMaxWatchedSecondsByUserVideo: vi.fn(),
+      findMaxWatchedSecondsByUserVideos: vi.fn(),
       findLatestCreatedAtByUserVideo: vi.fn(),
       sumWatchedSecondsByUserSubject: vi.fn(),
     } as Mocked<IViewingLogRepository>;
@@ -161,7 +162,7 @@ describe("ProgressService", () => {
       mockVideoRepo.findById.mockResolvedValue(video2);
       mockVideoRepo.findAll.mockResolvedValue([video1]);
       // 600 秒 * 0.8 = 480 秒以上見ている
-      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(500);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({ "video-1": 500 });
 
       const result = await service.canWatchVideo("user-1", "video-2");
 
@@ -172,11 +173,47 @@ describe("ProgressService", () => {
       mockVideoRepo.findById.mockResolvedValue(video2);
       mockVideoRepo.findAll.mockResolvedValue([video1]);
       // 600 秒 * 0.8 = 480 秒未満
-      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(400);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({ "video-1": 400 });
 
       const result = await service.canWatchVideo("user-1", "video-2");
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe("canWatchVideoBatch", () => {
+    it("test_canWatchVideoBatch_returns_map_per_videoId", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([video1, video2]);
+      // video1 を 80% 視聴済み、video2 は未視聴
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({
+        "video-1": 500,
+      });
+
+      const result = await service.canWatchVideoBatch("user-1", [video1, video2]);
+
+      expect(result["video-1"]).toBe(true);
+    });
+
+    it("test_canWatchVideoBatch_locks_second_when_first_not_completed", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([video1, video2]);
+      // video1 未完了
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({
+        "video-1": 100,
+      });
+
+      const result = await service.canWatchVideoBatch("user-1", [video1, video2]);
+
+      expect(result["video-2"]).toBe(false);
+    });
+
+    it("test_canWatchVideoBatch_calls_findMaxByVideos_once", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([video1, video2]);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({});
+
+      await service.canWatchVideoBatch("user-1", [video1, video2]);
+
+      // N+1 解消: 動画数によらず DB 呼び出しは 1 回のみ
+      expect(mockLogRepo.findMaxWatchedSecondsByUserVideos).toHaveBeenCalledTimes(1);
     });
   });
 });

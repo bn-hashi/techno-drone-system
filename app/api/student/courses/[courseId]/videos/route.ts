@@ -26,14 +26,11 @@ export async function GET(
       courseId: params.courseId,
       isPublished: true,
     });
-    const progressService = getProgressService();
-    const userId = session.user.id;
-    const withLockStatus = await Promise.all(
-      videos.map(async (video) => ({
-        ...video,
-        isLocked: !(await progressService.canWatchVideo(userId, video.id)),
-      }))
-    );
+    const canWatchMap = await getProgressService().canWatchVideoBatch(session.user.id, videos);
+    const withLockStatus = videos.map((video) => ({
+      ...video,
+      isLocked: !canWatchMap[video.id],
+    }));
     return NextResponse.json({ videos: withLockStatus }, { status: 200 });
   } catch {
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
