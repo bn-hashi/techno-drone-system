@@ -4,13 +4,15 @@ import type {
   CreateViewingLogInput,
 } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
+import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 import { VIEWING_LOG_BUFFER_SECONDS, MAX_PLAYBACK_RATE } from "@/lib/constants";
 
 export class ViewingLogService {
   constructor(
     private readonly logRepo: IViewingLogRepository,
-    private readonly videoRepo: IVideoRepository
+    private readonly videoRepo: IVideoRepository,
+    private readonly subjectProgressRepo: ISubjectProgressRepository
   ) {}
 
   async recordSession(input: CreateViewingLogInput): Promise<ViewingLog> {
@@ -50,7 +52,22 @@ export class ViewingLogService {
       }
     }
 
-    return this.logRepo.create(input);
+    const log = await this.logRepo.create(input);
+
+    // SubjectProgress を同期更新（充足判定は ProgressService が動的に行うため
+    // isFulfilled は常に false で永続化し、totalWatchedMinutes のみ最新化する）
+    const totalSeconds = await this.logRepo.sumWatchedSecondsByUserSubject(
+      input.userId,
+      video.subjectId
+    );
+    await this.subjectProgressRepo.upsert({
+      userId: input.userId,
+      subjectId: video.subjectId,
+      totalWatchedMinutes: Math.floor(totalSeconds / 60),
+      isFulfilled: false,
+    });
+
+    return log;
   }
 
   async getMaxWatchedSeconds(userId: string, videoId: string): Promise<number> {

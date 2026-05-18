@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mocked } from "vi
 import { ViewingLogService } from "@/services/viewingLogService";
 import type { IViewingLogRepository } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
+import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 
 describe("ViewingLogService", () => {
   let service: ViewingLogService;
   let mockLogRepo: Mocked<IViewingLogRepository>;
   let mockVideoRepo: Mocked<IVideoRepository>;
+  let mockSubjectProgressRepo: Mocked<ISubjectProgressRepository>;
 
   // テスト中のサーバー現在時刻を固定する基準
   const NOW = new Date("2026-05-18T10:00:30.000Z");
@@ -44,7 +46,14 @@ describe("ViewingLogService", () => {
       create: vi.fn(),
       findMaxWatchedSecondsByUserVideo: vi.fn(),
       findLatestCreatedAtByUserVideo: vi.fn(),
+      sumWatchedSecondsByUserSubject: vi.fn(),
     } as Mocked<IViewingLogRepository>;
+
+    mockSubjectProgressRepo = {
+      findByUserSubject: vi.fn(),
+      findAllByUser: vi.fn(),
+      upsert: vi.fn(),
+    } as Mocked<ISubjectProgressRepository>;
 
     mockVideoRepo = {
       findAll: vi.fn(),
@@ -57,8 +66,17 @@ describe("ViewingLogService", () => {
 
     // 各テストで明示的に上書きしない限り、初回扱い (前回ログなし) を既定とする
     mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
+    mockLogRepo.sumWatchedSecondsByUserSubject.mockResolvedValue(0);
+    mockSubjectProgressRepo.upsert.mockResolvedValue({
+      id: "p-1",
+      userId: "user-1",
+      subjectId: "subject-1",
+      totalWatchedMinutes: 0,
+      isFulfilled: false,
+      updatedAt: new Date(),
+    });
 
-    service = new ViewingLogService(mockLogRepo, mockVideoRepo);
+    service = new ViewingLogService(mockLogRepo, mockVideoRepo, mockSubjectProgressRepo);
   });
 
   afterEach(() => {
@@ -177,6 +195,35 @@ describe("ViewingLogService", () => {
       await expect(
         service.recordSession({ ...validInput, watchedSeconds: 50 })
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe("recordSession - SubjectProgress sync", () => {
+    it("test_recordSession_upserts_subject_progress_after_log_creation", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(0);
+      mockLogRepo.create.mockResolvedValue(mockLog);
+      mockLogRepo.sumWatchedSecondsByUserSubject.mockResolvedValue(180); // 3 分
+
+      await service.recordSession({ ...validInput, watchedSeconds: 10 });
+
+      expect(mockSubjectProgressRepo.upsert).toHaveBeenCalledWith({
+        userId: "user-1",
+        subjectId: "subject-1",
+        totalWatchedMinutes: 3,
+        isFulfilled: false,
+      });
+    });
+
+    it("test_recordSession_does_not_upsert_when_validation_fails", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+
+      await expect(service.recordSession({ ...validInput, watchedSeconds: -1 })).rejects.toThrow(
+        BusinessError
+      );
+
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
   });
 

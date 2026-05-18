@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getVideoService, getViewingLogService } from "@/lib/serviceFactory";
+import { getVideoService, getViewingLogService, getProgressService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { VideoNotFoundError } from "@/services/errors";
 
@@ -26,6 +26,11 @@ export async function GET(
     const video = await getVideoService().getVideo(params.id);
     if (!video.isPublished) {
       return NextResponse.json({ error: "動画が見つかりません" }, { status: 404 });
+    }
+    // 受講順序制御: 前の動画を 80% 視聴していないと視聴不可
+    const canWatch = await getProgressService().canWatchVideo(session.user.id, video.id);
+    if (!canWatch) {
+      return NextResponse.json({ error: "前の動画を視聴してください" }, { status: 403 });
     }
     const maxWatchedSeconds = await getViewingLogService().getMaxWatchedSeconds(
       session.user.id,

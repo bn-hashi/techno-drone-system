@@ -15,6 +15,8 @@ import { ViewingLogRepository } from "@/repositories/viewingLogRepository";
 import { ViewingLogService } from "@/services/viewingLogService";
 import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
 import { FraudFlagService } from "@/services/fraudFlagService";
+import { SubjectProgressRepository } from "@/repositories/subjectProgressRepository";
+import { ProgressService } from "@/services/progressService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -51,10 +53,23 @@ export function getVideoService(): VideoService {
 
 /** 視聴ログ Service のインスタンスを返す */
 export function getViewingLogService(): ViewingLogService {
-  return new ViewingLogService(new ViewingLogRepository(), new VideoRepository());
+  return new ViewingLogService(
+    new ViewingLogRepository(),
+    new VideoRepository(),
+    new SubjectProgressRepository()
+  );
 }
 
 /** 不正フラグ Service のインスタンスを返す */
 export function getFraudFlagService(): FraudFlagService {
   return new FraudFlagService(new FraudFlagRepository());
+}
+
+/** 進捗 Service のインスタンスを返す */
+export function getProgressService(): ProgressService {
+  return new ProgressService(
+    new ViewingLogRepository(),
+    new VideoRepository(),
+    new SubjectRepository()
+  );
 }

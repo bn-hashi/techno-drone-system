@@ -14,6 +14,7 @@ export interface IViewingLogRepository {
   create(input: CreateViewingLogInput): Promise<ViewingLog>;
   findMaxWatchedSecondsByUserVideo(userId: string, videoId: string): Promise<number>;
   findLatestCreatedAtByUserVideo(userId: string, videoId: string): Promise<Date | null>;
+  sumWatchedSecondsByUserSubject(userId: string, subjectId: string): Promise<number>;
 }
 
 export class ViewingLogRepository implements IViewingLogRepository {
@@ -39,5 +40,17 @@ export class ViewingLogRepository implements IViewingLogRepository {
       select: { createdAt: true },
     });
     return log?.createdAt ?? null;
+  }
+
+  async sumWatchedSecondsByUserSubject(userId: string, subjectId: string): Promise<number> {
+    // 同ユーザー・同科目の動画ごとの最大視聴秒数を合算する
+    // (rewatch でレコードが増えても二重カウントしない)
+    const prisma = getPrisma();
+    const grouped = await prisma.viewingLog.groupBy({
+      by: ["videoId"],
+      where: { userId, video: { subjectId } },
+      _max: { watchedSeconds: true },
+    });
+    return grouped.reduce((sum, g) => sum + (g._max.watchedSeconds ?? 0), 0);
   }
 }

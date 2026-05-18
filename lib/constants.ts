@@ -8,12 +8,7 @@
 export const INSTITUTION_CODE = "0515" as const;
 
 /** 科目コード一覧 */
-export const SUBJECT_CODES = [
-  "SUBJECT_01",
-  "SUBJECT_02",
-  "SUBJECT_03",
-  "SUBJECT_04",
-] as const;
+export const SUBJECT_CODES = ["SUBJECT_01", "SUBJECT_02", "SUBJECT_03", "SUBJECT_04"] as const;
 export type SubjectCode = (typeof SUBJECT_CODES)[number];
 
 /** 試験合格ライン（パーセント） */
@@ -41,3 +36,6 @@ export const TAB_LEAVE_THRESHOLD_SECONDS = 60;
 
 /** 視聴ログ送信バッファ（秒） */
 export const VIEWING_LOG_BUFFER_SECONDS = 10;
+
+/** 動画完了とみなす視聴率（受講順序制御の判定基準） */
+export const VIDEO_COMPLETION_THRESHOLD = 0.8;
