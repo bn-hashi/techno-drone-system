@@ -3,16 +3,14 @@ import { UserRole, UserStatus } from "@/types/prisma";
 
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/serviceFactory", () => ({
-  getVideoService: vi.fn(),
   getProgressService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import { getVideoService, getProgressService } from "@/lib/serviceFactory";
+import { getProgressService } from "@/lib/serviceFactory";
 import { GET } from "@/app/api/student/courses/[courseId]/videos/route";
 
-const mockListVideos = vi.fn();
-const mockCanWatchVideoBatch = vi.fn();
+const mockGetVideosWithLockStatus = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -34,12 +32,10 @@ const video2 = { ...video1, id: "video-2", sortOrder: 1 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getVideoService).mockReturnValue({
-    listVideos: mockListVideos,
-  } as unknown as ReturnType<typeof getVideoService>);
   vi.mocked(getProgressService).mockReturnValue({
     canWatchVideo: vi.fn(),
-    canWatchVideoBatch: mockCanWatchVideoBatch,
+    canWatchVideoBatch: vi.fn(),
+    getVideosWithLockStatus: mockGetVideosWithLockStatus,
     getProgressByUser: vi.fn(),
   } as unknown as ReturnType<typeof getProgressService>);
 });
@@ -65,8 +61,10 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
 
   it("test_GET_returns_200_with_videos", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockListVideos.mockResolvedValue([video1, video2]);
-    mockCanWatchVideoBatch.mockResolvedValue({ "video-1": true, "video-2": true });
+    mockGetVideosWithLockStatus.mockResolvedValue([
+      { ...video1, isLocked: false },
+      { ...video2, isLocked: false },
+    ]);
 
     const response = await GET(new Request("http://localhost/"), { params });
     const body = await response.json();
@@ -76,8 +74,10 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
 
   it("test_GET_returns_isLocked_per_video", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockListVideos.mockResolvedValue([video1, video2]);
-    mockCanWatchVideoBatch.mockResolvedValue({ "video-1": true, "video-2": false });
+    mockGetVideosWithLockStatus.mockResolvedValue([
+      { ...video1, isLocked: false },
+      { ...video2, isLocked: true },
+    ]);
 
     const response = await GET(new Request("http://localhost/"), { params });
     const body = await response.json();
@@ -85,16 +85,12 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
     expect(body.videos[1].isLocked).toBe(true);
   });
 
-  it("test_GET_filters_by_courseId_and_published_only", async () => {
+  it("test_GET_passes_userId_and_courseId_to_service", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockListVideos.mockResolvedValue([]);
-    mockCanWatchVideoBatch.mockResolvedValue({});
+    mockGetVideosWithLockStatus.mockResolvedValue([]);
 
     await GET(new Request("http://localhost/"), { params });
 
-    expect(mockListVideos).toHaveBeenCalledWith({
-      courseId: "course-1",
-      isPublished: true,
-    });
+    expect(mockGetVideosWithLockStatus).toHaveBeenCalledWith("user-1", "course-1");
   });
 });

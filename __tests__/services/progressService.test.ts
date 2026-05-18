@@ -216,4 +216,36 @@ describe("ProgressService", () => {
       expect(mockLogRepo.findMaxWatchedSecondsByUserVideos).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("getVideosWithLockStatus", () => {
+    it("test_getVideosWithLockStatus_returns_videos_with_isLocked_field", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([video1, video2]);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({ "video-1": 500 });
+
+      const result = await service.getVideosWithLockStatus("user-1", "course-1");
+
+      expect(result[0].isLocked).toBe(false);
+    });
+
+    it("test_getVideosWithLockStatus_locks_videos_when_previous_incomplete", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([video1, video2]);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({});
+
+      const result = await service.getVideosWithLockStatus("user-1", "course-1");
+
+      expect(result[1].isLocked).toBe(true);
+    });
+
+    it("test_getVideosWithLockStatus_filters_by_course_and_published", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([]);
+      mockLogRepo.findMaxWatchedSecondsByUserVideos.mockResolvedValue({});
+
+      await service.getVideosWithLockStatus("user-1", "course-1");
+
+      expect(mockVideoRepo.findAll).toHaveBeenCalledWith({
+        courseId: "course-1",
+        isPublished: true,
+      });
+    });
+  });
 });

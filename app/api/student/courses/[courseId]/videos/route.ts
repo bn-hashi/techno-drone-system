@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getVideoService, getProgressService } from "@/lib/serviceFactory";
+import { getProgressService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 
 export async function GET(
@@ -22,16 +22,11 @@ export async function GET(
   }
 
   try {
-    const videos = await getVideoService().listVideos({
-      courseId: params.courseId,
-      isPublished: true,
-    });
-    const canWatchMap = await getProgressService().canWatchVideoBatch(session.user.id, videos);
-    const withLockStatus = videos.map((video) => ({
-      ...video,
-      isLocked: !canWatchMap[video.id],
-    }));
-    return NextResponse.json({ videos: withLockStatus }, { status: 200 });
+    const videos = await getProgressService().getVideosWithLockStatus(
+      session.user.id,
+      params.courseId
+    );
+    return NextResponse.json({ videos }, { status: 200 });
   } catch {
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }

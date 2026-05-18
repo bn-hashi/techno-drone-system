@@ -13,6 +13,8 @@ export interface SubjectProgressView {
   isFulfilled: boolean;
 }
 
+export type VideoWithLockStatus = Video & { isLocked: boolean };
+
 export class ProgressService {
   constructor(
     private readonly logRepo: IViewingLogRepository,
@@ -59,6 +61,16 @@ export class ProgressService {
     return previousVideos.every(
       (v) => (maxMap[v.id] ?? 0) >= v.duration * VIDEO_COMPLETION_THRESHOLD
     );
+  }
+
+  // 一覧画面用: 同一コース内の公開動画を sortOrder 順で取得し、各動画に
+  // isLocked フィールドを付加した配列を返す。Controller での組み立てを廃止し
+  // 「ビジネスロジックは Service に集約」の規約に揃える。
+  async getVideosWithLockStatus(userId: string, courseId: string): Promise<VideoWithLockStatus[]> {
+    const videos = await this.videoRepo.findAll({ courseId, isPublished: true });
+    const sorted = [...videos].sort((a, b) => a.sortOrder - b.sortOrder);
+    const canWatchMap = await this.canWatchVideoBatch(userId, sorted);
+    return sorted.map((video) => ({ ...video, isLocked: !canWatchMap[video.id] }));
   }
 
   // 一覧画面用の一括判定: 同一コース内の全動画について 1 クエリで maxWatched を取得し

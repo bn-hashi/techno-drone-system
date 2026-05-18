@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getVideoService, getProgressService } from "@/lib/serviceFactory";
+import { getProgressService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 
 export const dynamic = "force-dynamic";
@@ -28,25 +28,20 @@ export default async function CourseVideosPage({ params }: Props) {
     notFound();
   }
 
-  const videos = await getVideoService().listVideos({
-    courseId: params.courseId,
-    isPublished: true,
-  });
+  const videosWithLock = await getProgressService().getVideosWithLockStatus(
+    session.user.id,
+    params.courseId
+  );
 
-  if (videos.length === 0) {
+  if (videosWithLock.length === 0) {
     notFound();
   }
-
-  const canWatchMap = await getProgressService().canWatchVideoBatch(session.user.id, videos);
-  const videosWithLock = [...videos]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((video) => ({ video, isLocked: !canWatchMap[video.id] }));
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="mb-4 text-2xl font-semibold text-gray-900">動画一覧</h1>
       <ul className="space-y-3">
-        {videosWithLock.map(({ video, isLocked }) => (
+        {videosWithLock.map((video) => (
           <li key={video.id} className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
@@ -55,7 +50,7 @@ export default async function CourseVideosPage({ params }: Props) {
                   順序: {video.sortOrder} / 時間: {formatDuration(video.duration)}
                 </p>
               </div>
-              {isLocked ? (
+              {video.isLocked ? (
                 <span className="inline-flex rounded bg-gray-100 px-3 py-1 text-xs text-gray-500">
                   🔒 ロック中
                 </span>
