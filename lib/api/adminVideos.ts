@@ -1,3 +1,5 @@
+import { extractErrorMessage } from "@/lib/api/errorHelpers";
+
 export interface VideoData {
   id: string;
   title: string;
@@ -65,8 +67,7 @@ export async function fetchVideos(filter?: VideoFilter): Promise<VideoData[]> {
   const query = params.toString() ? `?${params.toString()}` : "";
   const response = await fetch(`/api/admin/videos${query}`);
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "動画一覧の取得に失敗しました");
+    throw new Error(await extractErrorMessage(response, "動画一覧の取得に失敗しました"));
   }
   const body = await response.json();
   return body.videos as VideoData[];
@@ -79,8 +80,7 @@ export async function postCreateVideo(input: CreateVideoInput): Promise<VideoDat
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "動画作成に失敗しました");
+    throw new Error(await extractErrorMessage(response, "動画作成に失敗しました"));
   }
   const body = await response.json();
   return body.video as VideoData;
@@ -93,8 +93,7 @@ export async function patchVideo(id: string, input: UpdateVideoInput): Promise<V
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "動画更新に失敗しました");
+    throw new Error(await extractErrorMessage(response, "動画更新に失敗しました"));
   }
   const body = await response.json();
   return body.video as VideoData;
@@ -103,8 +102,7 @@ export async function patchVideo(id: string, input: UpdateVideoInput): Promise<V
 export async function deleteVideo(id: string): Promise<void> {
   const response = await fetch(`/api/admin/videos/${id}`, { method: "DELETE" });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "動画削除に失敗しました");
+    throw new Error(await extractErrorMessage(response, "動画削除に失敗しました"));
   }
 }
 
@@ -118,8 +116,7 @@ export async function postAddSupervisor(
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "監修者追加に失敗しました");
+    throw new Error(await extractErrorMessage(response, "監修者追加に失敗しました"));
   }
   const body = await response.json();
   return body.supervisor as SupervisorData;
@@ -136,8 +133,7 @@ export async function patchSupervisor(
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "監修者更新に失敗しました");
+    throw new Error(await extractErrorMessage(response, "監修者更新に失敗しました"));
   }
   const body = await response.json();
   return body.supervisor as SupervisorData;
@@ -148,7 +144,6 @@ export async function deleteSupervisor(videoId: string, supervisorId: string): P
     method: "DELETE",
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "監修者削除に失敗しました");
+    throw new Error(await extractErrorMessage(response, "監修者削除に失敗しました"));
   }
 }

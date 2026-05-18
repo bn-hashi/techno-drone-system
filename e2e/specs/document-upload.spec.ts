@@ -27,7 +27,6 @@
  *   - e2e/fixtures/auth-fixtures.ts — pre-authenticated browser contexts
  */
 
-import path from "path";
 import { test, expect } from "../fixtures/auth-fixtures";
 import { STORAGE_STATE } from "../fixtures/test-users";
 
@@ -153,8 +152,6 @@ test.describe("Document upload API — valid file types (STUDENT)", () => {
       const body = (await response.json()) as { success: boolean };
       expect(body.success).toBe(true);
     }
-
-    await request.post(path.join("/api/enrollment/documents"), {}).catch(() => undefined);
   });
 
   test("PNG upload returns 200 or 404", async ({ request }) => {

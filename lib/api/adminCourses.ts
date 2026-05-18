@@ -1,4 +1,5 @@
 import { CourseType } from "@/types/prisma";
+import { extractErrorMessage } from "@/lib/api/errorHelpers";
 
 export interface CourseData {
   id: string;
@@ -19,8 +20,7 @@ export interface UpdateCourseInput {
 export async function fetchCourses(): Promise<CourseData[]> {
   const response = await fetch("/api/admin/courses");
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "コース一覧の取得に失敗しました");
+    throw new Error(await extractErrorMessage(response, "コース一覧の取得に失敗しました"));
   }
   const body = await response.json();
   return body.courses as CourseData[];
@@ -33,8 +33,7 @@ export async function postCreateCourse(input: CreateCourseInput): Promise<Course
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "コース作成に失敗しました");
+    throw new Error(await extractErrorMessage(response, "コース作成に失敗しました"));
   }
   const body = await response.json();
   return body.course as CourseData;
@@ -47,8 +46,7 @@ export async function patchCourse(id: string, input: UpdateCourseInput): Promise
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "コース更新に失敗しました");
+    throw new Error(await extractErrorMessage(response, "コース更新に失敗しました"));
   }
   const body = await response.json();
   return body.course as CourseData;
@@ -57,7 +55,6 @@ export async function patchCourse(id: string, input: UpdateCourseInput): Promise
 export async function deleteCourse(id: string): Promise<void> {
   const response = await fetch(`/api/admin/courses/${id}`, { method: "DELETE" });
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error ?? "コース削除に失敗しました");
+    throw new Error(await extractErrorMessage(response, "コース削除に失敗しました"));
   }
 }

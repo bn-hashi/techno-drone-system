@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import type { CourseData } from "@/lib/api/adminCourses";
+import { CourseType } from "@/types/prisma";
 import { CourseFormModal } from "@/components/admin/courses/CourseFormModal";
 import { DeleteCourseButton } from "@/components/admin/courses/DeleteCourseButton";
 
-const COURSE_TYPE_LABELS: Record<string, string> = {
-  BEGINNER: "初学者コース",
-  EXPERIENCED: "経験者コース",
+const COURSE_TYPE_LABELS: Record<CourseType, string> = {
+  [CourseType.BEGINNER]: "初学者コース",
+  [CourseType.EXPERIENCED]: "経験者コース",
 };
 
 interface Props {
