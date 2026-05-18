@@ -48,6 +48,21 @@ describe("POST /api/student/fraud-flag", () => {
     expect(response.status).toBe(403);
   });
 
+  it("test_POST_pending_activation_student_returns_403", async () => {
+    // ロールは STUDENT だがステータスが ACTIVE 以外なら 403
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: {
+        id: "u-1",
+        role: UserRole.STUDENT,
+        status: UserStatus.PENDING_ACTIVATION,
+      },
+    });
+
+    const response = await POST(makeRequest({ type: "TAB_LEAVE", durationSeconds: 65 }));
+
+    expect(response.status).toBe(403);
+  });
+
   it("test_POST_unknown_type_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
 
