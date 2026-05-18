@@ -45,6 +45,13 @@ describe("VideoSupervisorRepository", () => {
       const result = await repository.findByVideoId("video-1");
 
       expect(result).toEqual([mockSupervisor]);
+    });
+
+    it("test_findByVideoId_calls_prisma_with_videoId", async () => {
+      mockFindMany.mockResolvedValue([mockSupervisor]);
+
+      await repository.findByVideoId("video-1");
+
       expect(mockFindMany).toHaveBeenCalledWith({ where: { videoId: "video-1" } });
     });
 
@@ -64,6 +71,13 @@ describe("VideoSupervisorRepository", () => {
       const result = await repository.findById("supervisor-1");
 
       expect(result).toEqual(mockSupervisor);
+    });
+
+    it("test_findById_calls_prisma_with_id", async () => {
+      mockFindUnique.mockResolvedValue(mockSupervisor);
+
+      await repository.findById("supervisor-1");
+
       expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: "supervisor-1" } });
     });
 

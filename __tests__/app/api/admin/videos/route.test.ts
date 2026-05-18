@@ -76,14 +76,22 @@ describe("GET /api/admin/videos", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_GET_admin_returns_200_with_videos", async () => {
+  it("test_GET_admin_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListVideos.mockResolvedValue([mockVideo]);
+
+    const response = await GET(new Request("http://localhost/api/admin/videos"));
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_returns_videos_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListVideos.mockResolvedValue([mockVideo]);
 
     const response = await GET(new Request("http://localhost/api/admin/videos"));
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.videos).toHaveLength(1);
   });
 
@@ -163,14 +171,22 @@ describe("POST /api/admin/videos", () => {
     expect(response.status).toBe(400);
   });
 
-  it("test_POST_valid_body_returns_201_with_video", async () => {
+  it("test_POST_valid_body_returns_201", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockCreateVideo.mockResolvedValue(mockVideo);
+
+    const response = await POST(makePostRequest(validCreateBody));
+
+    expect(response.status).toBe(201);
+  });
+
+  it("test_POST_valid_body_returns_video_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockCreateVideo.mockResolvedValue(mockVideo);
 
     const response = await POST(makePostRequest(validCreateBody));
     const body = await response.json();
 
-    expect(response.status).toBe(201);
     expect(body.video).toEqual(mockVideo);
   });
 

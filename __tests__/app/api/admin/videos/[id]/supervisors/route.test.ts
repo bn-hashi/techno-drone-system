@@ -73,10 +73,9 @@ describe("POST /api/admin/videos/[id]/supervisors", () => {
   it("test_POST_missing_name_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
 
-    const response = await POST(
-      makeRequest({ instructorRegistrationNumber: "REG-001" }),
-      { params }
-    );
+    const response = await POST(makeRequest({ instructorRegistrationNumber: "REG-001" }), {
+      params,
+    });
 
     expect(response.status).toBe(400);
   });
@@ -89,7 +88,19 @@ describe("POST /api/admin/videos/[id]/supervisors", () => {
     expect(response.status).toBe(400);
   });
 
-  it("test_POST_valid_body_returns_201_with_supervisor", async () => {
+  it("test_POST_valid_body_returns_201", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockAddSupervisor.mockResolvedValue(mockSupervisor);
+
+    const response = await POST(
+      makeRequest({ name: "山田太郎", instructorRegistrationNumber: "REG-001" }),
+      { params }
+    );
+
+    expect(response.status).toBe(201);
+  });
+
+  it("test_POST_valid_body_returns_supervisor_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockAddSupervisor.mockResolvedValue(mockSupervisor);
 
@@ -99,8 +110,17 @@ describe("POST /api/admin/videos/[id]/supervisors", () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(201);
     expect(body.supervisor).toEqual(mockSupervisor);
+  });
+
+  it("test_POST_valid_body_calls_service_with_args", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockAddSupervisor.mockResolvedValue(mockSupervisor);
+
+    await POST(makeRequest({ name: "山田太郎", instructorRegistrationNumber: "REG-001" }), {
+      params,
+    });
+
     expect(mockAddSupervisor).toHaveBeenCalledWith("video-1", {
       name: "山田太郎",
       instructorRegistrationNumber: "REG-001",

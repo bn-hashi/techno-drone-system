@@ -35,6 +35,13 @@ describe("CourseService", () => {
       const result = await service.listCourses();
 
       expect(result).toEqual([mockCourse]);
+    });
+
+    it("test_listCourses_calls_repo_findAll_once", async () => {
+      mockCourseRepo.findAll.mockResolvedValue([mockCourse]);
+
+      await service.listCourses();
+
       expect(mockCourseRepo.findAll).toHaveBeenCalledOnce();
     });
 
@@ -73,6 +80,16 @@ describe("CourseService", () => {
       });
 
       expect(result).toEqual(mockCourse);
+    });
+
+    it("test_createCourse_valid_data_calls_repo_create_with_args", async () => {
+      mockCourseRepo.create.mockResolvedValue(mockCourse);
+
+      await service.createCourse({
+        name: "初学者コース",
+        type: CourseType.BEGINNER,
+      });
+
       expect(mockCourseRepo.create).toHaveBeenCalledWith({
         name: "初学者コース",
         type: CourseType.BEGINNER,

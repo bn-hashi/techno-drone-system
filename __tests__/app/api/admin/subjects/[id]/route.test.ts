@@ -81,15 +81,31 @@ describe("PATCH /api/admin/subjects/[id]", () => {
     expect(response.status).toBe(400);
   });
 
-  it("test_PATCH_valid_body_returns_200_with_subject", async () => {
+  it("test_PATCH_valid_body_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateRequiredMinutes.mockResolvedValue(mockSubject);
+
+    const response = await PATCH(makeRequest({ beginner: 60, experienced: 30 }), { params });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_PATCH_valid_body_returns_subject_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateRequiredMinutes.mockResolvedValue(mockSubject);
 
     const response = await PATCH(makeRequest({ beginner: 60, experienced: 30 }), { params });
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.subject).toEqual(mockSubject);
+  });
+
+  it("test_PATCH_valid_body_calls_service_with_args", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateRequiredMinutes.mockResolvedValue(mockSubject);
+
+    await PATCH(makeRequest({ beginner: 60, experienced: 30 }), { params });
+
     expect(mockUpdateRequiredMinutes).toHaveBeenCalledWith("subject-1", 60, 30);
   });
 

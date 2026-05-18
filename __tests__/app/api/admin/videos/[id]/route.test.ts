@@ -65,9 +65,17 @@ describe("GET /api/admin/videos/[id]", () => {
     mockGetVideo.mockResolvedValue(mockVideo);
 
     const response = await GET(makeRequest("GET"), { params });
-    const body = await response.json();
 
     expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_existing_video_returns_video_in_body", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockGetVideo.mockResolvedValue(mockVideo);
+
+    const response = await GET(makeRequest("GET"), { params });
+    const body = await response.json();
+
     expect(body.video).toEqual(mockVideo);
   });
 
@@ -109,9 +117,17 @@ describe("PATCH /api/admin/videos/[id]", () => {
     mockUpdateVideo.mockResolvedValue({ ...mockVideo, title: "更新後" });
 
     const response = await PATCH(makeRequest("PATCH", { title: "更新後" }), { params });
-    const body = await response.json();
 
     expect(response.status).toBe(200);
+  });
+
+  it("test_PATCH_valid_body_returns_updated_video_title", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateVideo.mockResolvedValue({ ...mockVideo, title: "更新後" });
+
+    const response = await PATCH(makeRequest("PATCH", { title: "更新後" }), { params });
+    const body = await response.json();
+
     expect(body.video.title).toBe("更新後");
   });
 

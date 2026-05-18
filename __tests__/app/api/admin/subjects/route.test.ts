@@ -47,14 +47,22 @@ describe("GET /api/admin/subjects", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_GET_admin_returns_200_with_subjects", async () => {
+  it("test_GET_admin_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListSubjects.mockResolvedValue([mockSubject]);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_returns_subjects_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListSubjects.mockResolvedValue([mockSubject]);
 
     const response = await GET();
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.subjects).toHaveLength(1);
   });
 });

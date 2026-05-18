@@ -32,6 +32,13 @@ describe("SubjectService", () => {
       const result = await service.listSubjects();
 
       expect(result).toEqual([mockSubject]);
+    });
+
+    it("test_listSubjects_calls_repo_findAll_once", async () => {
+      mockSubjectRepo.findAll.mockResolvedValue([mockSubject]);
+
+      await service.listSubjects();
+
       expect(mockSubjectRepo.findAll).toHaveBeenCalledOnce();
     });
 
@@ -65,6 +72,19 @@ describe("SubjectService", () => {
       const result = await service.updateRequiredMinutes("subject-1", 20, 10);
 
       expect(result).toEqual(updated);
+    });
+
+    it("test_updateRequiredMinutes_valid_id_calls_repo_with_args", async () => {
+      const updated = {
+        ...mockSubject,
+        requiredMinutesBeginner: 20,
+        requiredMinutesExperienced: 10,
+      };
+      mockSubjectRepo.findById.mockResolvedValue(mockSubject);
+      mockSubjectRepo.updateRequiredMinutes.mockResolvedValue(updated);
+
+      await service.updateRequiredMinutes("subject-1", 20, 10);
+
       expect(mockSubjectRepo.updateRequiredMinutes).toHaveBeenCalledWith("subject-1", 20, 10);
     });
 
@@ -84,7 +104,7 @@ describe("SubjectService", () => {
       );
     });
 
-    it("test_updateRequiredMinutes_zero_is_valid", async () => {
+    it("test_updateRequiredMinutes_zero_beginner_is_valid", async () => {
       const updated = { ...mockSubject, requiredMinutesBeginner: 0, requiredMinutesExperienced: 0 };
       mockSubjectRepo.findById.mockResolvedValue(mockSubject);
       mockSubjectRepo.updateRequiredMinutes.mockResolvedValue(updated);
@@ -92,6 +112,15 @@ describe("SubjectService", () => {
       const result = await service.updateRequiredMinutes("subject-1", 0, 0);
 
       expect(result.requiredMinutesBeginner).toBe(0);
+    });
+
+    it("test_updateRequiredMinutes_zero_experienced_is_valid", async () => {
+      const updated = { ...mockSubject, requiredMinutesBeginner: 0, requiredMinutesExperienced: 0 };
+      mockSubjectRepo.findById.mockResolvedValue(mockSubject);
+      mockSubjectRepo.updateRequiredMinutes.mockResolvedValue(updated);
+
+      const result = await service.updateRequiredMinutes("subject-1", 0, 0);
+
       expect(result.requiredMinutesExperienced).toBe(0);
     });
   });

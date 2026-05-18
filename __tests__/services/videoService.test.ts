@@ -68,6 +68,13 @@ describe("VideoService", () => {
       const result = await service.listVideos();
 
       expect(result).toEqual([mockVideo]);
+    });
+
+    it("test_listVideos_no_filter_calls_repo_with_undefined", async () => {
+      mockVideoRepo.findAll.mockResolvedValue([mockVideo]);
+
+      await service.listVideos();
+
       expect(mockVideoRepo.findAll).toHaveBeenCalledWith(undefined);
     });
 
@@ -119,6 +126,13 @@ describe("VideoService", () => {
       const result = await service.createVideo(createInput);
 
       expect(result).toEqual(mockVideo);
+    });
+
+    it("test_createVideo_valid_data_calls_repo_create_with_input", async () => {
+      mockVideoRepo.create.mockResolvedValue(mockVideo);
+
+      await service.createVideo(createInput);
+
       expect(mockVideoRepo.create).toHaveBeenCalledWith(createInput);
     });
 
@@ -235,6 +249,14 @@ describe("VideoService", () => {
       const result = await service.addSupervisor("video-1", supervisorInput);
 
       expect(result).toEqual(mockSupervisor);
+    });
+
+    it("test_addSupervisor_valid_data_calls_repo_create_with_videoId", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockSupervisorRepo.create.mockResolvedValue(mockSupervisor);
+
+      await service.addSupervisor("video-1", supervisorInput);
+
       expect(mockSupervisorRepo.create).toHaveBeenCalledWith({
         videoId: "video-1",
         ...supervisorInput,

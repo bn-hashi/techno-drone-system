@@ -59,14 +59,22 @@ describe("GET /api/admin/courses", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_GET_admin_returns_200_with_courses", async () => {
+  it("test_GET_admin_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListCourses.mockResolvedValue([mockCourse]);
+
+    const response = await GET(new Request("http://localhost/api/admin/courses"));
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_returns_courses_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListCourses.mockResolvedValue([mockCourse]);
 
     const response = await GET(new Request("http://localhost/api/admin/courses"));
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.courses).toHaveLength(1);
   });
 });
@@ -107,7 +115,18 @@ describe("POST /api/admin/courses", () => {
     expect(response.status).toBe(400);
   });
 
-  it("test_POST_valid_body_returns_201_with_course", async () => {
+  it("test_POST_valid_body_returns_201", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockCreateCourse.mockResolvedValue(mockCourse);
+
+    const response = await POST(
+      makePostRequest({ name: "初学者コース", type: CourseType.BEGINNER })
+    );
+
+    expect(response.status).toBe(201);
+  });
+
+  it("test_POST_valid_body_returns_course_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockCreateCourse.mockResolvedValue(mockCourse);
 
@@ -116,7 +135,6 @@ describe("POST /api/admin/courses", () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(201);
     expect(body.course).toEqual(mockCourse);
   });
 

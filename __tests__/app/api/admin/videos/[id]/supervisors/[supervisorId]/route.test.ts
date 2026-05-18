@@ -65,15 +65,31 @@ describe("PATCH /api/admin/videos/[id]/supervisors/[supervisorId]", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_PATCH_valid_body_returns_200_with_supervisor", async () => {
+  it("test_PATCH_valid_body_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateSupervisor.mockResolvedValue({ ...mockSupervisor, name: "鈴木花子" });
+
+    const response = await PATCH(makeRequest("PATCH", { name: "鈴木花子" }), { params });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_PATCH_valid_body_returns_supervisor_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockUpdateSupervisor.mockResolvedValue({ ...mockSupervisor, name: "鈴木花子" });
 
     const response = await PATCH(makeRequest("PATCH", { name: "鈴木花子" }), { params });
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.supervisor.name).toBe("鈴木花子");
+  });
+
+  it("test_PATCH_valid_body_calls_service_with_args", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateSupervisor.mockResolvedValue({ ...mockSupervisor, name: "鈴木花子" });
+
+    await PATCH(makeRequest("PATCH", { name: "鈴木花子" }), { params });
+
     expect(mockUpdateSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1", {
       name: "鈴木花子",
     });
@@ -120,6 +136,14 @@ describe("DELETE /api/admin/videos/[id]/supervisors/[supervisorId]", () => {
     const response = await DELETE(makeRequest("DELETE"), { params });
 
     expect(response.status).toBe(204);
+  });
+
+  it("test_DELETE_existing_supervisor_calls_service_with_args", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockRemoveSupervisor.mockResolvedValue(undefined);
+
+    await DELETE(makeRequest("DELETE"), { params });
+
     expect(mockRemoveSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1");
   });
 
