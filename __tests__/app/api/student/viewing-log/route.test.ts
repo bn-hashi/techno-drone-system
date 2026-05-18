@@ -80,6 +80,26 @@ describe("POST /api/student/viewing-log", () => {
     expect(response.status).toBe(400);
   });
 
+  it("test_POST_non_existent_calendar_date_returns_400", async () => {
+    // 2 月 30 日は存在しないが、new Date は 3/2 に繰り越して解釈してしまう
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+
+    const response = await POST(
+      makeRequest({ ...validBody, startedAt: "2026-02-30T10:00:00.000Z" })
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("test_POST_iso_date_without_Z_returns_400", async () => {
+    // 末尾 Z 無しはローカル TZ 解釈になり秒単位ログの正確性を損なう
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+
+    const response = await POST(makeRequest({ ...validBody, startedAt: "2026-05-18T10:00:00" }));
+
+    expect(response.status).toBe(400);
+  });
+
   it("test_POST_business_error_returns_400", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockRecord.mockRejectedValue(new BusinessError("視聴時間が動画長を超えています"));

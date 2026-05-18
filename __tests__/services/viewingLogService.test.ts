@@ -70,17 +70,17 @@ describe("ViewingLogService", () => {
     it("test_recordSession_watchedSeconds_exceeds_duration_throws_BusinessError", async () => {
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
 
-      await expect(
-        service.recordSession({ ...validInput, watchedSeconds: 5000 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.recordSession({ ...validInput, watchedSeconds: 5000 })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_recordSession_negative_watchedSeconds_throws_BusinessError", async () => {
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
 
-      await expect(
-        service.recordSession({ ...validInput, watchedSeconds: -1 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.recordSession({ ...validInput, watchedSeconds: -1 })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_recordSession_startedAt_after_endedAt_throws_BusinessError", async () => {
@@ -93,6 +93,38 @@ describe("ViewingLogService", () => {
           endedAt: new Date("2026-05-18T10:00:00Z"),
         })
       ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_recordSession_watchedSeconds_far_exceeds_previous_max_throws_BusinessError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+
+      // 既存 max=100、新規=500 (差分 400 秒は許容上限を超える)
+      await expect(service.recordSession({ ...validInput, watchedSeconds: 500 })).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_recordSession_watchedSeconds_within_increment_limit_succeeds", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(100);
+      mockLogRepo.create.mockResolvedValue(mockLog);
+
+      // 既存 max=100、新規=115 (差分 15 秒は許容上限内、バッファ10秒+余裕)
+      await expect(
+        service.recordSession({ ...validInput, watchedSeconds: 115 })
+      ).resolves.toBeDefined();
+    });
+
+    it("test_recordSession_watchedSeconds_below_max_succeeds", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockLogRepo.findMaxWatchedSecondsByUserVideo.mockResolvedValue(200);
+      mockLogRepo.create.mockResolvedValue(mockLog);
+
+      // 既存 max より小さい値は再視聴扱いで OK
+      await expect(
+        service.recordSession({ ...validInput, watchedSeconds: 50 })
+      ).resolves.toBeDefined();
     });
   });
 

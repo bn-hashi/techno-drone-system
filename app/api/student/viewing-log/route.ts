@@ -5,10 +5,17 @@ import { getViewingLogService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 
+// YYYY-MM-DDTHH:mm:ss(.sss)Z 厳格パターン（UTC のみ許可）
+const ISO_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+
 function parseIsoDate(value: unknown): Date | null {
   if (typeof value !== "string") return null;
+  if (!ISO_UTC_PATTERN.test(value)) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) return null;
+  // new Date は "2026-02-30" を 3/2 に繰り越すため、入力と一致するか再検証
+  if (date.toISOString().slice(0, 19) !== value.slice(0, 19)) return null;
+  return date;
 }
 
 export async function POST(request: Request): Promise<NextResponse> {

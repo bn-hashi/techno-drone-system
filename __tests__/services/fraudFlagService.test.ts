@@ -45,4 +45,19 @@ describe("FraudFlagService", () => {
   it("test_flagTabLeave_negative_duration_throws_BusinessError", async () => {
     await expect(service.flagTabLeave("user-1", -1)).rejects.toThrow(BusinessError);
   });
+
+  it("test_flagTabLeave_under_60_seconds_throws_BusinessError", async () => {
+    await expect(service.flagTabLeave("user-1", 59)).rejects.toThrow(BusinessError);
+  });
+
+  it("test_flagTabLeave_exactly_60_seconds_throws_BusinessError", async () => {
+    // 仕様「60秒超」のため 60 ジャストは不可
+    await expect(service.flagTabLeave("user-1", 60)).rejects.toThrow(BusinessError);
+  });
+
+  it("test_flagTabLeave_61_seconds_succeeds", async () => {
+    mockRepo.create.mockResolvedValue(mockFlag);
+
+    await expect(service.flagTabLeave("user-1", 61)).resolves.toBeDefined();
+  });
 });

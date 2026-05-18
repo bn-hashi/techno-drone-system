@@ -5,6 +5,11 @@ import type {
 } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
+import { VIEWING_LOG_BUFFER_SECONDS } from "@/lib/constants";
+
+// 進捗偽装防止: 1セッションで許容する watchedSeconds の増分上限。
+// クライアントが 10 秒バッファで送る前提で、ネットワーク遅延を見込み 3 倍まで許容する。
+const MAX_WATCHED_SECONDS_INCREMENT = VIEWING_LOG_BUFFER_SECONDS * 3;
 
 export class ViewingLogService {
   constructor(
@@ -26,6 +31,15 @@ export class ViewingLogService {
     }
     if (input.startedAt > input.endedAt) {
       throw new BusinessError("開始時刻は終了時刻より前である必要があります");
+    }
+
+    // 進捗偽装防止: 既存最大視聴秒数を一度に大幅に超える値は拒否
+    const previousMax = await this.logRepo.findMaxWatchedSecondsByUserVideo(
+      input.userId,
+      input.videoId
+    );
+    if (input.watchedSeconds > previousMax + MAX_WATCHED_SECONDS_INCREMENT) {
+      throw new BusinessError("視聴時間の増分が許容範囲を超えています");
     }
 
     return this.logRepo.create(input);
