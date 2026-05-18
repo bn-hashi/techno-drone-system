@@ -229,12 +229,18 @@ describe("ViewingLogService", () => {
       );
     });
 
-    it("test_recordSession_does_not_upsert_when_validation_fails", async () => {
+    it("test_recordSession_throws_BusinessError_when_validation_fails", async () => {
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
 
       await expect(service.recordSession({ ...validInput, watchedSeconds: -1 })).rejects.toThrow(
         BusinessError
       );
+    });
+
+    it("test_recordSession_skips_upsert_when_validation_fails", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+
+      await service.recordSession({ ...validInput, watchedSeconds: -1 }).catch(() => undefined);
 
       expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
