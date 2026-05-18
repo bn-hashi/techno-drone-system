@@ -92,6 +92,19 @@ describe("PATCH /api/admin/videos/[id]/supervisors/[supervisorId]", () => {
 
     expect(mockUpdateSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1", {
       name: "鈴木花子",
+      instructorRegistrationNumber: undefined,
+    });
+  });
+
+  it("test_PATCH_forwards_instructorRegistrationNumber_to_service", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockUpdateSupervisor.mockResolvedValue(mockSupervisor);
+
+    await PATCH(makeRequest("PATCH", { instructorRegistrationNumber: "REG-999" }), { params });
+
+    expect(mockUpdateSupervisor).toHaveBeenCalledWith("video-1", "supervisor-1", {
+      name: undefined,
+      instructorRegistrationNumber: "REG-999",
     });
   });
 

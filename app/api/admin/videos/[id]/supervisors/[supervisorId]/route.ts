@@ -27,6 +27,7 @@ export async function PATCH(
   try {
     const supervisor = await getVideoService().updateSupervisor(params.id, params.supervisorId, {
       name: body.name,
+      instructorRegistrationNumber: body.instructorRegistrationNumber,
     });
     return NextResponse.json({ supervisor }, { status: 200 });
   } catch (err) {
