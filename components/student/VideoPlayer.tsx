@@ -34,6 +34,8 @@ export function VideoPlayer({ videoId, src, duration, initialMaxWatchedSeconds }
   useVisibilityDetection({
     onHidden: () => {
       videoRef.current?.pause();
+      // 視聴ログ送信判定との整合性のため再生状態を同期する
+      setIsPlaying(false);
     },
   });
 

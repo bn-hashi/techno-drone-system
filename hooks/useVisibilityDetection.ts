@@ -30,8 +30,13 @@ export function useVisibilityDetection({ onHidden }: UseVisibilityDetectionParam
       const elapsedSeconds = Math.floor((Date.now() - hiddenAt.getTime()) / 1000);
       hiddenAtRef.current = null;
 
-      if (elapsedSeconds >= TAB_LEAVE_THRESHOLD_SECONDS) {
-        void postFraudFlag({ type: "TAB_LEAVE", durationSeconds: elapsedSeconds });
+      if (elapsedSeconds > TAB_LEAVE_THRESHOLD_SECONDS) {
+        void postFraudFlag({
+          type: "TAB_LEAVE",
+          durationSeconds: elapsedSeconds,
+        }).catch((error) => {
+          console.error("Failed to post fraud flag", error);
+        });
       }
     }
 

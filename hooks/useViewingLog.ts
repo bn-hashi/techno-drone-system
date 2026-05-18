@@ -12,6 +12,22 @@ interface UseViewingLogParams {
 
 const BUFFER_MS = VIEWING_LOG_BUFFER_SECONDS * 1000;
 
+function sendLog(
+  videoId: string,
+  startedAt: Date,
+  endedAt: Date,
+  watchedSeconds: number
+): void {
+  void postViewingLog({
+    videoId,
+    startedAt: startedAt.toISOString(),
+    endedAt: endedAt.toISOString(),
+    watchedSeconds,
+  }).catch((error) => {
+    console.error("Failed to post viewing log", error);
+  });
+}
+
 export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewingLogParams): void {
   const sessionStartRef = useRef<Date | null>(null);
   const currentSecondsRef = useRef(currentSeconds);
@@ -23,7 +39,12 @@ export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewing
 
   useEffect(() => {
     if (!isPlaying) {
-      sessionStartRef.current = null;
+      // 停止時に未送信セッションをフラッシュ（バッチタイマー未発火分を取り逃さない）
+      const pending = sessionStartRef.current;
+      if (pending !== null) {
+        sendLog(videoId, pending, new Date(), Math.floor(currentSecondsRef.current));
+        sessionStartRef.current = null;
+      }
       return;
     }
 
@@ -33,15 +54,7 @@ export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewing
       const startedAt = sessionStartRef.current;
       if (startedAt === null) return;
       const endedAt = new Date();
-      const watchedSeconds = Math.floor(currentSecondsRef.current);
-
-      void postViewingLog({
-        videoId,
-        startedAt: startedAt.toISOString(),
-        endedAt: endedAt.toISOString(),
-        watchedSeconds,
-      });
-
+      sendLog(videoId, startedAt, endedAt, Math.floor(currentSecondsRef.current));
       // 次セッションの起点をリセット
       sessionStartRef.current = endedAt;
     }, BUFFER_MS);

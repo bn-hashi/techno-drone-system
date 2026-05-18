@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { VideoPlayer } from "@/components/student/VideoPlayer";
 
-vi.mock("@/hooks/useViewingLog", () => ({ useViewingLog: vi.fn() }));
-vi.mock("@/hooks/useVisibilityDetection", () => ({ useVisibilityDetection: vi.fn() }));
+const mockUseViewingLog = vi.hoisted(() => vi.fn());
+const mockUseVisibilityDetection = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/useViewingLog", () => ({ useViewingLog: mockUseViewingLog }));
+vi.mock("@/hooks/useVisibilityDetection", () => ({
+  useVisibilityDetection: mockUseVisibilityDetection,
+}));
 
 const defaultProps = {
   videoId: "video-1",
@@ -49,9 +53,7 @@ describe("VideoPlayer", () => {
   });
 
   it("test_VideoPlayer_seek_within_max_watched_is_allowed", () => {
-    const { container } = render(
-      <VideoPlayer {...defaultProps} initialMaxWatchedSeconds={120} />
-    );
+    const { container } = render(<VideoPlayer {...defaultProps} initialMaxWatchedSeconds={120} />);
     const video = container.querySelector("video") as HTMLVideoElement;
 
     // currentTime setter は jsdom に存在するが seeked イベントは発火しない。
@@ -64,9 +66,7 @@ describe("VideoPlayer", () => {
   });
 
   it("test_VideoPlayer_seek_beyond_max_watched_is_clamped", () => {
-    const { container } = render(
-      <VideoPlayer {...defaultProps} initialMaxWatchedSeconds={120} />
-    );
+    const { container } = render(<VideoPlayer {...defaultProps} initialMaxWatchedSeconds={120} />);
     const video = container.querySelector("video") as HTMLVideoElement;
 
     Object.defineProperty(video, "duration", { configurable: true, value: 3600 });
@@ -74,5 +74,30 @@ describe("VideoPlayer", () => {
     fireEvent.seeking(video);
 
     expect(video.currentTime).toBe(120);
+  });
+
+  it("test_VideoPlayer_visibility_hidden_syncs_isPlaying_to_false", () => {
+    mockUseViewingLog.mockClear();
+    mockUseVisibilityDetection.mockClear();
+
+    render(<VideoPlayer {...defaultProps} />);
+
+    // 再生ボタン押下 → useViewingLog に isPlaying=true で再呼び出し
+    fireEvent.click(screen.getByRole("button", { name: "再生" }));
+    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isPlaying: true })
+    );
+
+    // useVisibilityDetection に渡された onHidden を発火（タブ非表示シミュレーション）
+    const lastCall = mockUseVisibilityDetection.mock.calls.at(-1);
+    const { onHidden } = lastCall![0] as { onHidden: () => void };
+    act(() => {
+      onHidden();
+    });
+
+    // onHidden 後、isPlaying が同期されて false で再呼び出しされる
+    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isPlaying: false })
+    );
   });
 });
