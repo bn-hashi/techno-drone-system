@@ -5,6 +5,7 @@ import type {
 } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
+import { getPrisma } from "@/lib/db";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 import { VIEWING_LOG_BUFFER_SECONDS, MAX_PLAYBACK_RATE } from "@/lib/constants";
 
@@ -52,22 +53,27 @@ export class ViewingLogService {
       }
     }
 
-    const log = await this.logRepo.create(input);
-
-    // SubjectProgress を同期更新（充足判定は ProgressService が動的に行うため
-    // isFulfilled は常に false で永続化し、totalWatchedMinutes のみ最新化する）
-    const totalSeconds = await this.logRepo.sumWatchedSecondsByUserSubject(
-      input.userId,
-      video.subjectId
-    );
-    await this.subjectProgressRepo.upsert({
-      userId: input.userId,
-      subjectId: video.subjectId,
-      totalWatchedMinutes: Math.floor(totalSeconds / 60),
-      isFulfilled: false,
+    // ViewingLog の保存と SubjectProgress の更新を 1 トランザクションで実行し、
+    // どちらか一方だけが永続化される不整合状態を防ぐ。
+    return getPrisma().$transaction(async (tx) => {
+      const log = await this.logRepo.create(input, tx);
+      const totalSeconds = await this.logRepo.sumWatchedSecondsByUserSubject(
+        input.userId,
+        video.subjectId,
+        tx
+      );
+      await this.subjectProgressRepo.upsert(
+        {
+          userId: input.userId,
+          subjectId: video.subjectId,
+          totalWatchedMinutes: Math.floor(totalSeconds / 60),
+          // 充足判定は ProgressService で動的に行うため永続化値は常に false。
+          isFulfilled: false,
+        },
+        tx
+      );
+      return log;
     });
-
-    return log;
   }
 
   async getMaxWatchedSeconds(userId: string, videoId: string): Promise<number> {

@@ -1,4 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mocked } from "vitest";
+
+// $transaction はコールバックをそのまま実行する Mock にする
+// (Repository への tx 注入経路はテストで透過的になる)
+vi.mock("@/lib/db", () => ({
+  getPrisma: () => ({
+    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
+  }),
+}));
+
 import { ViewingLogService } from "@/services/viewingLogService";
 import type { IViewingLogRepository } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
@@ -208,12 +217,15 @@ describe("ViewingLogService", () => {
 
       await service.recordSession({ ...validInput, watchedSeconds: 10 });
 
-      expect(mockSubjectProgressRepo.upsert).toHaveBeenCalledWith({
-        userId: "user-1",
-        subjectId: "subject-1",
-        totalWatchedMinutes: 3,
-        isFulfilled: false,
-      });
+      expect(mockSubjectProgressRepo.upsert).toHaveBeenCalledWith(
+        {
+          userId: "user-1",
+          subjectId: "subject-1",
+          totalWatchedMinutes: 3,
+          isFulfilled: false,
+        },
+        expect.anything()
+      );
     });
 
     it("test_recordSession_does_not_upsert_when_validation_fails", async () => {

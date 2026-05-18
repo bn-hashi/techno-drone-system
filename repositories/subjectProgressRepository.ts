@@ -1,5 +1,5 @@
 import { getPrisma } from "@/lib/db";
-import { SubjectProgress } from "@prisma/client";
+import { SubjectProgress, Prisma } from "@prisma/client";
 
 export interface UpsertSubjectProgressInput {
   userId: string;
@@ -8,27 +8,37 @@ export interface UpsertSubjectProgressInput {
   isFulfilled: boolean;
 }
 
+type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
+
 export interface ISubjectProgressRepository {
-  findByUserSubject(userId: string, subjectId: string): Promise<SubjectProgress | null>;
-  findAllByUser(userId: string): Promise<SubjectProgress[]>;
-  upsert(input: UpsertSubjectProgressInput): Promise<SubjectProgress>;
+  findByUserSubject(
+    userId: string,
+    subjectId: string,
+    tx?: PrismaLike
+  ): Promise<SubjectProgress | null>;
+  findAllByUser(userId: string, tx?: PrismaLike): Promise<SubjectProgress[]>;
+  upsert(input: UpsertSubjectProgressInput, tx?: PrismaLike): Promise<SubjectProgress>;
 }
 
 export class SubjectProgressRepository implements ISubjectProgressRepository {
-  async findByUserSubject(userId: string, subjectId: string): Promise<SubjectProgress | null> {
-    const prisma = getPrisma();
+  async findByUserSubject(
+    userId: string,
+    subjectId: string,
+    tx?: PrismaLike
+  ): Promise<SubjectProgress | null> {
+    const prisma = tx ?? getPrisma();
     return prisma.subjectProgress.findUnique({
       where: { userId_subjectId: { userId, subjectId } },
     });
   }
 
-  async findAllByUser(userId: string): Promise<SubjectProgress[]> {
-    const prisma = getPrisma();
+  async findAllByUser(userId: string, tx?: PrismaLike): Promise<SubjectProgress[]> {
+    const prisma = tx ?? getPrisma();
     return prisma.subjectProgress.findMany({ where: { userId } });
   }
 
-  async upsert(input: UpsertSubjectProgressInput): Promise<SubjectProgress> {
-    const prisma = getPrisma();
+  async upsert(input: UpsertSubjectProgressInput, tx?: PrismaLike): Promise<SubjectProgress> {
+    const prisma = tx ?? getPrisma();
     return prisma.subjectProgress.upsert({
       where: { userId_subjectId: { userId: input.userId, subjectId: input.subjectId } },
       create: {
