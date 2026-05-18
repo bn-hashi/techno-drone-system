@@ -46,6 +46,8 @@ export class ProgressService {
   async canWatchVideo(userId: string, videoId: string): Promise<boolean> {
     const video = await this.videoRepo.findById(videoId);
     if (video === null) return false;
+    // 未公開動画は受講対象外。非公開コンテンツが偶発的に視聴可能になるのを防ぐ。
+    if (!video.isPublished) return false;
     if (video.sortOrder === 0) return true;
 
     // 同一コースで sortOrder が小さい全動画が完了しているか確認する

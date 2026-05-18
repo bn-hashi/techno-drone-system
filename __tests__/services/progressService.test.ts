@@ -158,6 +158,15 @@ describe("ProgressService", () => {
       expect(result).toBe(false);
     });
 
+    it("test_canWatchVideo_returns_false_when_video_unpublished", async () => {
+      // 未公開動画は sortOrder=0 でも視聴不可
+      mockVideoRepo.findById.mockResolvedValue({ ...video1, isPublished: false });
+
+      const result = await service.canWatchVideo("user-1", "video-1");
+
+      expect(result).toBe(false);
+    });
+
     it("test_canWatchVideo_returns_true_when_previous_video_completed", async () => {
       mockVideoRepo.findById.mockResolvedValue(video2);
       mockVideoRepo.findAll.mockResolvedValue([video1]);
