@@ -1,0 +1,72 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { postViewingLog } from "@/lib/api/studentVideos";
+import { VIEWING_LOG_BUFFER_SECONDS } from "@/lib/constants";
+
+interface UseViewingLogParams {
+  videoId: string;
+  isPlaying: boolean;
+  currentSeconds: number;
+}
+
+const BUFFER_MS = VIEWING_LOG_BUFFER_SECONDS * 1000;
+
+export function useViewingLog({ videoId, isPlaying, currentSeconds }: UseViewingLogParams): void {
+  const sessionStartRef = useRef<Date | null>(null);
+  const currentSecondsRef = useRef(currentSeconds);
+
+  // 最新の currentSeconds をタイマーから参照できるよう ref に保持
+  useEffect(() => {
+    currentSecondsRef.current = currentSeconds;
+  }, [currentSeconds]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      sessionStartRef.current = null;
+      return;
+    }
+
+    sessionStartRef.current = new Date();
+
+    const intervalId = setInterval(() => {
+      const startedAt = sessionStartRef.current;
+      if (startedAt === null) return;
+      const endedAt = new Date();
+      const watchedSeconds = Math.floor(currentSecondsRef.current);
+
+      void postViewingLog({
+        videoId,
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        watchedSeconds,
+      });
+
+      // 次セッションの起点をリセット
+      sessionStartRef.current = endedAt;
+    }, BUFFER_MS);
+
+    return () => clearInterval(intervalId);
+  }, [isPlaying, videoId]);
+
+  // ページ離脱時の最終送信（sendBeacon）
+  useEffect(() => {
+    function handleUnload() {
+      const startedAt = sessionStartRef.current;
+      if (startedAt === null) return;
+      const payload = JSON.stringify({
+        videoId,
+        startedAt: startedAt.toISOString(),
+        endedAt: new Date().toISOString(),
+        watchedSeconds: Math.floor(currentSecondsRef.current),
+      });
+      navigator.sendBeacon?.(
+        "/api/student/viewing-log",
+        new Blob([payload], { type: "application/json" })
+      );
+    }
+
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [videoId]);
+}
