@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MAX_PLAYBACK_RATE } from "@/lib/constants";
 import { useViewingLog } from "@/hooks/useViewingLog";
 import { useVisibilityDetection } from "@/hooks/useVisibilityDetection";
+import { logger } from "@/lib/logger";
 
 interface Props {
   videoId: string;
@@ -33,9 +34,8 @@ export function VideoPlayer({ videoId, src, duration, initialMaxWatchedSeconds }
 
   useVisibilityDetection({
     onHidden: () => {
+      // pause を呼ぶと video の onPause イベント経由で isPlaying が同期される
       videoRef.current?.pause();
-      // 視聴ログ送信判定との整合性のため再生状態を同期する
-      setIsPlaying(false);
     },
   });
 
@@ -45,13 +45,17 @@ export function VideoPlayer({ videoId, src, duration, initialMaxWatchedSeconds }
   }, [playbackRate]);
 
   function handlePlay() {
-    void videoRef.current?.play();
-    setIsPlaying(true);
+    // play() は autoplay 制限などで reject しうる Promise を返す。
+    // 成否は video の onPlay/onPause イベントから isPlaying を同期する。
+    const playPromise = videoRef.current?.play();
+    if (playPromise === undefined) return;
+    void playPromise.catch((error: unknown) => {
+      logger.error("Failed to start video playback", error, { videoId });
+    });
   }
 
   function handlePause() {
     videoRef.current?.pause();
-    setIsPlaying(false);
   }
 
   function handleTimeUpdate() {
@@ -81,6 +85,8 @@ export function VideoPlayer({ videoId, src, duration, initialMaxWatchedSeconds }
         className="w-full max-h-[70vh] bg-black"
         onTimeUpdate={handleTimeUpdate}
         onSeeking={handleSeeking}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
       <div className="mt-3 flex flex-wrap items-center gap-3">

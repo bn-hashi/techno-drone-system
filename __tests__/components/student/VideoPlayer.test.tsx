@@ -76,28 +76,73 @@ describe("VideoPlayer", () => {
     expect(video.currentTime).toBe(120);
   });
 
-  it("test_VideoPlayer_visibility_hidden_syncs_isPlaying_to_false", () => {
+  it("test_VideoPlayer_play_event_sets_isPlaying_to_true", () => {
     mockUseViewingLog.mockClear();
+    const { container } = render(<VideoPlayer {...defaultProps} />);
+    const video = container.querySelector("video") as HTMLVideoElement;
+
+    // video の onPlay イベントが発火するとステートが true になる
+    act(() => {
+      fireEvent.play(video);
+    });
+
+    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isPlaying: true })
+    );
+  });
+
+  it("test_VideoPlayer_pause_event_sets_isPlaying_to_false", () => {
+    mockUseViewingLog.mockClear();
+    const { container } = render(<VideoPlayer {...defaultProps} />);
+    const video = container.querySelector("video") as HTMLVideoElement;
+
+    act(() => {
+      fireEvent.play(video);
+    });
+    act(() => {
+      fireEvent.pause(video);
+    });
+
+    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isPlaying: false })
+    );
+  });
+
+  it("test_VideoPlayer_visibility_hidden_pauses_video", () => {
+    const pauseSpy = vi.fn();
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      configurable: true,
+      value: pauseSpy,
+    });
     mockUseVisibilityDetection.mockClear();
 
     render(<VideoPlayer {...defaultProps} />);
 
-    // 再生ボタン押下 → useViewingLog に isPlaying=true で再呼び出し
-    fireEvent.click(screen.getByRole("button", { name: "再生" }));
-    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ isPlaying: true })
-    );
-
-    // useVisibilityDetection に渡された onHidden を発火（タブ非表示シミュレーション）
+    // useVisibilityDetection に渡された onHidden を発火
     const lastCall = mockUseVisibilityDetection.mock.calls.at(-1);
     const { onHidden } = lastCall![0] as { onHidden: () => void };
     act(() => {
       onHidden();
     });
 
-    // onHidden 後、isPlaying が同期されて false で再呼び出しされる
-    expect(mockUseViewingLog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ isPlaying: false })
-    );
+    expect(pauseSpy).toHaveBeenCalled();
+  });
+
+  it("test_VideoPlayer_play_promise_rejection_does_not_throw", async () => {
+    // play() が reject しても unhandled rejection にならない
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: vi.fn().mockRejectedValue(new DOMException("NotAllowedError")),
+    });
+
+    render(<VideoPlayer {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "再生" }));
+    // 1 microtask 進めて .catch を消化
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 例外が伝播しないことを確認（テストが完走すれば OK）
+    expect(screen.getByRole("button", { name: "再生" })).toBeInTheDocument();
   });
 });
