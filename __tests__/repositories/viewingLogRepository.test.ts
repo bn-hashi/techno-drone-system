@@ -5,6 +5,7 @@ const mockCreate = vi.fn();
 const mockAggregate = vi.fn();
 
 const mockFindFirst = vi.fn();
+const mockGroupBy = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
@@ -12,6 +13,10 @@ vi.mock("@/lib/db", () => ({
       create: mockCreate,
       aggregate: mockAggregate,
       findFirst: mockFindFirst,
+      groupBy: mockGroupBy,
+    },
+    video: {
+      findMany: vi.fn().mockResolvedValue([]),
     },
   }),
 }));
@@ -38,6 +43,7 @@ describe("ViewingLogRepository", () => {
     mockCreate.mockReset();
     mockAggregate.mockReset();
     mockFindFirst.mockReset();
+    mockGroupBy.mockReset();
     repository = new ViewingLogRepository();
   });
 
@@ -115,6 +121,74 @@ describe("ViewingLogRepository", () => {
         where: { userId: "user-1", videoId: "video-1" },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
+      });
+    });
+  });
+
+  describe("sumWatchedSecondsByUserSubject", () => {
+    it("test_sumWatchedSecondsByUserSubject_returns_sum_of_max_per_video", async () => {
+      // 2 動画分の max を合計する: 60 + 120 = 180
+      mockGroupBy.mockResolvedValue([
+        { videoId: "video-1", _max: { watchedSeconds: 60 } },
+        { videoId: "video-2", _max: { watchedSeconds: 120 } },
+      ]);
+
+      const result = await repository.sumWatchedSecondsByUserSubject("user-1", "subject-1");
+
+      expect(result).toBe(180);
+    });
+
+    it("test_sumWatchedSecondsByUserSubject_returns_zero_when_no_logs", async () => {
+      mockGroupBy.mockResolvedValue([]);
+
+      const result = await repository.sumWatchedSecondsByUserSubject("user-1", "subject-1");
+
+      expect(result).toBe(0);
+    });
+
+    it("test_sumWatchedSecondsByUserSubject_groups_by_videoId_and_filters_by_subject", async () => {
+      mockGroupBy.mockResolvedValue([]);
+
+      await repository.sumWatchedSecondsByUserSubject("user-1", "subject-1");
+
+      expect(mockGroupBy).toHaveBeenCalledWith({
+        by: ["videoId"],
+        where: { userId: "user-1", video: { subjectId: "subject-1" } },
+        _max: { watchedSeconds: true },
+      });
+    });
+  });
+
+  describe("findMaxWatchedSecondsByUserVideos", () => {
+    it("test_findMaxByVideos_returns_map_of_videoId_to_max", async () => {
+      mockGroupBy.mockResolvedValue([
+        { videoId: "video-1", _max: { watchedSeconds: 60 } },
+        { videoId: "video-2", _max: { watchedSeconds: 120 } },
+      ]);
+
+      const result = await repository.findMaxWatchedSecondsByUserVideos("user-1", [
+        "video-1",
+        "video-2",
+      ]);
+
+      expect(result).toEqual({ "video-1": 60, "video-2": 120 });
+    });
+
+    it("test_findMaxByVideos_empty_video_ids_returns_empty_object", async () => {
+      const result = await repository.findMaxWatchedSecondsByUserVideos("user-1", []);
+
+      expect(result).toEqual({});
+    });
+
+    it("test_findMaxByVideos_uses_in_filter", async () => {
+      mockGroupBy.mockResolvedValue([]);
+
+      await repository.findMaxWatchedSecondsByUserVideos("user-1", ["video-1", "video-2"]);
+
+      expect(mockGroupBy).toHaveBeenCalledWith({
+        by: ["videoId"],
+        where: { userId: "user-1", videoId: { in: ["video-1", "video-2"] } },
+        _max: { watchedSeconds: true },
       });
     });
   });

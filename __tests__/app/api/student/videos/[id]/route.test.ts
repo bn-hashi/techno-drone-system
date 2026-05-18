@@ -6,14 +6,16 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/serviceFactory", () => ({
   getVideoService: vi.fn(),
   getViewingLogService: vi.fn(),
+  getProgressService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import { getVideoService, getViewingLogService } from "@/lib/serviceFactory";
+import { getVideoService, getViewingLogService, getProgressService } from "@/lib/serviceFactory";
 import { GET } from "@/app/api/student/videos/[id]/route";
 
 const mockGetVideo = vi.fn();
 const mockGetMaxWatched = vi.fn();
+const mockCanWatchVideo = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -54,6 +56,12 @@ beforeEach(() => {
     recordSession: vi.fn(),
     getMaxWatchedSeconds: mockGetMaxWatched,
   } as unknown as ReturnType<typeof getViewingLogService>);
+  vi.mocked(getProgressService).mockReturnValue({
+    getProgressByUser: vi.fn(),
+    canWatchVideo: mockCanWatchVideo,
+  } as unknown as ReturnType<typeof getProgressService>);
+  // デフォルトで受講許可（既存テストに影響を出さない）
+  mockCanWatchVideo.mockResolvedValue(true);
 });
 
 describe("GET /api/student/videos/[id]", () => {
@@ -133,5 +141,16 @@ describe("GET /api/student/videos/[id]", () => {
     const body = await response.json();
 
     expect(body.maxWatchedSeconds).toBe(60);
+  });
+
+  it("test_GET_returns_403_when_previous_video_not_completed", async () => {
+    // 受講順序制御: canWatchVideo が false なら 403
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetVideo.mockResolvedValue(mockVideo);
+    mockCanWatchVideo.mockResolvedValue(false);
+
+    const response = await GET(makeRequest(), { params });
+
+    expect(response.status).toBe(403);
   });
 });
