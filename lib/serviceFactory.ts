@@ -17,6 +17,8 @@ import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
 import { FraudFlagService } from "@/services/fraudFlagService";
 import { SubjectProgressRepository } from "@/repositories/subjectProgressRepository";
 import { ProgressService } from "@/services/progressService";
+import { QuestionRepository } from "@/repositories/questionRepository";
+import { QuestionService } from "@/services/questionService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -72,4 +74,9 @@ export function getProgressService(): ProgressService {
     new VideoRepository(),
     new SubjectRepository()
   );
+}
+
+/** 問題バンク Service のインスタンスを返す */
+export function getQuestionService(): QuestionService {
+  return new QuestionService(new QuestionRepository(), new SubjectRepository());
 }

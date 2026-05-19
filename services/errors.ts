@@ -92,3 +92,11 @@ export class SupervisorNotFoundError extends NotFoundError {
     this.name = "SupervisorNotFoundError";
   }
 }
+
+/** 問題が見つからない (404 Not Found 相当) */
+export class QuestionNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された問題が見つかりません");
+    this.name = "QuestionNotFoundError";
+  }
+}
