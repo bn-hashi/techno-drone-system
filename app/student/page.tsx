@@ -52,7 +52,7 @@ export default async function StudentDashboardPage() {
 
       <section className="mb-6">
         <h2 className="mb-3 text-sm font-medium text-gray-700">科目別進捗</h2>
-        <ul className="space-y-3">
+        <ul data-testid="subject-progress-list" className="space-y-3">
           {progress.map((p) => {
             // requiredMinutes が 0 (設定漏れ) でも除算で NaN/Infinity にならないようガード
             const ratio =
