@@ -51,11 +51,15 @@ export default async function CourseVideosPage({ params }: Props) {
                 </p>
               </div>
               {video.isLocked ? (
-                <span className="inline-flex rounded bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                <span
+                  data-testid={`video-locked-${video.id}`}
+                  className="inline-flex rounded bg-gray-100 px-3 py-1 text-xs text-gray-500"
+                >
                   🔒 ロック中
                 </span>
               ) : (
                 <Link
+                  data-testid={`video-link-${video.id}`}
                   href={`/courses/${params.courseId}/videos/${video.id}`}
                   className="inline-flex rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
                 >
