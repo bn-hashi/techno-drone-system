@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, type Mocked } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
-    $transaction: async <T,>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
+    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
   }),
 }));
 
@@ -81,33 +81,33 @@ describe("QuestionService", () => {
     it("test_createQuestion_empty_body_throws_BusinessError", async () => {
       mockSubjectRepo.findById.mockResolvedValue(subject1);
 
-      await expect(
-        service.createQuestion({ ...validInput, body: "  " })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createQuestion({ ...validInput, body: "  " })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createQuestion_wrong_choice_count_throws_BusinessError", async () => {
       mockSubjectRepo.findById.mockResolvedValue(subject1);
 
-      await expect(
-        service.createQuestion({ ...validInput, choices: ["A", "B"] })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createQuestion({ ...validInput, choices: ["A", "B"] })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createQuestion_correctIndex_out_of_range_throws_BusinessError", async () => {
       mockSubjectRepo.findById.mockResolvedValue(subject1);
 
-      await expect(
-        service.createQuestion({ ...validInput, correctIndex: 3 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createQuestion({ ...validInput, correctIndex: 3 })).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_createQuestion_negative_correctIndex_throws_BusinessError", async () => {
       mockSubjectRepo.findById.mockResolvedValue(subject1);
 
-      await expect(
-        service.createQuestion({ ...validInput, correctIndex: -1 })
-      ).rejects.toThrow(BusinessError);
+      await expect(service.createQuestion({ ...validInput, correctIndex: -1 })).rejects.toThrow(
+        BusinessError
+      );
     });
   });
 
@@ -133,7 +133,15 @@ describe("QuestionService", () => {
     it("test_updateQuestion_empty_body_throws_BusinessError", async () => {
       mockQuestionRepo.findById.mockResolvedValue(mockQuestion);
 
-      await expect(service.updateQuestion("q-1", { body: "  " })).rejects.toThrow(
+      await expect(service.updateQuestion("q-1", { body: "  " })).rejects.toThrow(BusinessError);
+    });
+
+    it("test_updateQuestion_unknown_subject_throws_BusinessError", async () => {
+      // input.subjectId が指定された場合は科目存在チェックを行う
+      mockQuestionRepo.findById.mockResolvedValue(mockQuestion);
+      mockSubjectRepo.findById.mockResolvedValue(null);
+
+      await expect(service.updateQuestion("q-1", { subjectId: "subject-x" })).rejects.toThrow(
         BusinessError
       );
     });

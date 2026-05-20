@@ -13,8 +13,11 @@ export default async function QuestionsPage() {
     id: q.id,
     subjectId: q.subjectId,
     body: q.body,
-    // choices は Prisma の Json 型のため string[] にキャストする
-    choices: Array.isArray(q.choices) ? (q.choices as string[]) : [],
+    // choices は Prisma の Json 型なので、要素単位で string だけを抽出する
+    // (DB に非文字列が混入してもクライアント描画が落ちないようにする防御)
+    choices: Array.isArray(q.choices)
+      ? (q.choices as unknown[]).filter((c): c is string => typeof c === "string")
+      : [],
     correctIndex: q.correctIndex,
     explanation: q.explanation,
   }));

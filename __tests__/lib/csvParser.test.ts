@@ -2,7 +2,15 @@ import { describe, it, expect } from "vitest";
 import { parseCsv, CsvParseError } from "@/lib/csvParser";
 
 describe("parseCsv", () => {
-  const headers = ["subjectCode", "body", "choice1", "choice2", "choice3", "correctIndex", "explanation"];
+  const headers = [
+    "subjectCode",
+    "body",
+    "choice1",
+    "choice2",
+    "choice3",
+    "correctIndex",
+    "explanation",
+  ];
 
   it("test_parseCsv_parses_simple_row", () => {
     const csv = `subjectCode,body,choice1,choice2,choice3,correctIndex,explanation
@@ -52,7 +60,8 @@ SUBJECT_01,"問""1""",A,B,C,1,解説`;
   });
 
   it("test_parseCsv_handles_crlf_line_endings", () => {
-    const csv = "subjectCode,body,choice1,choice2,choice3,correctIndex,explanation\r\nSUBJECT_01,問1,A,B,C,1,解説\r\n";
+    const csv =
+      "subjectCode,body,choice1,choice2,choice3,correctIndex,explanation\r\nSUBJECT_01,問1,A,B,C,1,解説\r\n";
 
     const result = parseCsv(csv, headers);
 
@@ -99,5 +108,21 @@ SUBJECT_01,問1,A,B,C,1,解説
 
   it("test_parseCsv_throws_when_empty_input", () => {
     expect(() => parseCsv("", headers)).toThrow(CsvParseError);
+  });
+
+  it("test_parseCsv_throws_when_quote_appears_mid_field", () => {
+    // abc"def" のような不正クォート (フィールド先頭以外で開始) は拒否する
+    const csv = `subjectCode,body,choice1,choice2,choice3,correctIndex,explanation
+SUBJECT_01,abc"def",A,B,C,1,解説`;
+
+    expect(() => parseCsv(csv, headers)).toThrow(CsvParseError);
+  });
+
+  it("test_parseCsv_throws_when_extra_chars_after_closing_quote", () => {
+    // "abc"def のように閉じクォート後にカンマ/改行以外の文字がある場合も拒否
+    const csv = `subjectCode,body,choice1,choice2,choice3,correctIndex,explanation
+SUBJECT_01,"abc"def,A,B,C,1,解説`;
+
+    expect(() => parseCsv(csv, headers)).toThrow(CsvParseError);
   });
 });

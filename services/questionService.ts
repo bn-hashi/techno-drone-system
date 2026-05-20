@@ -83,6 +83,13 @@ export class QuestionService {
     if (existing === null) {
       throw new QuestionNotFoundError(id);
     }
+    // subjectId が指定された場合は存在チェック (createQuestion と一貫)
+    if (input.subjectId !== undefined) {
+      const subject = await this.subjectRepo.findById(input.subjectId);
+      if (subject === null) {
+        throw new BusinessError("指定された科目が見つかりません");
+      }
+    }
     const normalized: UpdateQuestionInput = { ...input };
     if (input.body !== undefined) normalized.body = validateBody(input.body);
     if (input.choices !== undefined) validateChoices(input.choices);
@@ -134,7 +141,11 @@ export class QuestionService {
       }
       const choices = [row.choice1, row.choice2, row.choice3];
       const correctIndex1Based = Number(row.correctIndex);
-      if (!Number.isInteger(correctIndex1Based) || correctIndex1Based < 1 || correctIndex1Based > REQUIRED_CHOICE_COUNT) {
+      if (
+        !Number.isInteger(correctIndex1Based) ||
+        correctIndex1Based < 1 ||
+        correctIndex1Based > REQUIRED_CHOICE_COUNT
+      ) {
         throw new BusinessError(
           `line ${lineNumber}: 正答番号は 1〜${REQUIRED_CHOICE_COUNT} で指定してください`
         );

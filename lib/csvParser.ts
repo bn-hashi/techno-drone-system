@@ -27,11 +27,19 @@ interface ParsedLine {
   lineNumber: number;
 }
 
-function parseLine(input: string, startIndex: number, lineNumber: number): { line: ParsedLine; nextIndex: number } {
+function parseLine(
+  input: string,
+  startIndex: number,
+  lineNumber: number
+): { line: ParsedLine; nextIndex: number } {
   const fields: string[] = [];
   let i = startIndex;
   let current = "";
   let inQuotes = false;
+  // フィールド先頭以外でクォートが現れる、または閉じクォート後に
+  // カンマ/改行以外の文字が続く不正パターンを検知するためのフラグ
+  let fieldStarted = false;
+  let justClosedQuote = false;
 
   while (i < input.length) {
     const ch = input[i];
@@ -45,6 +53,7 @@ function parseLine(input: string, startIndex: number, lineNumber: number): { lin
           continue;
         }
         inQuotes = false;
+        justClosedQuote = true;
         i += 1;
         continue;
       }
@@ -54,7 +63,12 @@ function parseLine(input: string, startIndex: number, lineNumber: number): { lin
     }
 
     if (ch === '"') {
+      if (fieldStarted) {
+        // フィールド先頭以外でクォートが開始した (例: abc"def" や "a"b)
+        throw new CsvParseError("クォートはフィールド先頭でしか開始できません", lineNumber);
+      }
       inQuotes = true;
+      fieldStarted = true;
       i += 1;
       continue;
     }
@@ -62,6 +76,8 @@ function parseLine(input: string, startIndex: number, lineNumber: number): { lin
     if (ch === ",") {
       fields.push(current);
       current = "";
+      fieldStarted = false;
+      justClosedQuote = false;
       i += 1;
       continue;
     }
@@ -73,7 +89,16 @@ function parseLine(input: string, startIndex: number, lineNumber: number): { lin
       return { line: { fields, lineNumber }, nextIndex: next };
     }
 
+    if (justClosedQuote) {
+      // 閉じクォートの直後に区切り (カンマ / 改行) 以外の文字が続いた (例: "abc"def)
+      throw new CsvParseError(
+        "クォートで囲ったフィールドの後ろにカンマ・改行以外を置けません",
+        lineNumber
+      );
+    }
+
     current += ch;
+    fieldStarted = true;
     i += 1;
   }
 
