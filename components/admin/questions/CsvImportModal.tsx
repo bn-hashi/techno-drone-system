@@ -12,6 +12,7 @@ interface Props {
 export function CsvImportModal({ onClose }: Props) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
 
   const mutation = useMutation<ImportResult, Error, string>({
     mutationFn: postImportCsv,
@@ -23,11 +24,15 @@ export function CsvImportModal({ onClose }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (file === null) return;
+    setReadError(null);
     // FileReader を使う（jsdom 互換性向上 + sendBeacon 等と一貫した方式）
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === "string" ? reader.result : "";
       mutation.mutate(text);
+    };
+    reader.onerror = () => {
+      setReadError("ファイル読み込みに失敗しました");
     };
     reader.readAsText(file);
   }
@@ -65,6 +70,11 @@ export function CsvImportModal({ onClose }: Props) {
           {mutation.isSuccess && (
             <p className="rounded bg-green-50 p-3 text-sm text-green-800" role="status">
               {mutation.data.imported} 件登録、{mutation.data.skipped} 件スキップ（重複）
+            </p>
+          )}
+          {readError !== null && (
+            <p className="rounded bg-red-50 p-3 text-sm text-red-800" role="alert">
+              {readError}
             </p>
           )}
           {mutation.isError && (

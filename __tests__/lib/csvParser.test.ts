@@ -125,4 +125,14 @@ SUBJECT_01,"abc"def,A,B,C,1,解説`;
 
     expect(() => parseCsv(csv, headers)).toThrow(CsvParseError);
   });
+
+  it("test_parseCsv_strips_utf8_bom_from_header", () => {
+    // UTF-8 BOM (﻿) 付きヘッダーでも正常にパースする
+    const csv = `﻿subjectCode,body,choice1,choice2,choice3,correctIndex,explanation
+SUBJECT_01,問1,A,B,C,1,解説`;
+
+    const result = parseCsv(csv, headers);
+
+    expect(result).toHaveLength(1);
+  });
 });

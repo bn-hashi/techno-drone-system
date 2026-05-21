@@ -21,6 +21,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // text/csv 以外のペイロードは受け付けない (415)
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("text/csv")) {
+    return NextResponse.json(
+      { error: "Content-Type は text/csv である必要があります" },
+      { status: 415 }
+    );
+  }
+
   const csvText = await request.text();
 
   try {

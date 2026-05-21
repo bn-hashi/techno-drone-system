@@ -48,9 +48,7 @@ describe("CsvImportModal", () => {
 
     fireEvent.change(input, { target: { files: [makeCsvFile("dummy")] } });
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled()
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled());
   });
 
   it("test_successful_import_shows_counts", async () => {
@@ -59,9 +57,7 @@ describe("CsvImportModal", () => {
     const input = screen.getByLabelText("CSV ファイル") as HTMLInputElement;
 
     fireEvent.change(input, { target: { files: [makeCsvFile("csv content")] } });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled()
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "インポート" }));
 
     await waitFor(() => expect(screen.getByText(/5 件登録/)).toBeInTheDocument());
@@ -73,11 +69,36 @@ describe("CsvImportModal", () => {
     const input = screen.getByLabelText("CSV ファイル") as HTMLInputElement;
 
     fireEvent.change(input, { target: { files: [makeCsvFile("csv content")] } });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled()
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "インポート" }));
 
     await waitFor(() => expect(screen.getByText(/line 3/)).toBeInTheDocument());
+  });
+
+  it("test_filereader_error_shows_error_message", async () => {
+    // FileReader が読み込み失敗 (onerror) した場合のフォールバック表示
+    const originalReader = window.FileReader;
+    class FailingReader {
+      onerror: ((event: ProgressEvent) => void) | null = null;
+      onload: ((event: ProgressEvent) => void) | null = null;
+      result: string | ArrayBuffer | null = null;
+      readAsText(): void {
+        setTimeout(() => this.onerror?.(new ProgressEvent("error")), 0);
+      }
+    }
+    window.FileReader = FailingReader as unknown as typeof FileReader;
+
+    try {
+      renderWithQuery(<CsvImportModal onClose={noop} />);
+      const input = screen.getByLabelText("CSV ファイル") as HTMLInputElement;
+
+      fireEvent.change(input, { target: { files: [makeCsvFile("ok")] } });
+      await waitFor(() => expect(screen.getByRole("button", { name: "インポート" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "インポート" }));
+
+      await waitFor(() => expect(screen.getByText(/ファイル読み込みに失敗/)).toBeInTheDocument());
+    } finally {
+      window.FileReader = originalReader;
+    }
   });
 });

@@ -20,6 +20,13 @@ const makeRequest = (csvText: string) =>
     body: csvText,
   });
 
+const makeRequestWithContentType = (csvText: string, contentType: string) =>
+  new Request("http://localhost/api/admin/questions/import", {
+    method: "POST",
+    headers: { "Content-Type": contentType },
+    body: csvText,
+  });
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getQuestionService).mockReturnValue({
@@ -79,5 +86,13 @@ describe("POST /api/admin/questions/import", () => {
     const body = await response.json();
 
     expect(body.error).toContain("line 3");
+  });
+
+  it("test_POST_unsupported_content_type_returns_415", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+
+    const response = await POST(makeRequestWithContentType("dummy", "application/json"));
+
+    expect(response.status).toBe(415);
   });
 });

@@ -118,6 +118,11 @@ export function parseCsv(
     throw new CsvParseError("空の CSV です", 1);
   }
 
+  // UTF-8 BOM (﻿) を除去する。Excel 等が付与するため、付いていてもヘッダー一致を許容する
+  if (input.charCodeAt(0) === 0xfeff) {
+    input = input.slice(1);
+  }
+
   let index = 0;
   let lineNumber = 1;
 
