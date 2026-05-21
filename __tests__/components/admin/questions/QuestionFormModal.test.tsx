@@ -44,10 +44,18 @@ describe("QuestionFormModal — create mode", () => {
     expect(screen.getByLabelText("問題文")).toBeInTheDocument();
   });
 
-  it("test_create_renders_three_choice_inputs", () => {
+  it("test_create_renders_choice1_input", () => {
     renderWithQuery(<QuestionFormModal mode="create" subjects={subjects} onClose={noop} />);
     expect(screen.getByLabelText("選択肢1")).toBeInTheDocument();
+  });
+
+  it("test_create_renders_choice2_input", () => {
+    renderWithQuery(<QuestionFormModal mode="create" subjects={subjects} onClose={noop} />);
     expect(screen.getByLabelText("選択肢2")).toBeInTheDocument();
+  });
+
+  it("test_create_renders_choice3_input", () => {
+    renderWithQuery(<QuestionFormModal mode="create" subjects={subjects} onClose={noop} />);
     expect(screen.getByLabelText("選択肢3")).toBeInTheDocument();
   });
 
@@ -119,10 +127,7 @@ describe("QuestionFormModal — edit mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新" }));
 
     await waitFor(() =>
-      expect(mockPatch).toHaveBeenCalledWith(
-        "q-1",
-        expect.objectContaining({ body: "更新後" })
-      )
+      expect(mockPatch).toHaveBeenCalledWith("q-1", expect.objectContaining({ body: "更新後" }))
     );
   });
 });

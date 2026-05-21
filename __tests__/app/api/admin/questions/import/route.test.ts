@@ -58,14 +58,22 @@ describe("POST /api/admin/questions/import", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_POST_valid_returns_200_with_counts", async () => {
+  it("test_POST_valid_returns_200", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockImport.mockResolvedValue({ imported: 3, skipped: 1 });
+
+    const response = await POST(makeRequest("csv"));
+
+    expect(response.status).toBe(200);
+  });
+
+  it("test_POST_valid_returns_imported_count_in_body", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockImport.mockResolvedValue({ imported: 3, skipped: 1 });
 
     const response = await POST(makeRequest("csv"));
     const body = await response.json();
 
-    expect(response.status).toBe(200);
     expect(body.imported).toBe(3);
   });
 

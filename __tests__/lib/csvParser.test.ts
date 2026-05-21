@@ -87,12 +87,14 @@ SUBJECT_01,問1,A,B,C`;
 SUBJECT_01,問1,A,B,C,1,OK
 SUBJECT_02,問2,A,B`;
 
+    let thrown: unknown;
     try {
       parseCsv(csv, headers);
-      expect.fail("should have thrown");
     } catch (err) {
-      expect((err as CsvParseError).line).toBe(3);
+      thrown = err;
     }
+
+    expect((thrown as CsvParseError).line).toBe(3);
   });
 
   it("test_parseCsv_ignores_trailing_empty_lines", () => {
