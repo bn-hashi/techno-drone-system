@@ -28,6 +28,9 @@ export const SUBJECT_REQUIRED_MINUTES = {
 /** デフォルト出題数 */
 export const DEFAULT_EXAM_QUESTION_COUNT = 30;
 
+/** 修了確認試験の制限時間（分） */
+export const EXAM_DURATION_MINUTES = 30;
+
 /** 動画再生速度上限 */
 export const MAX_PLAYBACK_RATE = 1.5;
 

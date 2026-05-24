@@ -19,6 +19,9 @@ import { SubjectProgressRepository } from "@/repositories/subjectProgressReposit
 import { ProgressService } from "@/services/progressService";
 import { QuestionRepository } from "@/repositories/questionRepository";
 import { QuestionService } from "@/services/questionService";
+import { ExamRepository } from "@/repositories/examRepository";
+import { ExamAnswerRepository } from "@/repositories/examAnswerRepository";
+import { ExamService } from "@/services/examService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -79,4 +82,16 @@ export function getProgressService(): ProgressService {
 /** 問題バンク Service のインスタンスを返す */
 export function getQuestionService(): QuestionService {
   return new QuestionService(new QuestionRepository(), new SubjectRepository());
+}
+
+/** 修了確認試験 Service のインスタンスを返す */
+export function getExamService(): ExamService {
+  return new ExamService(
+    new ExamRepository(),
+    new ExamAnswerRepository(),
+    new QuestionRepository(),
+    new SubjectRepository(),
+    getProgressService(),
+    getUserManagementService()
+  );
 }
