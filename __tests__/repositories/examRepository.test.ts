@@ -100,7 +100,10 @@ describe("ExamRepository", () => {
 
   describe("findAllWithUser", () => {
     it("test_findAllWithUser_returns_exams_with_user", async () => {
-      const examWithUser = { ...mockExam, user: { id: "user-1", name: "山田", email: "y@example.com" } };
+      const examWithUser = {
+        ...mockExam,
+        user: { id: "user-1", name: "山田", email: "y@example.com" },
+      };
       mockFindMany.mockResolvedValue([examWithUser]);
 
       const result = await repository.findAllWithUser();
@@ -108,13 +111,13 @@ describe("ExamRepository", () => {
       expect(result).toEqual([examWithUser]);
     });
 
-    it("test_findAllWithUser_includes_user_and_orders_by_startedAt_desc", async () => {
+    it("test_findAllWithUser_selects_only_safe_user_fields", async () => {
       mockFindMany.mockResolvedValue([]);
 
       await repository.findAllWithUser();
 
       expect(mockFindMany).toHaveBeenCalledWith({
-        include: { user: true },
+        include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { startedAt: "desc" },
       });
     });
@@ -148,6 +151,7 @@ describe("ExamRepository", () => {
       const result = await repository.create({
         userId: "user-1",
         totalQuestions: 30,
+        questionIds: ["q-1", "q-2"],
       });
 
       expect(result).toEqual(mockExam);
@@ -156,17 +160,27 @@ describe("ExamRepository", () => {
     it("test_create_passes_input_to_prisma", async () => {
       mockCreate.mockResolvedValue(mockExam);
 
-      await repository.create({ userId: "user-1", totalQuestions: 30 });
+      await repository.create({
+        userId: "user-1",
+        totalQuestions: 30,
+        questionIds: ["q-1", "q-2"],
+      });
 
       expect(mockCreate).toHaveBeenCalledWith({
-        data: { userId: "user-1", totalQuestions: 30 },
+        data: { userId: "user-1", totalQuestions: 30, questionIds: ["q-1", "q-2"] },
       });
     });
   });
 
   describe("update", () => {
     it("test_update_returns_updated_exam", async () => {
-      const updated = { ...mockExam, score: 90, passed: true, status: ExamStatus.PASSED, endedAt: new Date() };
+      const updated = {
+        ...mockExam,
+        score: 90,
+        passed: true,
+        status: ExamStatus.PASSED,
+        endedAt: new Date(),
+      };
       mockUpdate.mockResolvedValue(updated);
 
       const result = await repository.update("exam-1", {

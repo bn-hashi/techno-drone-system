@@ -17,7 +17,11 @@ const STATUS_BADGE: Record<ExamStatus, string> = {
 
 function formatDate(date: Date | string | null): string {
   if (date === null) return "-";
-  return new Date(date).toLocaleString("ja-JP", { hour12: false });
+  // 本番のサーバータイムゾーンに依存しないよう Asia/Tokyo を明示
+  return new Date(date).toLocaleString("ja-JP", {
+    hour12: false,
+    timeZone: "Asia/Tokyo",
+  });
 }
 
 export default async function ExamResultsPage() {
@@ -50,11 +54,7 @@ export default async function ExamResultsPage() {
                 <td className="px-3 py-2 text-gray-600">{formatDate(exam.endedAt)}</td>
                 <td className="px-3 py-2 text-gray-900">{exam.score ?? "-"}</td>
                 <td className="px-3 py-2">
-                  {exam.passed === null
-                    ? "-"
-                    : exam.passed
-                      ? "合格"
-                      : "不合格"}
+                  {exam.passed === null ? "-" : exam.passed ? "合格" : "不合格"}
                 </td>
                 <td className="px-3 py-2">
                   <span

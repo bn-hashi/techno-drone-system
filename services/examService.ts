@@ -1,8 +1,5 @@
 import type { Exam, ExamAnswer, Question } from "@prisma/client";
-import type {
-  IExamRepository,
-  ExamWithUser,
-} from "@/repositories/examRepository";
+import type { IExamRepository, ExamWithUser } from "@/repositories/examRepository";
 import type { IExamAnswerRepository } from "@/repositories/examAnswerRepository";
 import type { IQuestionRepository } from "@/repositories/questionRepository";
 import type { ISubjectRepository } from "@/repositories/subjectRepository";
@@ -113,6 +110,7 @@ export class ExamService {
     const exam = await this.examRepo.create({
       userId,
       totalQuestions: selected.length,
+      questionIds: selected.map((q) => q.id),
     });
 
     return {
@@ -129,11 +127,7 @@ export class ExamService {
     };
   }
 
-  async submitExam(
-    userId: string,
-    examId: string,
-    answers: SubmitAnswerInput[]
-  ): Promise<Exam> {
+  async submitExam(userId: string, examId: string, answers: SubmitAnswerInput[]): Promise<Exam> {
     const exam = await this.examRepo.findById(examId);
     if (exam === null) {
       throw new NotFoundError("試験が見つかりません");
@@ -143,6 +137,23 @@ export class ExamService {
     }
     if (exam.status !== ExamStatus.IN_PROGRESS) {
       throw new BusinessError("この試験はすでに提出済みです");
+    }
+
+    // 提出時の改ざん検証:
+    // 1. 出題セットに含まれない questionId を拒否
+    // 2. 同じ questionId の重複回答を拒否 (正答数の水増し防止)
+    const allowedIds = new Set<string>(
+      Array.isArray(exam.questionIds) ? (exam.questionIds as string[]) : []
+    );
+    const seenIds = new Set<string>();
+    for (const ans of answers) {
+      if (!allowedIds.has(ans.questionId)) {
+        throw new BusinessError("出題範囲外の問題が含まれています");
+      }
+      if (seenIds.has(ans.questionId)) {
+        throw new BusinessError("同じ問題への重複回答は受け付けられません");
+      }
+      seenIds.add(ans.questionId);
     }
 
     const now = new Date();

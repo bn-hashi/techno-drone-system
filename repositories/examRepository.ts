@@ -7,6 +7,7 @@ type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
 export interface CreateExamInput {
   userId: string;
   totalQuestions: number;
+  questionIds: string[];
 }
 
 export interface UpdateExamInput {
@@ -18,11 +19,7 @@ export interface UpdateExamInput {
 
 export interface IExamRepository {
   findById(id: string, tx?: PrismaLike): Promise<Exam | null>;
-  findByUserAndStatus(
-    userId: string,
-    status: ExamStatus,
-    tx?: PrismaLike
-  ): Promise<Exam | null>;
+  findByUserAndStatus(userId: string, status: ExamStatus, tx?: PrismaLike): Promise<Exam | null>;
   findAllWithUser(tx?: PrismaLike): Promise<ExamWithUser[]>;
   findByUserOrderByStartedAtDesc(userId: string, tx?: PrismaLike): Promise<Exam[]>;
   create(input: CreateExamInput, tx?: PrismaLike): Promise<Exam>;
@@ -50,8 +47,10 @@ export class ExamRepository implements IExamRepository {
 
   async findAllWithUser(tx?: PrismaLike): Promise<ExamWithUser[]> {
     const prisma = tx ?? getPrisma();
+    // include: { user: true } は User.passwordHash まで返してしまうため、
+    // 表示に必要な id/name/email のみを select する。
     return prisma.exam.findMany({
-      include: { user: true },
+      include: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { startedAt: "desc" },
     }) as Promise<ExamWithUser[]>;
   }
@@ -67,7 +66,11 @@ export class ExamRepository implements IExamRepository {
   async create(input: CreateExamInput, tx?: PrismaLike): Promise<Exam> {
     const prisma = tx ?? getPrisma();
     return prisma.exam.create({
-      data: { userId: input.userId, totalQuestions: input.totalQuestions },
+      data: {
+        userId: input.userId,
+        totalQuestions: input.totalQuestions,
+        questionIds: input.questionIds,
+      },
     });
   }
 

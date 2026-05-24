@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getExamService } from "@/lib/serviceFactory";
-import { UserRole } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
 import { BusinessError, NotFoundError } from "@/services/errors";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
+
+// 試験結果を閲覧可能な受講者ステータスの allowlist
+// PENDING_* など試験を実施していないステータスは弾く
+const ALLOWED_STATUSES: readonly UserStatus[] = [
+  UserStatus.ACTIVE,
+  UserStatus.EXAM_PASSED,
+  UserStatus.COMPLETED,
+  UserStatus.CERTIFIED,
+  UserStatus.DIPS_LINKED,
+];
 
 export async function GET(_request: Request, context: RouteContext): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -15,8 +25,11 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // 結果は ACTIVE / EXAM_PASSED / COMPLETED / CERTIFIED など STUDENT であれば閲覧可
-  if (!session.user || session.user.role !== UserRole.STUDENT) {
+  if (
+    !session.user ||
+    session.user.role !== UserRole.STUDENT ||
+    !ALLOWED_STATUSES.includes(session.user.status as UserStatus)
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

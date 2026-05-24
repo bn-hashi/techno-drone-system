@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   postSubmitExam,
   type StartExamResponse,
@@ -40,7 +41,11 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
-  const submitTriggered = useRef(false);
+  // 自動提出 (タイムアウト) はセッション中 1 回のみ。
+  // 提出失敗で戻すと useEffect が remaining=0 で再発火しループするため、立てたら戻さない。
+  const autoSubmitted = useRef(false);
+  // 同時実行ロック。手動提出のエラー時は false に戻し、ユーザーがリトライできるようにする。
+  const inFlight = useRef(false);
 
   useEffect(() => {
     const raw = window.sessionStorage.getItem(`${EXAM_SESSION_STORAGE_KEY}:${examId}`);
@@ -61,8 +66,8 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (examData === null || submitTriggered.current) return;
-    submitTriggered.current = true;
+    if (examData === null || inFlight.current) return;
+    inFlight.current = true;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -74,7 +79,9 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
       window.sessionStorage.removeItem(`${EXAM_SESSION_STORAGE_KEY}:${examId}`);
       router.push(`/exams/${examId}/result`);
     } catch (err) {
-      submitTriggered.current = false;
+      // 手動提出の失敗はユーザーが再試行できるようロックだけ解く。
+      // 自動提出フラグ (autoSubmitted) は戻さないので、useEffect が再発火してループすることはない。
+      inFlight.current = false;
       setError(err instanceof Error ? err.message : "試験の提出に失敗しました");
       setIsSubmitting(false);
     }
@@ -86,7 +93,9 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
   }, [examData, now]);
 
   useEffect(() => {
-    if (remaining !== null && remaining.totalSeconds === 0 && !submitTriggered.current) {
+    if (remaining !== null && remaining.totalSeconds === 0 && !autoSubmitted.current) {
+      // 自動提出は 1 回のみ。失敗してもこのフラグは戻さない (ループ防止)。
+      autoSubmitted.current = true;
       void handleSubmit();
     }
   }, [remaining, handleSubmit]);
@@ -96,14 +105,15 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
       <main className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="mb-2 text-xl font-semibold text-gray-900">試験データが見つかりません</h1>
         <p className="text-sm text-gray-600">
-          試験は 1 セッションで完結する設計です。ページを再読み込みするとセッション情報が失われます。試験一覧から再開してください。
+          試験は 1
+          セッションで完結する設計です。ページを再読み込みするとセッション情報が失われます。試験一覧から再開してください。
         </p>
-        <a
+        <Link
           href="/exams"
           className="mt-4 inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white"
         >
           試験一覧へ
-        </a>
+        </Link>
       </main>
     );
   }
@@ -152,9 +162,7 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
                   name={`q-${currentQuestion.id}`}
                   value={idx}
                   checked={answers[currentQuestion.id] === idx}
-                  onChange={() =>
-                    setAnswers((prev) => ({ ...prev, [currentQuestion.id]: idx }))
-                  }
+                  onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: idx }))}
                   className="mt-1"
                 />
                 <span className="text-sm text-gray-900">{choice}</span>
@@ -185,9 +193,7 @@ export function ExamRunner({ examId }: ExamRunnerProps) {
         ) : (
           <button
             type="button"
-            onClick={() =>
-              setCurrentIndex((i) => Math.min(i + 1, examData.questions.length - 1))
-            }
+            onClick={() => setCurrentIndex((i) => Math.min(i + 1, examData.questions.length - 1))}
             className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
           >
             次へ

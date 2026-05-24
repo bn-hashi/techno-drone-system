@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -15,7 +16,10 @@ const STATUS_LABEL: Record<ExamStatus, string> = {
 
 function formatDate(date: Date | string | null): string {
   if (date === null) return "-";
-  return new Date(date).toLocaleString("ja-JP", { hour12: false });
+  return new Date(date).toLocaleString("ja-JP", {
+    hour12: false,
+    timeZone: "Asia/Tokyo",
+  });
 }
 
 export default async function StudentExamsPage() {
@@ -93,12 +97,12 @@ export default async function StudentExamsPage() {
                   </p>
                 </div>
                 {exam.status !== ExamStatus.IN_PROGRESS && (
-                  <a
+                  <Link
                     href={`/exams/${exam.id}/result`}
                     className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
                   >
                     結果を見る
-                  </a>
+                  </Link>
                 )}
               </li>
             ))}

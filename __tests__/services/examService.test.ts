@@ -184,6 +184,7 @@ describe("ExamService", () => {
         endedAt: null,
         score: null,
         totalQuestions: 4,
+        questionIds: ["q-1", "q-2", "q-3", "q-4"],
         passed: null,
         status: ExamStatus.IN_PROGRESS,
         createdAt: new Date(),
@@ -210,10 +211,13 @@ describe("ExamService", () => {
 
       await service.startExam("user-1", CourseType.BEGINNER);
 
-      expect(mockExamRepo.create).toHaveBeenCalledWith({
-        userId: "user-1",
-        totalQuestions: 4,
-      });
+      expect(mockExamRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          totalQuestions: 4,
+          questionIds: expect.arrayContaining(["q-1", "q-2", "q-3", "q-4"]),
+        })
+      );
     });
 
     it("test_startExam_returns_view_with_questions", async () => {
@@ -245,7 +249,11 @@ describe("ExamService", () => {
     const examId = "exam-1";
     const userId = "user-1";
 
-    function arrangeOwnedInProgressExam(startedAt = new Date(), totalQuestions = 2) {
+    function arrangeOwnedInProgressExam(
+      startedAt = new Date(),
+      totalQuestions = 2,
+      questionIds: string[] = ["q-1", "q-2"]
+    ) {
       mockExamRepo.findById.mockResolvedValue({
         id: examId,
         userId,
@@ -253,10 +261,11 @@ describe("ExamService", () => {
         endedAt: null,
         score: null,
         totalQuestions,
+        questionIds,
         passed: null,
         status: ExamStatus.IN_PROGRESS,
         createdAt: startedAt,
-      });
+      } as never);
     }
 
     function arrangeQuestions(qs: ReturnType<typeof makeQuestion>[]) {
@@ -279,10 +288,11 @@ describe("ExamService", () => {
         endedAt: null,
         score: null,
         totalQuestions: 2,
+        questionIds: [],
         passed: null,
         status: ExamStatus.IN_PROGRESS,
         createdAt: new Date(),
-      });
+      } as never);
 
       await expect(service.submitExam(userId, examId, [])).rejects.toThrow(BusinessError);
     });
@@ -295,12 +305,65 @@ describe("ExamService", () => {
         endedAt: new Date(),
         score: 80,
         totalQuestions: 2,
+        questionIds: [],
         passed: true,
         status: ExamStatus.PASSED,
         createdAt: new Date(),
-      });
+      } as never);
 
       await expect(service.submitExam(userId, examId, [])).rejects.toThrow(BusinessError);
+    });
+
+    it("test_submitExam_unknown_questionId_throws_BusinessError", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1", "q-2"]);
+
+      await expect(
+        service.submitExam(userId, examId, [{ questionId: "q-unknown", selectedIndex: 0 }])
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_submitExam_unknown_questionId_does_not_persist", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1", "q-2"]);
+
+      await service
+        .submitExam(userId, examId, [{ questionId: "q-unknown", selectedIndex: 0 }])
+        .catch(() => undefined);
+
+      expect(mockAnswerRepo.createMany).not.toHaveBeenCalled();
+    });
+
+    it("test_submitExam_unknown_questionId_does_not_transition_user", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1", "q-2"]);
+
+      await service
+        .submitExam(userId, examId, [{ questionId: "q-unknown", selectedIndex: 0 }])
+        .catch(() => undefined);
+
+      expect(mockUserManagementService.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it("test_submitExam_duplicate_questionId_throws_BusinessError", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1", "q-2"]);
+
+      await expect(
+        service.submitExam(userId, examId, [
+          { questionId: "q-1", selectedIndex: 0 },
+          { questionId: "q-1", selectedIndex: 0 },
+        ])
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_submitExam_duplicate_questionId_does_not_persist", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1", "q-2"]);
+
+      await service
+        .submitExam(userId, examId, [
+          { questionId: "q-1", selectedIndex: 0 },
+          { questionId: "q-1", selectedIndex: 0 },
+        ])
+        .catch(() => undefined);
+
+      expect(mockAnswerRepo.createMany).not.toHaveBeenCalled();
     });
 
     it("test_submitExam_all_correct_passes_with_score_100", async () => {
@@ -319,6 +382,7 @@ describe("ExamService", () => {
         endedAt: input.endedAt ?? null,
         score: input.score ?? null,
         totalQuestions: 2,
+        questionIds: [],
         passed: input.passed ?? null,
         status: input.status ?? ExamStatus.IN_PROGRESS,
         createdAt: new Date(),
@@ -348,6 +412,7 @@ describe("ExamService", () => {
         endedAt: input.endedAt ?? null,
         score: input.score ?? null,
         totalQuestions: 2,
+        questionIds: [],
         passed: input.passed ?? null,
         status: input.status ?? ExamStatus.IN_PROGRESS,
         createdAt: new Date(),
@@ -410,6 +475,7 @@ describe("ExamService", () => {
         endedAt: input.endedAt ?? null,
         score: input.score ?? null,
         totalQuestions: 2,
+        questionIds: [],
         passed: input.passed ?? null,
         status: input.status ?? ExamStatus.IN_PROGRESS,
         createdAt: new Date(),
@@ -424,7 +490,7 @@ describe("ExamService", () => {
     });
 
     it("test_submitExam_failing_status_is_FAILED", async () => {
-      arrangeOwnedInProgressExam(new Date(), 2);
+      arrangeOwnedInProgressExam(new Date(), 2, ["q-1"]);
       const q1 = makeQuestion("q-1", subject1.id, 0);
       arrangeQuestions([q1]);
       mockExamRepo.update.mockResolvedValue({} as never);
@@ -458,7 +524,7 @@ describe("ExamService", () => {
 
     it("test_submitExam_time_exceeded_returns_score_zero", async () => {
       const expiredStartedAt = new Date(Date.now() - (EXAM_DURATION_MINUTES + 1) * 60 * 1000);
-      arrangeOwnedInProgressExam(expiredStartedAt, 1);
+      arrangeOwnedInProgressExam(expiredStartedAt, 1, ["q-1"]);
       const q1 = makeQuestion("q-1", subject1.id, 0);
       arrangeQuestions([q1]);
       mockExamRepo.update.mockImplementation(async (_id, input) => ({
@@ -468,6 +534,7 @@ describe("ExamService", () => {
         endedAt: input.endedAt ?? null,
         score: input.score ?? null,
         totalQuestions: 1,
+        questionIds: [],
         passed: input.passed ?? null,
         status: input.status ?? ExamStatus.IN_PROGRESS,
         createdAt: expiredStartedAt,
@@ -481,8 +548,12 @@ describe("ExamService", () => {
     });
 
     it("test_submitExam_passes_at_threshold", async () => {
-      arrangeOwnedInProgressExam(new Date(), 10);
       const qs = Array.from({ length: 10 }, (_, i) => makeQuestion(`q-${i}`, subject1.id, 0));
+      arrangeOwnedInProgressExam(
+        new Date(),
+        10,
+        qs.map((q) => q.id)
+      );
       arrangeQuestions(qs);
       mockUserManagementService.getUserById.mockResolvedValue({
         id: userId,
@@ -495,6 +566,7 @@ describe("ExamService", () => {
         endedAt: input.endedAt ?? null,
         score: input.score ?? null,
         totalQuestions: 10,
+        questionIds: [],
         passed: input.passed ?? null,
         status: input.status ?? ExamStatus.IN_PROGRESS,
         createdAt: new Date(),

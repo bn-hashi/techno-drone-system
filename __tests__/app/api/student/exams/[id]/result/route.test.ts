@@ -47,6 +47,17 @@ describe("GET /api/student/exams/[id]/result", () => {
     expect(response.status).toBe(403);
   });
 
+  it("test_GET_pending_activation_student_returns_403", async () => {
+    // 試験を実施していないステータスは allowlist 外 → 403
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "u-1", role: UserRole.STUDENT, status: UserStatus.PENDING_ACTIVATION },
+    });
+
+    const response = await GET(makeReq(), makeContext("exam-1"));
+
+    expect(response.status).toBe(403);
+  });
+
   it("test_GET_not_found_returns_404", async () => {
     vi.mocked(getServerSession).mockResolvedValue(studentSession);
     mockGetExam.mockRejectedValue(new NotFoundError("試験が見つかりません"));
