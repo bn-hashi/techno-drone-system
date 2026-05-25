@@ -17,6 +17,21 @@ export const PASSING_SCORE_THRESHOLD = 80;
 /** 修了証明書有効年数 */
 export const CERTIFICATE_VALIDITY_YEARS = 1;
 
+/** 登録講習機関名 (修了証明書 様式1 記載) */
+export const INSTITUTION_NAME = "テクノドローン株式会社" as const;
+
+/** スクール名 (修了証明書 様式1 記載) */
+export const SCHOOL_NAME = "テクノドローンスクール" as const;
+
+/** 講習事務所コード (修了証明書 様式1 記載) */
+export const TRAINING_OFFICE_CODE = "TC-0515-001" as const;
+
+/** 修了審査員氏名のデフォルト (環境変数 EXAMINER_NAME 未設定時のフォールバック) */
+export const DEFAULT_EXAMINER_NAME = "未設定" as const;
+
+/** 修了証明書 PDF の保存先デフォルト (環境変数 CERTIFICATE_OUTPUT_DIR で上書き可能) */
+export const CERTIFICATE_OUTPUT_DIR_DEFAULT = "/home/ubuntu/uploads/certificates/" as const;
+
 /** 科目ごとの必須受講時間（分）*/
 export const SUBJECT_REQUIRED_MINUTES = {
   SUBJECT_01: { BEGINNER: 180, EXPERIENCED: 60 },
