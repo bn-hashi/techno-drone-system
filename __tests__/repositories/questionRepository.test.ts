@@ -177,4 +177,61 @@ describe("QuestionRepository", () => {
       expect(mockDelete).toHaveBeenCalledWith({ where: { id: "q-1" } });
     });
   });
+
+  describe("findManyByIds", () => {
+    it("test_findManyByIds_returns_matching_questions", async () => {
+      // Arrange
+      const q2 = { ...mockQuestion, id: "q-2", body: "問題2" };
+      mockFindMany.mockResolvedValue([mockQuestion, q2]);
+
+      // Act
+      const result = await repository.findManyByIds(["q-1", "q-2"]);
+
+      // Assert
+      expect(result).toEqual([mockQuestion, q2]);
+    });
+
+    it("test_findManyByIds_calls_prisma_with_in_clause", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([]);
+
+      // Act
+      await repository.findManyByIds(["q-1", "q-2"]);
+
+      // Assert
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: { id: { in: ["q-1", "q-2"] } },
+      });
+    });
+
+    it("test_findManyByIds_empty_input_returns_empty_array", async () => {
+      // Act
+      const result = await repository.findManyByIds([]);
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+
+    it("test_findManyByIds_empty_input_does_not_query_prisma", async () => {
+      // Act
+      await repository.findManyByIds([]);
+
+      // Assert: 空配列での無駄クエリを避ける
+      expect(mockFindMany).not.toHaveBeenCalled();
+    });
+
+    it("test_findManyByIds_with_tx_uses_tx_instead_of_getPrisma", async () => {
+      // Arrange
+      const txFindMany = vi.fn().mockResolvedValue([mockQuestion]);
+      const txClient = { question: { findMany: txFindMany } };
+
+      // Act
+      await repository.findManyByIds(["q-1"], txClient as never);
+
+      // Assert
+      expect(txFindMany).toHaveBeenCalledWith({
+        where: { id: { in: ["q-1"] } },
+      });
+    });
+  });
 });

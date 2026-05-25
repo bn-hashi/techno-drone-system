@@ -163,12 +163,11 @@ export class ExamService {
     const limitMs = EXAM_DURATION_MINUTES * 60 * 1000;
     const isTimedOut = elapsedMs > limitMs;
 
-    const questionMap = new Map<string, Question>();
-    for (const ans of answers) {
-      if (questionMap.has(ans.questionId)) continue;
-      const q = await this.questionRepo.findById(ans.questionId);
-      if (q !== null) questionMap.set(ans.questionId, q);
-    }
+    // 出題された問題を一括取得する (N+1 を回避)
+    // questionIds の重複は Set で排除してから IN クエリ 1 本にまとめる
+    const uniqueQuestionIds = Array.from(new Set(answers.map((a) => a.questionId)));
+    const questions = await this.questionRepo.findManyByIds(uniqueQuestionIds);
+    const questionMap = new Map<string, Question>(questions.map((q) => [q.id, q]));
 
     let correctCount = 0;
     const answerInputs = answers.map((ans) => {

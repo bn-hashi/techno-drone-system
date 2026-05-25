@@ -104,6 +104,7 @@ describe("ExamService", () => {
     mockQuestionRepo = {
       findAll: vi.fn(),
       findById: vi.fn(),
+      findManyByIds: vi.fn(),
       findBySubjectAndBody: vi.fn(),
       create: vi.fn(),
       createMany: vi.fn(),
@@ -269,6 +270,12 @@ describe("ExamService", () => {
     }
 
     function arrangeQuestions(qs: ReturnType<typeof makeQuestion>[]) {
+      // submitExam の採点処理は findManyByIds で一括取得する (Issue #24)。
+      // 渡された ids のうち存在する Question のみ返すよう実装する。
+      mockQuestionRepo.findManyByIds.mockImplementation(async (ids) =>
+        qs.filter((q) => ids.includes(q.id))
+      );
+      // findById は他のテスト経路 (例: 重複/未知 questionId の検証) で使われる可能性が残る
       mockQuestionRepo.findById.mockImplementation(
         async (id) => qs.find((q) => q.id === id) ?? null
       );
