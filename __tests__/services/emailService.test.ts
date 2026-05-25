@@ -315,4 +315,116 @@ describe("emailService", () => {
       }).rejects.toThrow();
     });
   });
+
+  describe("sendJudgmentRejectedEmail", () => {
+    it("test_sendJudgmentRejectedEmail_calls_resend_send", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-3" }, error: null });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendJudgmentRejectedEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+      });
+
+      // Assert
+      expect(mockSend).toHaveBeenCalledOnce();
+    });
+
+    it("test_sendJudgmentRejectedEmail_sends_to_correct_address", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-3" }, error: null });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendJudgmentRejectedEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+      });
+
+      // Assert
+      expect(mockSend.mock.calls[0][0].to).toBe("student@example.com");
+    });
+
+    it("test_sendJudgmentRejectedEmail_uses_judgment_subject", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-3" }, error: null });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendJudgmentRejectedEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+      });
+
+      // Assert
+      expect(mockSend.mock.calls[0][0].subject).toBe(
+        "【ドローンスクール】受講確認に関する重要なお知らせ"
+      );
+    });
+
+    it("test_sendJudgmentRejectedEmail_includes_student_name_in_body", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-3" }, error: null });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendJudgmentRejectedEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+      });
+
+      // Assert
+      const body = mockSend.mock.calls[0][0].html ?? "";
+      expect(body).toContain("山田 花子");
+    });
+
+    it("test_sendJudgmentRejectedEmail_escapes_html_in_student_name", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-3" }, error: null });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendJudgmentRejectedEmail({
+        to: "student@example.com",
+        studentName: "<script>",
+      });
+
+      // Assert
+      const body: string = mockSend.mock.calls[0][0].html ?? "";
+      expect(body).not.toContain("<script>");
+    });
+
+    it("test_sendJudgmentRejectedEmail_resend_error_throws", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({
+        data: null,
+        error: { message: "Service unavailable" },
+      });
+      const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+
+      // Act & Assert
+      await expect(
+        sendJudgmentRejectedEmail({
+          to: "student@example.com",
+          studentName: "山田",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("test_sendJudgmentRejectedEmail_without_api_key_throws_error", async () => {
+      // Arrange
+      delete process.env.RESEND_API_KEY;
+
+      // Act & Assert
+      await expect(async () => {
+        const { sendJudgmentRejectedEmail } = await import("@/services/emailService");
+        await sendJudgmentRejectedEmail({
+          to: "student@example.com",
+          studentName: "山田",
+        });
+      }).rejects.toThrow();
+    });
+  });
 });

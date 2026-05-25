@@ -3,11 +3,13 @@ import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
 import { FraudFlagType } from "@/types/prisma";
 
 const mockCreate = vi.fn();
+const mockFindMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
     fraudFlag: {
       create: mockCreate,
+      findMany: mockFindMany,
     },
   }),
 }));
@@ -30,6 +32,7 @@ describe("FraudFlagRepository", () => {
 
   beforeEach(() => {
     mockCreate.mockReset();
+    mockFindMany.mockReset();
     repository = new FraudFlagRepository();
   });
 
@@ -47,5 +50,43 @@ describe("FraudFlagRepository", () => {
     await repository.create(createInput);
 
     expect(mockCreate).toHaveBeenCalledWith({ data: createInput });
+  });
+
+  describe("findByUser", () => {
+    it("test_findByUser_returns_flags", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([mockFlag]);
+
+      // Act
+      const result = await repository.findByUser("user-1");
+
+      // Assert
+      expect(result).toEqual([mockFlag]);
+    });
+
+    it("test_findByUser_calls_prisma_with_userId_and_orderBy_detectedAt_desc", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([]);
+
+      // Act
+      await repository.findByUser("user-1");
+
+      // Assert
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
+        orderBy: { detectedAt: "desc" },
+      });
+    });
+
+    it("test_findByUser_empty_returns_empty_array", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([]);
+
+      // Act
+      const result = await repository.findByUser("user-x");
+
+      // Assert
+      expect(result).toEqual([]);
+    });
   });
 });

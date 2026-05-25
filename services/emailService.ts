@@ -132,3 +132,57 @@ export async function sendAnswerNotificationEmail(
     throw new Error(`メール送信に失敗しました: ${error.message}`);
   }
 }
+
+export interface SendJudgmentRejectedEmailParams {
+  to: string;
+  studentName: string;
+}
+
+function buildJudgmentRejectedEmailHtml(studentName: string): string {
+  const safeName = escapeHtml(studentName);
+  return `
+<p>${safeName} 様</p>
+<p>このたびの受講確認に関しまして、重要なお知らせがございます。</p>
+<p>恐れ入りますが、内容について個別にご相談させていただきたいため、お手数ですが事務局までお問い合わせください。</p>
+<p>ご不便をおかけし申し訳ございません。</p>
+<p>ドローンスクール事務局</p>
+  `.trim();
+}
+
+/**
+ * 受講不成立判定の通知メールを送信する
+ *
+ * 個別の理由はメール本文には含めず、事務局への問い合わせを促す簡潔な内容にする。
+ *
+ * @throws Resend からエラーが返された場合、または環境変数が未設定の場合
+ */
+export async function sendJudgmentRejectedEmail(
+  params: SendJudgmentRejectedEmailParams
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("環境変数 RESEND_API_KEY が設定されていません");
+  }
+
+  const fromAddress = process.env.RESEND_FROM_ADDRESS;
+  if (!fromAddress) {
+    throw new Error("環境変数 RESEND_FROM_ADDRESS が設定されていません");
+  }
+
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const { to, studentName } = params;
+  const html = buildJudgmentRejectedEmailHtml(studentName);
+
+  const { error } = await resend.emails.send({
+    from: fromAddress,
+    to,
+    subject: "【ドローンスクール】受講確認に関する重要なお知らせ",
+    html,
+  });
+
+  if (error) {
+    throw new Error(`メール送信に失敗しました: ${error.message}`);
+  }
+}

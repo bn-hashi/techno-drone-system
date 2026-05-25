@@ -10,11 +10,20 @@ export interface CreateFraudFlagInput {
 
 export interface IFraudFlagRepository {
   create(input: CreateFraudFlagInput): Promise<FraudFlag>;
+  findByUser(userId: string): Promise<FraudFlag[]>;
 }
 
 export class FraudFlagRepository implements IFraudFlagRepository {
   async create(input: CreateFraudFlagInput): Promise<FraudFlag> {
     const prisma = getPrisma();
     return prisma.fraudFlag.create({ data: input });
+  }
+
+  async findByUser(userId: string): Promise<FraudFlag[]> {
+    const prisma = getPrisma();
+    return prisma.fraudFlag.findMany({
+      where: { userId },
+      orderBy: { detectedAt: "desc" },
+    });
   }
 }
