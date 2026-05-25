@@ -1,6 +1,8 @@
 import { getPrisma } from "@/lib/db";
-import { User } from "@prisma/client";
+import { User, Prisma } from "@prisma/client";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
+
+type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
 
 /**
  * ユーザーの永続化を担うリポジトリインターフェース。
@@ -16,7 +18,7 @@ export interface IUserRepository {
    */
   findAll(filter?: { status?: UserStatus }, limit?: number): Promise<User[]>;
   /** ID でユーザーを検索する */
-  findById(id: string): Promise<User | null>;
+  findById(id: string, tx?: PrismaLike): Promise<User | null>;
   /** ユーザーを新規作成する */
   create(data: {
     email: string;
@@ -27,7 +29,7 @@ export interface IUserRepository {
     status: UserStatus;
   }): Promise<User>;
   /** ユーザーのステータスを更新する */
-  updateStatus(id: string, status: UserStatus): Promise<User>;
+  updateStatus(id: string, status: UserStatus, tx?: PrismaLike): Promise<User>;
   /** ユーザーのパスワードハッシュを更新する */
   updatePassword(id: string, hashedPassword: string): Promise<User>;
 }
@@ -46,8 +48,8 @@ export class UserRepository implements IUserRepository {
     return prisma.user.findMany({ where, take: limit });
   }
 
-  async findById(id: string): Promise<User | null> {
-    const prisma = getPrisma();
+  async findById(id: string, tx?: PrismaLike): Promise<User | null> {
+    const prisma = tx ?? getPrisma();
     return prisma.user.findUnique({ where: { id } });
   }
 
@@ -63,8 +65,8 @@ export class UserRepository implements IUserRepository {
     return prisma.user.create({ data });
   }
 
-  async updateStatus(id: string, status: UserStatus): Promise<User> {
-    const prisma = getPrisma();
+  async updateStatus(id: string, status: UserStatus, tx?: PrismaLike): Promise<User> {
+    const prisma = tx ?? getPrisma();
     return prisma.user.update({
       where: { id },
       data: { status },

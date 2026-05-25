@@ -444,8 +444,54 @@ describe("ExamService", () => {
 
       expect(mockUserManagementService.updateStatus).toHaveBeenCalledWith(
         userId,
-        UserStatus.EXAM_PASSED
+        UserStatus.EXAM_PASSED,
+        expect.anything()
       );
+    });
+
+    it("test_submitExam_passing_passes_tx_to_updateStatus", async () => {
+      arrangeOwnedInProgressExam(new Date(), 2);
+      const q1 = makeQuestion("q-1", subject1.id, 0);
+      const q2 = makeQuestion("q-2", subject2.id, 1);
+      arrangeQuestions([q1, q2]);
+      mockUserManagementService.getUserById.mockResolvedValue({
+        id: userId,
+        status: UserStatus.ACTIVE,
+      } as never);
+      mockExamRepo.update.mockResolvedValue({} as never);
+
+      await service.submitExam(userId, examId, [
+        { questionId: "q-1", selectedIndex: 0 },
+        { questionId: "q-2", selectedIndex: 1 },
+      ]);
+
+      const updateStatusCall = mockUserManagementService.updateStatus.mock.calls[0];
+      // 第 3 引数が tx (undefined ではない) であることを確認
+      expect(updateStatusCall[2]).toBeDefined();
+    });
+
+    it("test_submitExam_updateStatus_failure_rolls_back_exam_update", async () => {
+      // updateStatus が tx 内で throw すると Prisma $transaction が reject され、
+      // exam.update / answer.createMany も実質的にロールバックされる。
+      // 単体テストでは Prisma の rollback 自体は検証できないため、
+      // throw が $transaction の外に伝播することを確認する。
+      arrangeOwnedInProgressExam(new Date(), 2);
+      const q1 = makeQuestion("q-1", subject1.id, 0);
+      const q2 = makeQuestion("q-2", subject2.id, 1);
+      arrangeQuestions([q1, q2]);
+      mockUserManagementService.getUserById.mockResolvedValue({
+        id: userId,
+        status: UserStatus.ACTIVE,
+      } as never);
+      mockExamRepo.update.mockResolvedValue({} as never);
+      mockUserManagementService.updateStatus.mockRejectedValue(new Error("DB connection lost"));
+
+      await expect(
+        service.submitExam(userId, examId, [
+          { questionId: "q-1", selectedIndex: 0 },
+          { questionId: "q-2", selectedIndex: 1 },
+        ])
+      ).rejects.toThrow("DB connection lost");
     });
 
     it("test_submitExam_failing_does_not_transition_user", async () => {

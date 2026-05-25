@@ -1,4 +1,4 @@
-import type { Exam, ExamAnswer, Question } from "@prisma/client";
+import type { Exam, ExamAnswer, Question, Prisma } from "@prisma/client";
 import type { IExamRepository, ExamWithUser } from "@/repositories/examRepository";
 import type { IExamAnswerRepository } from "@/repositories/examAnswerRepository";
 import type { IQuestionRepository } from "@/repositories/questionRepository";
@@ -19,9 +19,11 @@ export interface ProgressServiceLike {
   getProgressByUser(userId: string, courseType: CourseType): Promise<SubjectProgressView[]>;
 }
 
+type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
+
 /** ExamService が依存する UserManagementService の最小契約 */
 export interface UserManagementServiceLike {
-  updateStatus(userId: string, newStatus: UserStatus): Promise<SafeUser>;
+  updateStatus(userId: string, newStatus: UserStatus, tx?: PrismaLike): Promise<SafeUser>;
   getUserById(id: string): Promise<SafeUser | null>;
 }
 
@@ -188,6 +190,14 @@ export class ExamService {
     const passed = score >= PASSING_SCORE_THRESHOLD;
     const nextStatus = passed ? ExamStatus.PASSED : ExamStatus.FAILED;
 
+    // 合格時のステータス遷移要否を tx 開始前に判定する。
+    // status の read は tx 外だが、書き込みは tx 内に取り込むことで
+    // updateStatus 失敗時に exam.update と answer.createMany もロールバックされる。
+    const userBeforeTx = passed ? await this.userManagementService.getUserById(userId) : null;
+    // 既に EXAM_PASSED 以降の場合は遷移しない（再受験合格時の二重遷移防止）
+    const shouldTransition =
+      passed && userBeforeTx !== null && userBeforeTx.status === UserStatus.ACTIVE;
+
     const updated = await getPrisma().$transaction(async (tx) => {
       const u = await this.examRepo.update(
         examId,
@@ -195,16 +205,11 @@ export class ExamService {
         tx
       );
       await this.answerRepo.createMany(answerInputs, tx);
+      if (shouldTransition) {
+        await this.userManagementService.updateStatus(userId, UserStatus.EXAM_PASSED, tx);
+      }
       return u;
     });
-
-    if (passed) {
-      const user = await this.userManagementService.getUserById(userId);
-      // 既に EXAM_PASSED 以降の場合は遷移しない（再受験合格時の二重遷移防止）
-      if (user !== null && user.status === UserStatus.ACTIVE) {
-        await this.userManagementService.updateStatus(userId, UserStatus.EXAM_PASSED);
-      }
-    }
 
     return updated;
   }

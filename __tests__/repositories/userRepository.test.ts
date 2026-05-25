@@ -156,6 +156,30 @@ describe("UserRepository", () => {
       expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: "user-1" } });
     });
 
+    it("test_findById_with_tx_uses_tx_instead_of_getPrisma", async () => {
+      // Arrange
+      const txFindUnique = vi.fn().mockResolvedValue(mockUser);
+      const txClient = { user: { findUnique: txFindUnique } };
+
+      // Act
+      const result = await repository.findById("user-1", txClient as never);
+
+      // Assert
+      expect(result).toEqual(mockUser);
+    });
+
+    it("test_findById_with_tx_does_not_call_getPrisma_findUnique", async () => {
+      // Arrange
+      const txFindUnique = vi.fn().mockResolvedValue(mockUser);
+      const txClient = { user: { findUnique: txFindUnique } };
+
+      // Act
+      await repository.findById("user-1", txClient as never);
+
+      // Assert
+      expect(mockFindUnique).not.toHaveBeenCalled();
+    });
+
     it("test_findById_nonexistent_id_returns_null", async () => {
       mockFindUnique.mockResolvedValue(null);
 
@@ -212,6 +236,33 @@ describe("UserRepository", () => {
         where: { id: "user-1" },
         data: { status: UserStatus.EXAM_PASSED },
       });
+    });
+
+    it("test_updateStatus_with_tx_uses_tx_instead_of_getPrisma", async () => {
+      // Arrange: tx クライアントを差し替えて使用されることを検証する
+      const txUpdate = vi.fn().mockResolvedValue({ ...mockUser, status: UserStatus.EXAM_PASSED });
+      const txClient = { user: { update: txUpdate } };
+
+      // Act
+      await repository.updateStatus("user-1", UserStatus.EXAM_PASSED, txClient as never);
+
+      // Assert
+      expect(txUpdate).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { status: UserStatus.EXAM_PASSED },
+      });
+    });
+
+    it("test_updateStatus_with_tx_does_not_call_getPrisma_update", async () => {
+      // Arrange
+      const txUpdate = vi.fn().mockResolvedValue(mockUser);
+      const txClient = { user: { update: txUpdate } };
+
+      // Act
+      await repository.updateStatus("user-1", UserStatus.EXAM_PASSED, txClient as never);
+
+      // Assert: tx 経由なので getPrisma 側の update は呼ばれない
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 
