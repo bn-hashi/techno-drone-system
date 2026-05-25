@@ -22,6 +22,8 @@ import { QuestionService } from "@/services/questionService";
 import { ExamRepository } from "@/repositories/examRepository";
 import { ExamAnswerRepository } from "@/repositories/examAnswerRepository";
 import { ExamService } from "@/services/examService";
+import { QARecordRepository } from "@/repositories/qaRecordRepository";
+import { QAService } from "@/services/qaService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -94,4 +96,9 @@ export function getExamService(): ExamService {
     getProgressService(),
     getUserManagementService()
   );
+}
+
+/** 質疑応答 Service のインスタンスを返す */
+export function getQAService(): QAService {
+  return new QAService(new QARecordRepository(), new UserRepository());
 }

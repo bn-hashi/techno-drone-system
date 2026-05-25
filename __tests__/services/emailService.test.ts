@@ -148,4 +148,116 @@ describe("emailService", () => {
       }).rejects.toThrow();
     });
   });
+
+  describe("sendAnswerNotificationEmail", () => {
+    it("test_sendAnswerNotificationEmail_valid_params_calls_resend_send", async () => {
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "受講中に不明点があったらどうすればよいですか？",
+        answer: "本フォームから何度でも質問してください。",
+      });
+
+      expect(mockSend).toHaveBeenCalledOnce();
+    });
+
+    it("test_sendAnswerNotificationEmail_sends_to_correct_address", async () => {
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "Q?",
+        answer: "A.",
+      });
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.to).toBe("student@example.com");
+    });
+
+    it("test_sendAnswerNotificationEmail_uses_correct_subject", async () => {
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "Q?",
+        answer: "A.",
+      });
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.subject).toBe("【ドローンスクール】ご質問への回答をお送りします");
+    });
+
+    it("test_sendAnswerNotificationEmail_includes_student_name_question_answer_in_body", async () => {
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "受講中に不明点があったらどうすればよいですか？",
+        answer: "本フォームから何度でも質問してください。",
+      });
+
+      const callArgs = mockSend.mock.calls[0][0];
+      const body = callArgs.html ?? callArgs.text ?? "";
+      expect(body).toContain("山田 花子");
+      expect(body).toContain("受講中に不明点があったらどうすればよいですか？");
+      expect(body).toContain("本フォームから何度でも質問してください。");
+    });
+
+    it("test_sendAnswerNotificationEmail_escapes_html_in_question_and_answer", async () => {
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田",
+        question: "<script>alert('xss')</script>",
+        answer: "<b>bold</b>",
+      });
+
+      const callArgs = mockSend.mock.calls[0][0];
+      const body: string = callArgs.html ?? "";
+      expect(body).not.toContain("<script>alert");
+      expect(body).toContain("&lt;script&gt;");
+    });
+
+    it("test_sendAnswerNotificationEmail_resend_error_throws", async () => {
+      mockSend.mockResolvedValue({
+        data: null,
+        error: { message: "Service unavailable" },
+      });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      await expect(
+        sendAnswerNotificationEmail({
+          to: "student@example.com",
+          studentName: "山田",
+          question: "Q?",
+          answer: "A.",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("test_sendAnswerNotificationEmail_without_api_key_throws_error", async () => {
+      delete process.env.RESEND_API_KEY;
+
+      await expect(async () => {
+        const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+        await sendAnswerNotificationEmail({
+          to: "student@example.com",
+          studentName: "山田",
+          question: "Q?",
+          answer: "A.",
+        });
+      }).rejects.toThrow();
+    });
+  });
 });

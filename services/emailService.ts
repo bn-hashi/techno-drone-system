@@ -73,3 +73,62 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<vo
     throw new Error(`メール送信に失敗しました: ${error.message}`);
   }
 }
+
+export interface SendAnswerNotificationEmailParams {
+  to: string;
+  studentName: string;
+  question: string;
+  answer: string;
+}
+
+function buildAnswerEmailHtml(studentName: string, question: string, answer: string): string {
+  const safeName = escapeHtml(studentName);
+  const safeQuestion = escapeHtml(question);
+  const safeAnswer = escapeHtml(answer);
+  return `
+<p>${safeName} 様</p>
+<p>ご質問への回答が届きましたのでお知らせします。</p>
+<p><strong>ご質問:</strong></p>
+<p>${safeQuestion}</p>
+<p><strong>回答:</strong></p>
+<p>${safeAnswer}</p>
+<p>追加のご質問がございましたら、受講者画面の質疑応答フォームよりお問い合わせください。</p>
+<p>ドローンスクール事務局</p>
+  `.trim();
+}
+
+/**
+ * 質疑応答の回答通知メールを送信する
+ *
+ * @throws Resend からエラーが返された場合、または環境変数が未設定の場合
+ */
+export async function sendAnswerNotificationEmail(
+  params: SendAnswerNotificationEmailParams
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("環境変数 RESEND_API_KEY が設定されていません");
+  }
+
+  const fromAddress = process.env.RESEND_FROM_ADDRESS;
+  if (!fromAddress) {
+    throw new Error("環境変数 RESEND_FROM_ADDRESS が設定されていません");
+  }
+
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const { to, studentName, question, answer } = params;
+  const html = buildAnswerEmailHtml(studentName, question, answer);
+
+  const { error } = await resend.emails.send({
+    from: fromAddress,
+    to,
+    subject: "【ドローンスクール】ご質問への回答をお送りします",
+    html,
+  });
+
+  if (error) {
+    throw new Error(`メール送信に失敗しました: ${error.message}`);
+  }
+}

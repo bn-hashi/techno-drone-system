@@ -42,3 +42,9 @@ export const VIEWING_LOG_BUFFER_SECONDS = 10;
 
 /** 動画完了とみなす視聴率（受講順序制御の判定基準） */
 export const VIDEO_COMPLETION_THRESHOLD = 0.8;
+
+/** 質疑応答 質問本文の最大文字数 */
+export const QA_QUESTION_MAX_LENGTH = 2000;
+
+/** 質疑応答 回答本文の最大文字数 */
+export const QA_ANSWER_MAX_LENGTH = 2000;
