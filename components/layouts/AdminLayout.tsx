@@ -8,6 +8,7 @@ const NAVIGATION_LINKS = [
   { href: "/admin/courses", label: "コース管理" },
   { href: "/admin/videos", label: "動画管理" },
   { href: "/admin/questions", label: "問題バンク" },
+  { href: "/exam-results", label: "試験結果" },
 ] as const;
 
 interface AdminLayoutProps {

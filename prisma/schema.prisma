@@ -231,6 +231,8 @@ model Exam {
   endedAt        DateTime?
   score          Int?       // 正答率 (0-100)
   totalQuestions Int        @default(0)
+  // 出題された問題 ID 配列 (String[] / 提出時の改ざん検証に使用)
+  questionIds    Json       @default("[]")
   passed         Boolean?
   status         ExamStatus @default(IN_PROGRESS)
   createdAt      DateTime   @default(now())
