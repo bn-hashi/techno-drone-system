@@ -262,5 +262,41 @@ describe("UserManagementService", () => {
         "無効なステータス遷移です"
       );
     });
+
+    it("test_updateStatus_with_tx_passes_tx_to_findById", async () => {
+      // Arrange
+      mockRepo.findById.mockResolvedValue(mockUser);
+      mockRepo.updateStatus.mockResolvedValue({
+        ...mockUser,
+        status: UserStatus.EXAM_PASSED,
+      });
+      const txClient = { __tx: true } as never;
+
+      // Act
+      await service.updateStatus("user-1", UserStatus.EXAM_PASSED, txClient);
+
+      // Assert
+      expect(mockRepo.findById).toHaveBeenCalledWith("user-1", txClient);
+    });
+
+    it("test_updateStatus_with_tx_passes_tx_to_repo_updateStatus", async () => {
+      // Arrange
+      mockRepo.findById.mockResolvedValue(mockUser);
+      mockRepo.updateStatus.mockResolvedValue({
+        ...mockUser,
+        status: UserStatus.EXAM_PASSED,
+      });
+      const txClient = { __tx: true } as never;
+
+      // Act
+      await service.updateStatus("user-1", UserStatus.EXAM_PASSED, txClient);
+
+      // Assert
+      expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+        "user-1",
+        UserStatus.EXAM_PASSED,
+        txClient
+      );
+    });
   });
 });
