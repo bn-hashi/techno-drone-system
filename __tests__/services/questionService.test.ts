@@ -46,6 +46,7 @@ describe("QuestionService", () => {
     mockQuestionRepo = {
       findAll: vi.fn(),
       findById: vi.fn(),
+      findManyByIds: vi.fn(),
       findBySubjectAndBody: vi.fn(),
       create: vi.fn(),
       createMany: vi.fn(),
