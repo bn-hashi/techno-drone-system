@@ -67,28 +67,30 @@ export class JudgmentService {
     };
   }
 
-  async judgeAccepted(
-    userId: string,
-    judgedBy: string,
-    comment?: string
-  ): Promise<JudgmentRecord> {
+  async judgeAccepted(userId: string, judgedBy: string, comment?: string): Promise<JudgmentRecord> {
     const trimmedJudgedBy = judgedBy.trim();
     if (trimmedJudgedBy.length === 0) {
       throw new BusinessError("判定者名を入力してください");
     }
 
+    // tx 外の status check は UX 用の早期エラー (適切な BusinessError を投げる)。
+    // 競合状態の防止は tx 内の updateStatus に任せる。
+    // (userManagementService.updateStatus は tx 内で findById → transition check を行うため、
+    //  別管理者が先に status を変更していた場合は InvalidTransitionError (BusinessError 派生) が投げられ、
+    //  tx 全体が rollback されることで判定記録も巻き戻る)
     const user = await this.userManagementService.getUserById(userId);
     if (user === null) {
       throw new BusinessError("指定された受講者が見つかりません");
     }
     if (user.status !== UserStatus.EXAM_PASSED) {
-      throw new BusinessError(
-        "受講成立判定は EXAM_PASSED 状態の受講者のみ実行できます"
-      );
+      throw new BusinessError("受講成立判定は EXAM_PASSED 状態の受講者のみ実行できます");
     }
 
     // 判定記録とステータス遷移は原子的に行う:
-    // updateStatus が失敗した場合、判定記録もロールバックされる (Issue #23 の教訓)
+    // - updateStatus が失敗した場合 (race condition で他者が既に遷移済み等)、
+    //   判定記録もロールバックされる (Issue #23 の教訓)
+    // - tx 内の updateStatus は findById(tx) で最新 status を読むため、
+    //   read-modify-write の race window は閉じている
     const record = await getPrisma().$transaction(async (tx) => {
       const input: CreateJudgmentRecordInput = {
         userId,
@@ -119,9 +121,7 @@ export class JudgmentService {
       throw new BusinessError("指定された受講者が見つかりません");
     }
     if (user.status !== UserStatus.EXAM_PASSED) {
-      throw new BusinessError(
-        "受講不成立判定は EXAM_PASSED 状態の受講者のみ実行できます"
-      );
+      throw new BusinessError("受講不成立判定は EXAM_PASSED 状態の受講者のみ実行できます");
     }
 
     // 不成立判定は status を変更しないため tx は不要 (単一書き込み)

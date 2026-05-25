@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { IJudgmentRecordRepository } from "@/repositories/judgmentRecordRepository";
 import type { IFraudFlagRepository } from "@/repositories/fraudFlagRepository";
-import {
-  UserStatus,
-  CourseType,
-  JudgmentResult,
-  UserRole,
-  FraudFlagType,
-} from "@/types/prisma";
+import { UserStatus, CourseType, JudgmentResult, UserRole, FraudFlagType } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
 
 // emailService をモック (setupService.test.ts と同じパターン)
@@ -332,6 +326,24 @@ describe("JudgmentService", () => {
 
       // Act & Assert
       await expect(service.judgeAccepted(userId, "   ")).rejects.toThrow(BusinessError);
+    });
+
+    // race condition の回帰テスト:
+    // tx 外の status check を通過した後 (= getUserById 時点では EXAM_PASSED) に、
+    // tx 内の updateStatus が「他の管理者が既に状態を遷移させていた」ことを検知して
+    // InvalidTransitionError (BusinessError 派生) を投げるシナリオ。
+    // この場合 tx 全体が rollback され、judgmentRepo.create も巻き戻ることを期待する。
+    it("test_judgeAccepted_propagates_updateStatus_BusinessError_for_race_condition", async () => {
+      // Arrange: status check は EXAM_PASSED で通過
+      vi.mocked(mockUserManagementService.getUserById).mockResolvedValue(examPassedUser);
+      vi.mocked(mockJudgmentRepo.create).mockResolvedValue(acceptedRecord);
+      // tx 内の updateStatus が InvalidTransitionError 相当の BusinessError を throw
+      vi.mocked(mockUserManagementService.updateStatus).mockRejectedValue(
+        new BusinessError("無効なステータス遷移です: COMPLETED → COMPLETED")
+      );
+
+      // Act & Assert: BusinessError として伝播する (500 ではなく 400 で返せる)
+      await expect(service.judgeAccepted(userId, judgedBy)).rejects.toThrow(BusinessError);
     });
   });
 

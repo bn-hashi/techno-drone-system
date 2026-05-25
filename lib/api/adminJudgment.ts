@@ -23,7 +23,10 @@ export async function postJudgeAccepted(
   userId: string,
   comment?: string
 ): Promise<JudgmentAcceptResponse> {
-  const response = await fetch(`/api/admin/students/${userId}/judge`, {
+  // userId は cuid だが defensive practice として encodeURIComponent を通す
+  // (将来 ID 形式が変わって "/" や "?" を含んだ場合の URL 破壊を防ぐ)
+  const encodedUserId = encodeURIComponent(userId);
+  const response = await fetch(`/api/admin/students/${encodedUserId}/judge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ result: "ACCEPTED", comment }),
@@ -38,7 +41,8 @@ export async function postJudgeRejected(
   userId: string,
   comment?: string
 ): Promise<JudgmentRejectResponse> {
-  const response = await fetch(`/api/admin/students/${userId}/judge`, {
+  const encodedUserId = encodeURIComponent(userId);
+  const response = await fetch(`/api/admin/students/${encodedUserId}/judge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ result: "REJECTED", comment }),
