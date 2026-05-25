@@ -40,8 +40,7 @@ export const DIPSExportStatus = {
   EXPORTED: "EXPORTED",
   CONFIRMED: "CONFIRMED",
 } as const;
-export type DIPSExportStatus =
-  (typeof DIPSExportStatus)[keyof typeof DIPSExportStatus];
+export type DIPSExportStatus = (typeof DIPSExportStatus)[keyof typeof DIPSExportStatus];
 
 export const FraudFlagType = {
   TAB_LEAVE: "TAB_LEAVE",
@@ -49,3 +48,9 @@ export const FraudFlagType = {
   SPEED_VIOLATION: "SPEED_VIOLATION",
 } as const;
 export type FraudFlagType = (typeof FraudFlagType)[keyof typeof FraudFlagType];
+
+export const JudgmentResult = {
+  ACCEPTED: "ACCEPTED",
+  REJECTED: "REJECTED",
+} as const;
+export type JudgmentResult = (typeof JudgmentResult)[keyof typeof JudgmentResult];

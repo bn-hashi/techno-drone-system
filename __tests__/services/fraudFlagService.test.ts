@@ -18,7 +18,10 @@ describe("FraudFlagService", () => {
   };
 
   beforeEach(() => {
-    mockRepo = { create: vi.fn() } as Mocked<IFraudFlagRepository>;
+    mockRepo = {
+      create: vi.fn(),
+      findByUser: vi.fn(),
+    } as Mocked<IFraudFlagRepository>;
     service = new FraudFlagService(mockRepo);
   });
 

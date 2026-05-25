@@ -45,6 +45,11 @@ enum DIPSExportStatus {
   CONFIRMED
 }
 
+enum JudgmentResult {
+  ACCEPTED
+  REJECTED
+}
+
 enum FraudFlagType {
   TAB_LEAVE
   CONCURRENT_LOGIN
@@ -77,6 +82,7 @@ model User {
   completionCertificate CompletionCertificate?
   dipsExportLogs        DIPSExportLog[]
   fraudFlags            FraudFlag[]
+  judgmentRecords       JudgmentRecord[]
 
   @@map("users")
 }
@@ -316,4 +322,21 @@ model FraudFlag {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("fraud_flags")
+}
+
+/// 受講確認・成立判定の履歴
+/// 管理者が受講者を成立/不成立判定したときに作成される。
+/// User.status の遷移とは独立に履歴を蓄積する (不成立判定でも保存される)。
+model JudgmentRecord {
+  id       String         @id @default(cuid())
+  userId   String
+  result   JudgmentResult
+  comment  String?
+  judgedBy String
+  judgedAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, judgedAt])
+  @@map("judgment_records")
 }
