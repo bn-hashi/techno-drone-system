@@ -1,8 +1,5 @@
 import { QARecord } from "@prisma/client";
-import type {
-  IQARecordRepository,
-  QARecordWithUser,
-} from "@/repositories/qaRecordRepository";
+import type { IQARecordRepository, QARecordWithUser } from "@/repositories/qaRecordRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
 import { sendAnswerNotificationEmail } from "@/services/emailService";
 import { BusinessError, NotFoundError } from "@/services/errors";
@@ -16,11 +13,7 @@ export interface AnswerQuestionResult {
 
 export interface IQAService {
   createQuestion(userId: string, question: string): Promise<QARecord>;
-  answerQuestion(
-    qaId: string,
-    answer: string,
-    answeredBy: string
-  ): Promise<AnswerQuestionResult>;
+  answerQuestion(qaId: string, answer: string, answeredBy: string): Promise<AnswerQuestionResult>;
   listByUser(userId: string): Promise<QARecord[]>;
   listAll(unansweredOnly?: boolean): Promise<QARecordWithUser[]>;
 }
@@ -37,9 +30,7 @@ export class QAService implements IQAService {
       throw new BusinessError("質問本文を入力してください");
     }
     if (trimmed.length > QA_QUESTION_MAX_LENGTH) {
-      throw new BusinessError(
-        `質問本文は ${QA_QUESTION_MAX_LENGTH} 文字以内で入力してください`
-      );
+      throw new BusinessError(`質問本文は ${QA_QUESTION_MAX_LENGTH} 文字以内で入力してください`);
     }
     return this.qaRepo.create({ userId, question: trimmed });
   }
@@ -54,9 +45,12 @@ export class QAService implements IQAService {
       throw new BusinessError("回答本文を入力してください");
     }
     if (trimmedAnswer.length > QA_ANSWER_MAX_LENGTH) {
-      throw new BusinessError(
-        `回答本文は ${QA_ANSWER_MAX_LENGTH} 文字以内で入力してください`
-      );
+      throw new BusinessError(`回答本文は ${QA_ANSWER_MAX_LENGTH} 文字以内で入力してください`);
+    }
+
+    const trimmedAnsweredBy = answeredBy.trim();
+    if (trimmedAnsweredBy.length === 0) {
+      throw new BusinessError("回答者名を入力してください");
     }
 
     const existing = await this.qaRepo.findById(qaId);
@@ -67,12 +61,16 @@ export class QAService implements IQAService {
     const record = await this.qaRepo.updateAnswer(qaId, {
       answer: trimmedAnswer,
       answeredAt: new Date(),
-      answeredBy,
+      answeredBy: trimmedAnsweredBy,
     });
 
     // メール通知は副作用なのでトランザクション境界外。
     // 失敗してもログのみで、回答の DB 保存は成功扱いとする。
-    const mailSent = await this.notifyAnswerByEmail(record.userId, existing.question, trimmedAnswer);
+    const mailSent = await this.notifyAnswerByEmail(
+      record.userId,
+      existing.question,
+      trimmedAnswer
+    );
 
     return { record, mailSent };
   }

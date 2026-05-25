@@ -9,13 +9,24 @@ import type { QARecordItem } from "@/lib/api/studentQA";
 
 export const dynamic = "force-dynamic";
 
+// QA を利用できる受講者ステータスの allowlist
+// API ルート (/api/student/qa) と同じ allowlist で UI/API を統一
+// PENDING_* など受講開始前のステータスは弾く
+const ALLOWED_STATUSES: readonly UserStatus[] = [
+  UserStatus.ACTIVE,
+  UserStatus.EXAM_PASSED,
+  UserStatus.COMPLETED,
+  UserStatus.CERTIFIED,
+  UserStatus.DIPS_LINKED,
+];
+
 export default async function StudentQAPage() {
   const session = await getServerSession(authOptions);
 
   if (
     !session?.user ||
     session.user.role !== UserRole.STUDENT ||
-    session.user.status !== UserStatus.ACTIVE
+    !ALLOWED_STATUSES.includes(session.user.status)
   ) {
     redirect("/login");
   }

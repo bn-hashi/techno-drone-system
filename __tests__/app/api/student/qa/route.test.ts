@@ -71,21 +71,38 @@ describe("POST /api/student/qa", () => {
     expect(res.status).toBe(400);
   });
 
-  it("test_POST_success_returns_201_with_record", async () => {
+  const sampleCreatedRecord = {
+    id: "qa-1",
+    userId: "user-1",
+    question: "Q?",
+    answer: null,
+    questionedAt: new Date(),
+    answeredAt: null,
+    answeredBy: null,
+  };
+
+  it("test_POST_success_returns_201", async () => {
+    // Arrange
     vi.mocked(getServerSession).mockResolvedValue(studentSession);
-    const record = {
-      id: "qa-1",
-      userId: "user-1",
-      question: "Q?",
-      answer: null,
-      questionedAt: new Date(),
-      answeredAt: null,
-      answeredBy: null,
-    };
-    mockCreateQuestion.mockResolvedValue(record);
+    mockCreateQuestion.mockResolvedValue(sampleCreatedRecord);
+
+    // Act
     const res = await POST(makePostRequest({ question: "Q?" }));
+
+    // Assert
     expect(res.status).toBe(201);
+  });
+
+  it("test_POST_success_returns_record_in_body", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(studentSession);
+    mockCreateQuestion.mockResolvedValue(sampleCreatedRecord);
+
+    // Act
+    const res = await POST(makePostRequest({ question: "Q?" }));
     const data = await res.json();
+
+    // Assert
     expect(data.record.id).toBe("qa-1");
   });
 
@@ -120,12 +137,28 @@ describe("GET /api/student/qa", () => {
     expect(res.status).toBe(403);
   });
 
-  it("test_GET_success_returns_200_with_records", async () => {
+  it("test_GET_success_returns_200", async () => {
+    // Arrange
     vi.mocked(getServerSession).mockResolvedValue(studentSession);
     mockListByUser.mockResolvedValue([]);
+
+    // Act
     const res = await GET(makeGetRequest());
+
+    // Assert
     expect(res.status).toBe(200);
+  });
+
+  it("test_GET_success_returns_records_field", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(studentSession);
+    mockListByUser.mockResolvedValue([]);
+
+    // Act
+    const res = await GET(makeGetRequest());
     const data = await res.json();
+
+    // Assert
     expect(data.records).toEqual([]);
   });
 

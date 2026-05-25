@@ -78,58 +78,97 @@ describe("POST /api/admin/qa/[id]", () => {
     expect(res.status).toBe(400);
   });
 
-  it("test_POST_success_returns_200_with_record_and_mailSent", async () => {
-    vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    const record = {
-      id: "qa-1",
-      userId: "user-1",
-      question: "Q?",
-      answer: "回答",
-      questionedAt: new Date(),
-      answeredAt: new Date(),
-      answeredBy: "管理者A",
+  const sampleRecord = {
+    id: "qa-1",
+    userId: "user-1",
+    question: "Q?",
+    answer: "回答",
+    questionedAt: new Date(),
+    answeredAt: new Date(),
+    answeredBy: "管理者A",
+  };
+
+  describe("成功 (mailSent: true)", () => {
+    const arrangeSuccessScenario = () => {
+      vi.mocked(getServerSession).mockResolvedValue(adminSession);
+      mockAnswerQuestion.mockResolvedValue({ record: sampleRecord, mailSent: true });
     };
-    mockAnswerQuestion.mockResolvedValue({ record, mailSent: true });
-    const res = await POST(makeRequest({ answer: "回答" }), makeContext());
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.record.id).toBe("qa-1");
-    expect(data.mailSent).toBe(true);
+
+    it("test_POST_success_returns_200", async () => {
+      // Arrange
+      arrangeSuccessScenario();
+
+      // Act
+      const res = await POST(makeRequest({ answer: "回答" }), makeContext());
+
+      // Assert
+      expect(res.status).toBe(200);
+    });
+
+    it("test_POST_success_returns_record_id", async () => {
+      // Arrange
+      arrangeSuccessScenario();
+
+      // Act
+      const res = await POST(makeRequest({ answer: "回答" }), makeContext());
+      const data = await res.json();
+
+      // Assert
+      expect(data.record.id).toBe("qa-1");
+    });
+
+    it("test_POST_success_returns_mailSent_true", async () => {
+      // Arrange
+      arrangeSuccessScenario();
+
+      // Act
+      const res = await POST(makeRequest({ answer: "回答" }), makeContext());
+      const data = await res.json();
+
+      // Assert
+      expect(data.mailSent).toBe(true);
+    });
   });
 
   it("test_POST_passes_id_answer_answeredBy_from_session_to_service", async () => {
+    // Arrange
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    mockAnswerQuestion.mockResolvedValue({
-      record: {
-        id: "qa-1",
-        userId: "user-1",
-        question: "Q?",
-        answer: "回答",
-        questionedAt: new Date(),
-        answeredAt: new Date(),
-        answeredBy: "管理者A",
-      },
-      mailSent: true,
-    });
+    mockAnswerQuestion.mockResolvedValue({ record: sampleRecord, mailSent: true });
+
+    // Act
     await POST(makeRequest({ answer: "回答" }), makeContext("qa-1"));
+
+    // Assert
     expect(mockAnswerQuestion).toHaveBeenCalledWith("qa-1", "回答", "管理者A");
   });
 
-  it("test_POST_mailSent_false_still_returns_200", async () => {
-    vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    const record = {
-      id: "qa-1",
-      userId: "user-1",
-      question: "Q?",
-      answer: "回答",
-      questionedAt: new Date(),
-      answeredAt: new Date(),
-      answeredBy: "管理者A",
+  describe("mailSent: false (メール失敗時も成功扱い)", () => {
+    const arrangeMailFailureScenario = () => {
+      vi.mocked(getServerSession).mockResolvedValue(adminSession);
+      mockAnswerQuestion.mockResolvedValue({ record: sampleRecord, mailSent: false });
     };
-    mockAnswerQuestion.mockResolvedValue({ record, mailSent: false });
-    const res = await POST(makeRequest({ answer: "回答" }), makeContext());
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.mailSent).toBe(false);
+
+    it("test_POST_mailSent_false_returns_200", async () => {
+      // Arrange
+      arrangeMailFailureScenario();
+
+      // Act
+      const res = await POST(makeRequest({ answer: "回答" }), makeContext());
+
+      // Assert
+      expect(res.status).toBe(200);
+    });
+
+    it("test_POST_mailSent_false_returns_mailSent_false_in_body", async () => {
+      // Arrange
+      arrangeMailFailureScenario();
+
+      // Act
+      const res = await POST(makeRequest({ answer: "回答" }), makeContext());
+      const data = await res.json();
+
+      // Assert
+      expect(data.mailSent).toBe(false);
+    });
   });
 });

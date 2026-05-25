@@ -194,38 +194,93 @@ describe("emailService", () => {
       expect(callArgs.subject).toBe("【ドローンスクール】ご質問への回答をお送りします");
     });
 
-    it("test_sendAnswerNotificationEmail_includes_student_name_question_answer_in_body", async () => {
+    it("test_sendAnswerNotificationEmail_includes_student_name_in_body", async () => {
+      // Arrange
       mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
       const { sendAnswerNotificationEmail } = await import("@/services/emailService");
 
+      // Act
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "Q?",
+        answer: "A.",
+      });
+
+      // Assert
+      const body = mockSend.mock.calls[0][0].html ?? mockSend.mock.calls[0][0].text ?? "";
+      expect(body).toContain("山田 花子");
+    });
+
+    it("test_sendAnswerNotificationEmail_includes_question_in_body", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      // Act
       await sendAnswerNotificationEmail({
         to: "student@example.com",
         studentName: "山田 花子",
         question: "受講中に不明点があったらどうすればよいですか？",
-        answer: "本フォームから何度でも質問してください。",
+        answer: "A.",
       });
 
-      const callArgs = mockSend.mock.calls[0][0];
-      const body = callArgs.html ?? callArgs.text ?? "";
-      expect(body).toContain("山田 花子");
+      // Assert
+      const body = mockSend.mock.calls[0][0].html ?? mockSend.mock.calls[0][0].text ?? "";
       expect(body).toContain("受講中に不明点があったらどうすればよいですか？");
-      expect(body).toContain("本フォームから何度でも質問してください。");
     });
 
-    it("test_sendAnswerNotificationEmail_escapes_html_in_question_and_answer", async () => {
+    it("test_sendAnswerNotificationEmail_includes_answer_in_body", async () => {
+      // Arrange
       mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
       const { sendAnswerNotificationEmail } = await import("@/services/emailService");
 
+      // Act
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田 花子",
+        question: "Q?",
+        answer: "本フォームから何度でも質問してください。",
+      });
+
+      // Assert
+      const body = mockSend.mock.calls[0][0].html ?? mockSend.mock.calls[0][0].text ?? "";
+      expect(body).toContain("本フォームから何度でも質問してください。");
+    });
+
+    it("test_sendAnswerNotificationEmail_does_not_contain_raw_script_tag", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      // Act
       await sendAnswerNotificationEmail({
         to: "student@example.com",
         studentName: "山田",
         question: "<script>alert('xss')</script>",
-        answer: "<b>bold</b>",
+        answer: "A.",
       });
 
-      const callArgs = mockSend.mock.calls[0][0];
-      const body: string = callArgs.html ?? "";
+      // Assert
+      const body: string = mockSend.mock.calls[0][0].html ?? "";
       expect(body).not.toContain("<script>alert");
+    });
+
+    it("test_sendAnswerNotificationEmail_escapes_html_special_chars", async () => {
+      // Arrange
+      mockSend.mockResolvedValue({ data: { id: "email-2" }, error: null });
+      const { sendAnswerNotificationEmail } = await import("@/services/emailService");
+
+      // Act
+      await sendAnswerNotificationEmail({
+        to: "student@example.com",
+        studentName: "山田",
+        question: "<script>alert('xss')</script>",
+        answer: "A.",
+      });
+
+      // Assert
+      const body: string = mockSend.mock.calls[0][0].html ?? "";
       expect(body).toContain("&lt;script&gt;");
     });
 
