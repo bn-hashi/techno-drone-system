@@ -6,6 +6,7 @@ const NAVIGATION_LINKS = [
   { href: "/student/dashboard", label: "ダッシュボード" },
   { href: "/student/courses", label: "受講" },
   { href: "/student/exams", label: "試験" },
+  { href: "/qa", label: "質疑応答" },
 ] as const;
 
 interface StudentLayoutProps {
