@@ -26,6 +26,10 @@ import { QARecordRepository } from "@/repositories/qaRecordRepository";
 import { QAService } from "@/services/qaService";
 import { JudgmentRecordRepository } from "@/repositories/judgmentRecordRepository";
 import { JudgmentService } from "@/services/judgmentService";
+import { CompletionCertificateRepository } from "@/repositories/completionCertificateRepository";
+import { CertificateService } from "@/services/certificateService";
+import { ReactPdfCertificateGenerator } from "@/lib/certificate/pdfGenerator";
+import { LocalFsCertificateFileWriter } from "@/lib/certificate/fileWriter";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -112,5 +116,16 @@ export function getJudgmentService(): JudgmentService {
     new FraudFlagRepository(),
     getProgressService(),
     getUserManagementService()
+  );
+}
+
+/** 修了証明書 Service のインスタンスを返す */
+export function getCertificateService(): CertificateService {
+  return new CertificateService(
+    new CompletionCertificateRepository(),
+    new EnrollmentApplicationRepository(),
+    getUserManagementService(),
+    new ReactPdfCertificateGenerator(),
+    new LocalFsCertificateFileWriter()
   );
 }
