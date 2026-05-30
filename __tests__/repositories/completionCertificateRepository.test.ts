@@ -116,30 +116,60 @@ describe("CompletionCertificateRepository", () => {
       expect(result).toBe(5);
     });
 
-    it("test_countByMonth_uses_JST_range", async () => {
-      // 2026/05 (JST) の範囲は UTC で 2026-04-30T15:00:00Z 〜 2026-05-31T15:00:00Z
-      // Arrange
+    it("test_countByMonth_uses_JST_range_gte", async () => {
+      // 2026/05 (JST) の月初は UTC で 2026-04-30T15:00:00Z
       mockCount.mockResolvedValue(0);
 
-      // Act
       await repository.countByMonth(2026, 5);
 
-      // Assert
       const callArgs = mockCount.mock.calls[0][0];
       expect(callArgs.where.issuedAt.gte).toEqual(new Date("2026-04-30T15:00:00.000Z"));
+    });
+
+    it("test_countByMonth_uses_JST_range_lt", async () => {
+      // 2026/05 (JST) の翌月初は UTC で 2026-05-31T15:00:00Z
+      mockCount.mockResolvedValue(0);
+
+      await repository.countByMonth(2026, 5);
+
+      const callArgs = mockCount.mock.calls[0][0];
       expect(callArgs.where.issuedAt.lt).toEqual(new Date("2026-05-31T15:00:00.000Z"));
     });
 
-    it("test_countByMonth_december_year_boundary", async () => {
-      // 2026/12 (JST) の範囲は UTC で 2026-11-30T15:00:00Z 〜 2026-12-31T15:00:00Z
-      // (2027/01 への切り替えが正しく扱われる)
+    it("test_countByMonth_december_year_boundary_gte", async () => {
+      // 2026/12 (JST) の月初は UTC で 2026-11-30T15:00:00Z
       mockCount.mockResolvedValue(0);
 
       await repository.countByMonth(2026, 12);
 
       const callArgs = mockCount.mock.calls[0][0];
       expect(callArgs.where.issuedAt.gte).toEqual(new Date("2026-11-30T15:00:00.000Z"));
+    });
+
+    it("test_countByMonth_december_year_boundary_lt", async () => {
+      // 2026/12 (JST) の翌月初は UTC で 2026-12-31T15:00:00Z (2027/01 切り替え)
+      mockCount.mockResolvedValue(0);
+
+      await repository.countByMonth(2026, 12);
+
+      const callArgs = mockCount.mock.calls[0][0];
       expect(callArgs.where.issuedAt.lt).toEqual(new Date("2026-12-31T15:00:00.000Z"));
+    });
+
+    it("test_countByMonth_month_zero_throws_RangeError", async () => {
+      await expect(repository.countByMonth(2026, 0)).rejects.toThrow(RangeError);
+    });
+
+    it("test_countByMonth_month_13_throws_RangeError", async () => {
+      await expect(repository.countByMonth(2026, 13)).rejects.toThrow(RangeError);
+    });
+
+    it("test_countByMonth_negative_month_throws_RangeError", async () => {
+      await expect(repository.countByMonth(2026, -1)).rejects.toThrow(RangeError);
+    });
+
+    it("test_countByMonth_fractional_month_throws_RangeError", async () => {
+      await expect(repository.countByMonth(2026, 1.5)).rejects.toThrow(RangeError);
     });
   });
 

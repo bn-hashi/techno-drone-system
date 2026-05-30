@@ -1,18 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { postIssueCertificate } from "@/lib/api/adminCertificate";
 
 interface IssueCertificateButtonProps {
   userId: string;
 }
 
+// 発行後にコンポーネントは canIssue=false で unmount されるため、
+// warning は URL クエリパラメータ経由で親 Server Component に渡し、
+// 再レンダー後も表示し続けられるようにする
+const WARN_PARAM_KEY = "warn";
+const WARN_VALUE_PDF_FAILED = "pdf_failed";
+const WARN_VALUE_MAIL_FAILED = "mail_failed";
+
 export function IssueCertificateButton({ userId }: IssueCertificateButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
 
   const handleIssue = async () => {
     if (isPending) return;
@@ -21,20 +28,24 @@ export function IssueCertificateButton({ userId }: IssueCertificateButtonProps) 
     }
     setIsPending(true);
     setError(null);
-    setWarning(null);
     try {
       const response = await postIssueCertificate(userId);
-      const warnings: string[] = [];
+      const warnCodes: string[] = [];
       if (!response.pdfGenerated) {
-        warnings.push("PDF の生成に失敗しました。再発行はできません。事務局に確認してください。");
+        warnCodes.push(WARN_VALUE_PDF_FAILED);
       }
       if (!response.mailSent) {
-        warnings.push("受講者へのメール通知に失敗しました。");
+        warnCodes.push(WARN_VALUE_MAIL_FAILED);
       }
-      if (warnings.length > 0) {
-        setWarning(warnings.join(" "));
+      if (warnCodes.length > 0) {
+        const params = new URLSearchParams();
+        for (const code of warnCodes) {
+          params.append(WARN_PARAM_KEY, code);
+        }
+        router.replace(`${pathname}?${params.toString()}`);
+      } else {
+        router.refresh();
       }
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "発行に失敗しました");
     } finally {
@@ -55,11 +66,6 @@ export function IssueCertificateButton({ userId }: IssueCertificateButtonProps) 
       {error !== null && (
         <p role="alert" className="mt-2 text-xs text-red-600">
           {error}
-        </p>
-      )}
-      {warning !== null && (
-        <p role="status" className="mt-2 text-xs text-amber-700">
-          {warning}
         </p>
       )}
     </div>

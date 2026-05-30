@@ -84,13 +84,29 @@ describe("POST /api/admin/students/[id]/certificate", () => {
     expect(data.certificate.id).toBe("cert-1");
   });
 
-  it("test_POST_returns_pdfGenerated_and_mailSent_flags", async () => {
+  it("test_POST_returns_pdfGenerated_flag", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
-    mockIssueCertificate.mockResolvedValue({ ...sampleResult, pdfGenerated: false, mailSent: false });
+    mockIssueCertificate.mockResolvedValue({ ...sampleResult, pdfGenerated: false });
     const res = await POST(makeRequest(), makeContext());
     const data = await res.json();
     expect(data.pdfGenerated).toBe(false);
+  });
+
+  it("test_POST_returns_mailSent_flag", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockIssueCertificate.mockResolvedValue({ ...sampleResult, mailSent: false });
+    const res = await POST(makeRequest(), makeContext());
+    const data = await res.json();
     expect(data.mailSent).toBe(false);
+  });
+
+  it("test_POST_omits_pdfPath_from_response", async () => {
+    // pdfPath はサーバ内絶対パスのためクライアントに露出させない
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockIssueCertificate.mockResolvedValue(sampleResult);
+    const res = await POST(makeRequest(), makeContext());
+    const data = await res.json();
+    expect(data.certificate.pdfPath).toBeUndefined();
   });
 
   it("test_POST_passes_userId_to_service", async () => {

@@ -1,9 +1,6 @@
-import path from "node:path";
+import { createRequire } from "node:module";
 import { createElement } from "react";
-import type {
-  CertificatePdfGenerator,
-  CertificatePdfInput,
-} from "@/services/certificateService";
+import type { CertificatePdfGenerator, CertificatePdfInput } from "@/services/certificateService";
 
 /**
  * CertificatePdfGenerator の本番実装。
@@ -20,17 +17,18 @@ let fontRegistered = false;
 /**
  * NotoSansJP フォントを @react-pdf/renderer に 1 回だけ登録する。
  *
- * @fontsource/noto-sans-jp パッケージ内の woff ファイルパスを `process.cwd()` 起点で解決する。
- * 別実装に差し替えたい場合は、外部から呼び出さず Font.register を直接呼ぶこと。
+ * フォントファイルのパスは require.resolve でパッケージ解決経由で取得する。
+ * これにより process.cwd() やパッケージマネージャの配置差異 (pnpm hoist 等) に
+ * 依存せず実行できる。別実装に差し替えたい場合は Font.register を直接呼ぶこと。
  */
 async function ensureFontRegistered(): Promise<void> {
   if (fontRegistered) return;
   // dynamic import: テストで vi.mock しやすく、また Edge ランタイムでバンドルを巻き込まない
   const { Font } = await import("@react-pdf/renderer");
-  const fontPath = path.resolve(
-    process.cwd(),
-    "node_modules/@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff"
-  );
+  // ESM 上で Node.js の require を取得し、パッケージのファイルパスを解決する
+  const require = createRequire(import.meta.url);
+  const fontPath =
+    require.resolve("@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff");
   Font.register({
     family: "NotoSansJP",
     src: fontPath,

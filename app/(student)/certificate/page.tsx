@@ -3,16 +3,10 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getCertificateService } from "@/lib/serviceFactory";
 import { buildStudentCertificateDownloadUrl } from "@/lib/api/studentCertificate";
-import { UserRole, UserStatus } from "@/types/prisma";
+import { ALLOWED_CERTIFICATE_STATUSES } from "@/lib/constants";
+import { UserRole } from "@/types/prisma";
 
 export const dynamic = "force-dynamic";
-
-// 修了証明書 DL を許可する受講者ステータスの allowlist
-// API ルート (/api/student/certificate/download) と allowlist を統一
-const ALLOWED_STATUSES: readonly UserStatus[] = [
-  UserStatus.CERTIFIED,
-  UserStatus.DIPS_LINKED,
-];
 
 function formatDate(date: Date | string): string {
   return new Date(date).toLocaleString("ja-JP", {
@@ -26,7 +20,7 @@ export default async function StudentCertificatePage() {
   if (
     !session?.user ||
     session.user.role !== UserRole.STUDENT ||
-    !ALLOWED_STATUSES.includes(session.user.status)
+    !ALLOWED_CERTIFICATE_STATUSES.includes(session.user.status)
   ) {
     redirect("/login");
   }

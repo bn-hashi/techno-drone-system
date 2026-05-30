@@ -76,7 +76,7 @@ describe("GET /api/student/certificate/download", () => {
     expect(res.status).toBe(409);
   });
 
-  it("test_GET_success_returns_200_and_pdf", async () => {
+  it("test_GET_success_returns_200", async () => {
     vi.mocked(getServerSession).mockResolvedValue(certifiedSession);
     mockGetCertificateData.mockResolvedValue({
       user: { id: "user-1" },
@@ -86,6 +86,17 @@ describe("GET /api/student/certificate/download", () => {
     mockReadFile.mockResolvedValue(Buffer.from("PDF"));
     const res = await GET(makeRequest());
     expect(res.status).toBe(200);
+  });
+
+  it("test_GET_success_returns_pdf_content_type", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(certifiedSession);
+    mockGetCertificateData.mockResolvedValue({
+      user: { id: "user-1" },
+      certificate: { id: "cert-1", pdfPath: "/path/cert.pdf" },
+      canIssue: false,
+    });
+    mockReadFile.mockResolvedValue(Buffer.from("PDF"));
+    const res = await GET(makeRequest());
     expect(res.headers.get("content-type")).toBe("application/pdf");
   });
 

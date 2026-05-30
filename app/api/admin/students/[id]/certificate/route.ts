@@ -25,7 +25,17 @@ export async function POST(_request: Request, context: RouteContext): Promise<Ne
 
   try {
     const result = await getCertificateService().issueCertificate(id);
-    return NextResponse.json(result, { status: 201 });
+    // pdfPath はサーバ内絶対パスのためクライアントに返さない。
+    // PDF の有無は pdfGenerated フラグで判定し、実体は専用 DL エンドポイントで取得する。
+    const { pdfPath: _pdfPath, ...certificateForClient } = result.certificate;
+    return NextResponse.json(
+      {
+        certificate: certificateForClient,
+        pdfGenerated: result.pdfGenerated,
+        mailSent: result.mailSent,
+      },
+      { status: 201 }
+    );
   } catch (err) {
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 400 });

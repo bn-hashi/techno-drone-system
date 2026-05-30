@@ -18,21 +18,24 @@ export interface ICompletionCertificateRepository {
    * 採番ルールの「同月内連番」を計算するために使用する。
    */
   countByMonth(year: number, month: number, tx?: PrismaLike): Promise<number>;
-  create(
-    input: CreateCompletionCertificateInput,
-    tx?: PrismaLike
-  ): Promise<CompletionCertificate>;
-  updatePdfPath(
-    id: string,
-    pdfPath: string,
-    tx?: PrismaLike
-  ): Promise<CompletionCertificate>;
+  create(input: CreateCompletionCertificateInput, tx?: PrismaLike): Promise<CompletionCertificate>;
+  updatePdfPath(id: string, pdfPath: string, tx?: PrismaLike): Promise<CompletionCertificate>;
 }
 
 /**
- * JST 換算で year, month (1-12) の月初〜翌月初を UTC Date で返す
+ * JST 換算で year, month (1-12) の月初〜翌月初を UTC Date で返す。
+ * month が 1-12 の整数でなければ RangeError を投げる
+ * (1..12 外の値で Date が暗黙的に wrap し誤った範囲を返すのを防ぐ)。
  */
 function jstMonthRange(year: number, month: number): { gte: Date; lt: Date } {
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new RangeError(
+      `jstMonthRange: month は 1〜12 の整数でなければなりません (受け取った値: ${month})`
+    );
+  }
+  if (!Number.isInteger(year)) {
+    throw new RangeError(`jstMonthRange: year は整数でなければなりません (受け取った値: ${year})`);
+  }
   // JST = UTC + 9h なので JST 00:00 は UTC の前日 15:00
   // 月初 (JST): year-month-01 00:00:00 → UTC: year-(month-1)-末日 15:00:00
   // 翌月初 (JST): year-(month+1)-01 00:00:00 → UTC: year-month-末日 15:00:00
@@ -43,10 +46,7 @@ function jstMonthRange(year: number, month: number): { gte: Date; lt: Date } {
 }
 
 export class CompletionCertificateRepository implements ICompletionCertificateRepository {
-  async findByUser(
-    userId: string,
-    tx?: PrismaLike
-  ): Promise<CompletionCertificate | null> {
+  async findByUser(userId: string, tx?: PrismaLike): Promise<CompletionCertificate | null> {
     const prisma = tx ?? getPrisma();
     return prisma.completionCertificate.findUnique({ where: { userId } });
   }

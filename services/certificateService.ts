@@ -1,4 +1,5 @@
 import type { CompletionCertificate, Prisma } from "@prisma/client";
+import { Prisma as PrismaNS } from "@prisma/client";
 import type {
   ICompletionCertificateRepository,
   CreateCompletionCertificateInput,
@@ -10,10 +11,7 @@ import { sendCertificateIssuedEmail } from "@/services/emailService";
 import { BusinessError } from "@/services/errors";
 import { UserStatus } from "@/types/prisma";
 import { logger } from "@/lib/logger";
-import {
-  formatCertificateNumber,
-  calculateExpiryDate,
-} from "@/lib/certificateNumbering";
+import { formatCertificateNumber, calculateExpiryDate } from "@/lib/certificateNumbering";
 import {
   INSTITUTION_CODE,
   INSTITUTION_NAME,
@@ -110,41 +108,51 @@ export class CertificateService {
       throw new BusinessError("指定された受講者が見つかりません");
     }
     if (user.status !== UserStatus.COMPLETED) {
-      throw new BusinessError(
-        "修了証明書の発行は COMPLETED 状態の受講者のみ実行できます"
-      );
+      throw new BusinessError("修了証明書の発行は COMPLETED 状態の受講者のみ実行できます");
     }
-    const existing = await this.certRepo.findByUser(userId);
-    if (existing !== null) {
-      throw new BusinessError("この受講者には既に修了証明書が発行されています");
-    }
-
-    // 採番: 当月内連番
+    // 重複チェック・採番・create・status 遷移を同一トランザクション内で原子的に実行する
+    // (トランザクション外で findByUser/countByMonth を行うと並行発行で UNIQUE 違反が
+    //  500 として漏れたり、採番が重複する可能性があるため)
     const issuedAt = new Date();
-    const { year, month } = getJstYearMonth(issuedAt);
-    const count = await this.certRepo.countByMonth(year, month);
-    const sequence = count + 1;
-    const certificateNumber = formatCertificateNumber({
-      institutionCode: INSTITUTION_CODE,
-      issuedAt,
-      sequence,
-    });
     const expiresAt = calculateExpiryDate(issuedAt);
-
-    // DB record + status 遷移は原子的に
-    const certificate = await getPrisma().$transaction(async (tx) => {
-      const created = await this.certRepo.create(
-        {
-          userId,
-          certificateNumber,
+    let certificate: CompletionCertificate;
+    let certificateNumber: string;
+    try {
+      certificate = await getPrisma().$transaction(async (tx) => {
+        const existing = await this.certRepo.findByUser(userId, tx);
+        if (existing !== null) {
+          throw new BusinessError("この受講者には既に修了証明書が発行されています");
+        }
+        const { year, month } = getJstYearMonth(issuedAt);
+        const count = await this.certRepo.countByMonth(year, month, tx);
+        const sequence = count + 1;
+        const generatedNumber = formatCertificateNumber({
+          institutionCode: INSTITUTION_CODE,
           issuedAt,
-          expiresAt,
-        } satisfies CreateCompletionCertificateInput,
-        tx
-      );
-      await this.userManagementService.updateStatus(userId, UserStatus.CERTIFIED, tx);
-      return created;
-    });
+          sequence,
+        });
+        const created = await this.certRepo.create(
+          {
+            userId,
+            certificateNumber: generatedNumber,
+            issuedAt,
+            expiresAt,
+          } satisfies CreateCompletionCertificateInput,
+          tx
+        );
+        await this.userManagementService.updateStatus(userId, UserStatus.CERTIFIED, tx);
+        certificateNumber = generatedNumber;
+        return created;
+      });
+      certificateNumber ??= certificate.certificateNumber;
+    } catch (error: unknown) {
+      // Prisma の UNIQUE 違反 (P2002) は並行発行による衝突を意味する。
+      // 業務エラーに変換し、API 層で 400 として扱えるようにする。
+      if (error instanceof PrismaNS.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new BusinessError("この受講者には既に修了証明書が発行されています");
+      }
+      throw error;
+    }
 
     // PDF 生成 (副作用、失敗時もログのみ)
     const enrollment = await this.enrollmentRepo.findByUserId(userId);
@@ -166,7 +174,9 @@ export class CertificateService {
     try {
       const buffer = await this.pdfGenerator.generate(pdfInput);
       const filePath = await this.fileWriter.write(certificateNumber, buffer);
-      await this.certRepo.updatePdfPath(certificate.id, filePath);
+      // updatePdfPath の戻り値で in-memory certificate を最新化する
+      // (レスポンスの certificate.pdfPath を null のまま返さないため)
+      certificate = await this.certRepo.updatePdfPath(certificate.id, filePath);
       pdfGenerated = true;
     } catch (error: unknown) {
       logger.error("修了証明書 PDF の生成・保存に失敗しました", error, {

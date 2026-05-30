@@ -12,6 +12,23 @@ export const dynamic = "force-dynamic";
 
 interface CertificatePageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ warn?: string | string[] }>;
+}
+
+// 発行直後の警告を URL クエリパラメータで受け取り表示する (詳細は IssueCertificateButton)
+const WARN_VALUE_PDF_FAILED = "pdf_failed";
+const WARN_VALUE_MAIL_FAILED = "mail_failed";
+
+const WARN_MESSAGES: Record<string, string> = {
+  [WARN_VALUE_PDF_FAILED]:
+    "PDF の生成に失敗しました。再発行はできません。事務局に確認してください。",
+  [WARN_VALUE_MAIL_FAILED]: "受講者へのメール通知に失敗しました。",
+};
+
+function extractWarnings(raw: string | string[] | undefined): readonly string[] {
+  if (raw === undefined) return [];
+  const codes = Array.isArray(raw) ? raw : [raw];
+  return codes.filter((code) => code in WARN_MESSAGES).map((code) => WARN_MESSAGES[code]);
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,13 +48,16 @@ function formatDate(date: Date | string): string {
   });
 }
 
-export default async function AdminCertificatePage({ params }: CertificatePageProps) {
+export default async function AdminCertificatePage({ params, searchParams }: CertificatePageProps) {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.role !== UserRole.ADMIN) {
     redirect("/login");
   }
 
   const { id } = await params;
+  const { warn } = await searchParams;
+  const warnings = extractWarnings(warn);
+
   let data;
   try {
     data = await getCertificateService().getCertificateData(id);
@@ -57,6 +77,19 @@ export default async function AdminCertificatePage({ params }: CertificatePagePr
         <p className="mb-6 text-sm text-gray-500">
           受講者: {user.name} ({user.email})
         </p>
+
+        {warnings.length > 0 && (
+          <div
+            role="status"
+            className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+          >
+            <ul className="space-y-1">
+              {warnings.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="mb-3 text-sm font-medium text-gray-700">基本情報</h2>

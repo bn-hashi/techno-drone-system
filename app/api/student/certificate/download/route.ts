@@ -4,17 +4,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { authOptions } from "@/lib/auth";
 import { getCertificateService } from "@/lib/serviceFactory";
+import { ALLOWED_CERTIFICATE_STATUSES } from "@/lib/constants";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
 
 export const runtime = "nodejs";
 
-// 修了証明書 DL を許可する受講者ステータスの allowlist
-// 発行済 (CERTIFIED) 以降のみ DL 可能
-const ALLOWED_STATUSES: readonly UserStatus[] = [
-  UserStatus.CERTIFIED,
-  UserStatus.DIPS_LINKED,
-];
+// 修了証明書 DL を許可する受講者ステータスは lib/constants.ts の
+// ALLOWED_CERTIFICATE_STATUSES を使い、UI ページと allowlist を統一する
 
 export async function GET(_request: Request): Promise<Response> {
   const session = await getServerSession(authOptions);
@@ -24,7 +21,7 @@ export async function GET(_request: Request): Promise<Response> {
   if (
     !session.user ||
     session.user.role !== UserRole.STUDENT ||
-    !ALLOWED_STATUSES.includes(session.user.status as UserStatus)
+    !ALLOWED_CERTIFICATE_STATUSES.includes(session.user.status as UserStatus)
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -32,10 +29,7 @@ export async function GET(_request: Request): Promise<Response> {
   try {
     const data = await getCertificateService().getCertificateData(session.user.id);
     if (data.certificate === null) {
-      return NextResponse.json(
-        { error: "修了証明書がまだ発行されていません" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "修了証明書がまだ発行されていません" }, { status: 404 });
     }
     if (data.certificate.pdfPath === null) {
       return NextResponse.json(

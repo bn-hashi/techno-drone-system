@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 import type { ICompletionCertificateRepository } from "@/repositories/completionCertificateRepository";
 import type { IEnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
 import { UserStatus, CourseType, UserRole } from "@/types/prisma";
@@ -241,7 +242,7 @@ describe("CertificateService", () => {
       expect(result.mailSent).toBe(true);
     });
 
-    it("test_issueCertificate_calls_countByMonth_with_jst_year_month", async () => {
+    it("test_issueCertificate_calls_countByMonth", async () => {
       // Arrange
       arrangeIssueScenario();
 
@@ -250,9 +251,29 @@ describe("CertificateService", () => {
 
       // Assert
       expect(mockCertRepo.countByMonth).toHaveBeenCalled();
+    });
+
+    it("test_issueCertificate_countByMonth_year_arg_is_number", async () => {
+      // Arrange
+      arrangeIssueScenario();
+
+      // Act
+      await service.issueCertificate(userId);
+
+      // Assert: JST 計算は certificateNumbering 側に任せ、引数が number であることだけ検証
       const callArgs = vi.mocked(mockCertRepo.countByMonth).mock.calls[0];
-      // year, month が呼ばれている (JST 計算は certificateNumbering 側のロジックに任せる)
       expect(typeof callArgs[0]).toBe("number");
+    });
+
+    it("test_issueCertificate_countByMonth_month_arg_is_number", async () => {
+      // Arrange
+      arrangeIssueScenario();
+
+      // Act
+      await service.issueCertificate(userId);
+
+      // Assert
+      const callArgs = vi.mocked(mockCertRepo.countByMonth).mock.calls[0];
       expect(typeof callArgs[1]).toBe("number");
     });
 
@@ -426,6 +447,45 @@ describe("CertificateService", () => {
       // Assert
       const pdfArgs = vi.mocked(mockPdfGenerator.generate).mock.calls[0][0];
       expect(pdfArgs.applicantNumber).toBe("未設定");
+    });
+
+    it("test_issueCertificate_unique_conflict_throws_BusinessError", async () => {
+      // Arrange: 並行発行で UNIQUE 違反が起きるケース
+      arrangeIssueScenario();
+      const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      vi.mocked(mockCertRepo.create).mockRejectedValue(p2002);
+
+      // Act & Assert
+      await expect(service.issueCertificate(userId)).rejects.toThrow(BusinessError);
+    });
+
+    it("test_issueCertificate_unique_conflict_message_indicates_already_issued", async () => {
+      // Arrange
+      arrangeIssueScenario();
+      const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      vi.mocked(mockCertRepo.create).mockRejectedValue(p2002);
+
+      // Act & Assert
+      await expect(service.issueCertificate(userId)).rejects.toThrow(
+        "この受講者には既に修了証明書が発行されています"
+      );
+    });
+
+    it("test_issueCertificate_returns_certificate_with_pdfPath_after_write_success", async () => {
+      // Arrange: updatePdfPath が返した最新の certificate がレスポンスに反映されること
+      arrangeIssueScenario();
+
+      // Act
+      const result = await service.issueCertificate(userId);
+
+      // Assert
+      expect(result.certificate.pdfPath).toBe("/path/cert-1.pdf");
     });
 
     it("test_issueCertificate_uses_env_examiner_name", async () => {

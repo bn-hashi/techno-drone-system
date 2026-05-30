@@ -4,8 +4,22 @@
  * マジックナンバーを排除し、全定数をここに集約する。
  */
 
+import { UserStatus } from "@/types/prisma";
+
 /** テクノドローン株式会社の登録講習機関コード */
 export const INSTITUTION_CODE = "0515" as const;
+
+/**
+ * 修了証明書を閲覧・DL できる受講者ステータスの allowlist。
+ *
+ * UI ページ (app/(student)/certificate/page.tsx) と
+ * API ルート (app/api/student/certificate/download/route.ts) で共有し、
+ * 両者の判定がずれないようにする。
+ */
+export const ALLOWED_CERTIFICATE_STATUSES: readonly UserStatus[] = [
+  UserStatus.CERTIFIED,
+  UserStatus.DIPS_LINKED,
+];
 
 /** 科目コード一覧 */
 export const SUBJECT_CODES = ["SUBJECT_01", "SUBJECT_02", "SUBJECT_03", "SUBJECT_04"] as const;
