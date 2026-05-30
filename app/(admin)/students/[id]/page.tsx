@@ -93,6 +93,25 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           </Link>
         </div>
       )}
+
+      {(student.status === UserStatus.COMPLETED ||
+        student.status === UserStatus.CERTIFIED ||
+        student.status === UserStatus.DIPS_LINKED) && (
+        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+          <h2 className="text-sm font-medium text-green-800 mb-2">修了証明書</h2>
+          <p className="text-sm text-green-700 mb-4">
+            {student.status === UserStatus.COMPLETED
+              ? "受講成立により修了証明書を発行できます。"
+              : "修了証明書を発行済みです。発行内容の確認・再ダウンロードが可能です。"}
+          </p>
+          <Link
+            href={`/admin/students/${params.id}/certificate`}
+            className="inline-block rounded bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+          >
+            修了証明書画面へ
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
