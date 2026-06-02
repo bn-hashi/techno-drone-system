@@ -34,17 +34,34 @@ export const CERTIFICATE_VALIDITY_YEARS = 1;
 /** 登録講習機関名 (修了証明書 様式1 記載) */
 export const INSTITUTION_NAME = "テクノドローン株式会社" as const;
 
-/** スクール名 (修了証明書 様式1 記載) */
-export const SCHOOL_NAME = "テクノドローンスクール" as const;
+/** ドローン教習所名 (修了証明書 様式1 のフッターに「登録講習機関名」の下へ記載) */
+export const SCHOOL_NAME = "ドローン教習所　テクノ倉敷水島校" as const;
 
-/** 講習事務所コード (修了証明書 様式1 記載) */
-export const TRAINING_OFFICE_CODE = "TC-0515-001" as const;
+/** 講習事務所コード (修了証明書 様式1 記載。DIPS 提出様式に合わせた表記) */
+export const TRAINING_OFFICE_CODE = "T0515001" as const;
 
 /** 修了審査員氏名のデフォルト (環境変数 EXAMINER_NAME 未設定時のフォールバック) */
 export const DEFAULT_EXAMINER_NAME = "未設定" as const;
 
 /** 修了証明書 PDF の保存先デフォルト (環境変数 CERTIFICATE_OUTPUT_DIR で上書き可能) */
 export const CERTIFICATE_OUTPUT_DIR_DEFAULT = "/home/ubuntu/uploads/certificates/" as const;
+
+/** 修了証明書 様式1 のタイトル */
+export const CERTIFICATE_TITLE = "無人航空機講習修了証明書" as const;
+
+/** 修了証明書 様式1 の様式表記 (用紙左上) */
+export const CERTIFICATE_FORM_LABEL = "様式１　（変更）" as const;
+
+/** 修了証明書 様式1 の様式番号 (用紙右下) */
+export const CERTIFICATE_FORM_NUMBER = "D検様式 240302-01" as const;
+
+/**
+ * 修了証明書 様式1 の法定文言。
+ * 航空法第132条の50 (登録講習機関による無人航空機講習) に基づく定型文であり、
+ * 文言の改変は許されないため定数として一元管理する。
+ */
+export const CERTIFICATE_LEGAL_STATEMENT =
+  "航空法第132条の50の規定に関し、登録講習機関が行う無人航空機講習を修了したことを証明する。" as const;
 
 /** 科目ごとの必須受講時間（分）*/
 export const SUBJECT_REQUIRED_MINUTES = {
