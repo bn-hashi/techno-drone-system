@@ -25,10 +25,14 @@ async function ensureFontRegistered(): Promise<void> {
   if (fontRegistered) return;
   // dynamic import: テストで vi.mock しやすく、また Edge ランタイムでバンドルを巻き込まない
   const { Font } = await import("@react-pdf/renderer");
-  // ESM 上で Node.js の require を取得し、パッケージのファイルパスを解決する
-  const require = createRequire(import.meta.url);
-  const fontPath =
-    require.resolve("@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff");
+  // ESM 上で Node.js の require を取得し、パッケージのファイルパスを解決する。
+  // モジュール指定子をリテラルで渡すと webpack が require.resolve を静的解析し、
+  // バイナリ .woff をバンドルしようとして本番ビルドが失敗する。指定子を変数に逃がして
+  // 静的解析できなくすることで、実行時に Node が実パスを解決するようにする。
+  const nodeRequire = createRequire(import.meta.url);
+  const fontModuleSpecifier =
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff";
+  const fontPath = nodeRequire.resolve(fontModuleSpecifier);
   Font.register({
     family: "NotoSansJP",
     src: fontPath,
