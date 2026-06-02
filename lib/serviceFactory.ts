@@ -28,7 +28,9 @@ import { JudgmentRecordRepository } from "@/repositories/judgmentRecordRepositor
 import { JudgmentService } from "@/services/judgmentService";
 import { CompletionCertificateRepository } from "@/repositories/completionCertificateRepository";
 import { CertificateService } from "@/services/certificateService";
+import { CertificateLedgerService } from "@/services/certificateLedgerService";
 import { ReactPdfCertificateGenerator } from "@/lib/certificate/pdfGenerator";
+import { ReactPdfLedgerGenerator } from "@/lib/certificate/ledgerPdfGenerator";
 import { LocalFsCertificateFileWriter } from "@/lib/certificate/fileWriter";
 
 // Service インスタンスの生成を一元管理する
@@ -127,5 +129,15 @@ export function getCertificateService(): CertificateService {
     getUserManagementService(),
     new ReactPdfCertificateGenerator(),
     new LocalFsCertificateFileWriter()
+  );
+}
+
+/** 修了証明書交付台帳 (様式5) Service のインスタンスを返す */
+export function getCertificateLedgerService(): CertificateLedgerService {
+  return new CertificateLedgerService(
+    new CompletionCertificateRepository(),
+    new EnrollmentApplicationRepository(),
+    getUserManagementService(),
+    new ReactPdfLedgerGenerator()
   );
 }
