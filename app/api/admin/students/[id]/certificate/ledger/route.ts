@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import { getCertificateLedgerService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
@@ -43,6 +44,9 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
+    // BusinessError 以外 (PDF レンダリング失敗・リポジトリ層の予期せぬエラー等) は
+    // ユーザーに汎用メッセージのみ返すため、原因追跡用にサーバ側へ記録する。
+    logger.error("修了証明書交付台帳 PDF の生成に失敗しました", err, { studentId: id });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }
