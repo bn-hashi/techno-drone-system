@@ -4,7 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { getCertificateService } from "@/lib/serviceFactory";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { IssueCertificateButton } from "@/components/admin/certificate/IssueCertificateButton";
-import { buildAdminCertificateDownloadUrl } from "@/lib/api/adminCertificate";
+import {
+  buildAdminCertificateDownloadUrl,
+  buildAdminCertificateLedgerUrl,
+} from "@/lib/api/adminCertificate";
 import { UserRole } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
 
@@ -125,14 +128,22 @@ export default async function AdminCertificatePage({ params, searchParams }: Cer
                   </dd>
                 </div>
               </dl>
-              {certificate.pdfPath !== null && (
+              <div className="flex flex-wrap gap-3">
+                {certificate.pdfPath !== null && (
+                  <a
+                    href={buildAdminCertificateDownloadUrl(user.id)}
+                    className="inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                  >
+                    PDF をダウンロード
+                  </a>
+                )}
                 <a
-                  href={buildAdminCertificateDownloadUrl(user.id)}
-                  className="inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                  href={buildAdminCertificateLedgerUrl(user.id)}
+                  className="inline-block rounded border border-blue-600 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
                 >
-                  PDF をダウンロード
+                  交付台帳 (様式5) をダウンロード
                 </a>
-              )}
+              </div>
             </div>
           ) : canIssue ? (
             <div className="space-y-3">

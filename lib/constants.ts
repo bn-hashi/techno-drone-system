@@ -63,6 +63,15 @@ export const CERTIFICATE_FORM_NUMBER = "D検様式 240302-01" as const;
 export const CERTIFICATE_LEGAL_STATEMENT =
   "航空法第132条の50の規定に関し、登録講習機関が行う無人航空機講習を修了したことを証明する。" as const;
 
+/** 修了証明書交付台帳 様式5 のタイトル */
+export const CERTIFICATE_LEDGER_TITLE = "修了証明書交付台帳" as const;
+
+/** 修了証明書交付台帳 様式5 の様式表記 (用紙右上) */
+export const CERTIFICATE_LEDGER_FORM_LABEL = "様式５" as const;
+
+/** 修了証明書交付台帳 様式5 の様式番号 (用紙右下) */
+export const CERTIFICATE_LEDGER_FORM_NUMBER = "D検様式 221201-01" as const;
+
 /** 科目ごとの必須受講時間（分）*/
 export const SUBJECT_REQUIRED_MINUTES = {
   SUBJECT_01: { BEGINNER: 180, EXPERIENCED: 60 },

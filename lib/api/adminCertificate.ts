@@ -37,3 +37,8 @@ export function buildAdminCertificateDownloadUrl(userId: string): string {
   const encodedUserId = encodeURIComponent(userId);
   return `/api/admin/students/${encodedUserId}/certificate/download`;
 }
+
+export function buildAdminCertificateLedgerUrl(userId: string): string {
+  const encodedUserId = encodeURIComponent(userId);
+  return `/api/admin/students/${encodedUserId}/certificate/ledger`;
+}
