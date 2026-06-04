@@ -4,6 +4,34 @@ import { EnrollmentApplicationRepository } from "@/repositories/enrollmentApplic
 import { EnrollmentService } from "@/services/enrollmentService";
 import { AgreementLogRepository } from "@/repositories/agreementLogRepository";
 import { SetupService } from "@/services/setupService";
+import { SubjectRepository } from "@/repositories/subjectRepository";
+import { SubjectService } from "@/services/subjectService";
+import { CourseRepository } from "@/repositories/courseRepository";
+import { CourseService } from "@/services/courseService";
+import { VideoRepository } from "@/repositories/videoRepository";
+import { VideoSupervisorRepository } from "@/repositories/videoSupervisorRepository";
+import { VideoService } from "@/services/videoService";
+import { ViewingLogRepository } from "@/repositories/viewingLogRepository";
+import { ViewingLogService } from "@/services/viewingLogService";
+import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
+import { FraudFlagService } from "@/services/fraudFlagService";
+import { SubjectProgressRepository } from "@/repositories/subjectProgressRepository";
+import { ProgressService } from "@/services/progressService";
+import { QuestionRepository } from "@/repositories/questionRepository";
+import { QuestionService } from "@/services/questionService";
+import { ExamRepository } from "@/repositories/examRepository";
+import { ExamAnswerRepository } from "@/repositories/examAnswerRepository";
+import { ExamService } from "@/services/examService";
+import { QARecordRepository } from "@/repositories/qaRecordRepository";
+import { QAService } from "@/services/qaService";
+import { JudgmentRecordRepository } from "@/repositories/judgmentRecordRepository";
+import { JudgmentService } from "@/services/judgmentService";
+import { CompletionCertificateRepository } from "@/repositories/completionCertificateRepository";
+import { CertificateService } from "@/services/certificateService";
+import { CertificateLedgerService } from "@/services/certificateLedgerService";
+import { ReactPdfCertificateGenerator } from "@/lib/certificate/pdfGenerator";
+import { ReactPdfLedgerGenerator } from "@/lib/certificate/ledgerPdfGenerator";
+import { LocalFsCertificateFileWriter } from "@/lib/certificate/fileWriter";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -21,4 +49,95 @@ export function getEnrollmentService(): EnrollmentService {
 /** セットアップ（パスワード設定・規約同意）Service のインスタンスを返す */
 export function getSetupService(): SetupService {
   return new SetupService(new UserRepository(), new AgreementLogRepository());
+}
+
+/** 科目 Service のインスタンスを返す */
+export function getSubjectService(): SubjectService {
+  return new SubjectService(new SubjectRepository());
+}
+
+/** コース Service のインスタンスを返す */
+export function getCourseService(): CourseService {
+  return new CourseService(new CourseRepository());
+}
+
+/** 動画 Service のインスタンスを返す */
+export function getVideoService(): VideoService {
+  return new VideoService(new VideoRepository(), new VideoSupervisorRepository());
+}
+
+/** 視聴ログ Service のインスタンスを返す */
+export function getViewingLogService(): ViewingLogService {
+  return new ViewingLogService(
+    new ViewingLogRepository(),
+    new VideoRepository(),
+    new SubjectProgressRepository()
+  );
+}
+
+/** 不正フラグ Service のインスタンスを返す */
+export function getFraudFlagService(): FraudFlagService {
+  return new FraudFlagService(new FraudFlagRepository());
+}
+
+/** 進捗 Service のインスタンスを返す */
+export function getProgressService(): ProgressService {
+  return new ProgressService(
+    new ViewingLogRepository(),
+    new VideoRepository(),
+    new SubjectRepository()
+  );
+}
+
+/** 問題バンク Service のインスタンスを返す */
+export function getQuestionService(): QuestionService {
+  return new QuestionService(new QuestionRepository(), new SubjectRepository());
+}
+
+/** 修了確認試験 Service のインスタンスを返す */
+export function getExamService(): ExamService {
+  return new ExamService(
+    new ExamRepository(),
+    new ExamAnswerRepository(),
+    new QuestionRepository(),
+    new SubjectRepository(),
+    getProgressService(),
+    getUserManagementService()
+  );
+}
+
+/** 質疑応答 Service のインスタンスを返す */
+export function getQAService(): QAService {
+  return new QAService(new QARecordRepository(), new UserRepository());
+}
+
+/** 受講確認・成立判定 Service のインスタンスを返す */
+export function getJudgmentService(): JudgmentService {
+  return new JudgmentService(
+    new JudgmentRecordRepository(),
+    new FraudFlagRepository(),
+    getProgressService(),
+    getUserManagementService()
+  );
+}
+
+/** 修了証明書 Service のインスタンスを返す */
+export function getCertificateService(): CertificateService {
+  return new CertificateService(
+    new CompletionCertificateRepository(),
+    new EnrollmentApplicationRepository(),
+    getUserManagementService(),
+    new ReactPdfCertificateGenerator(),
+    new LocalFsCertificateFileWriter()
+  );
+}
+
+/** 修了証明書交付台帳 (様式5) Service のインスタンスを返す */
+export function getCertificateLedgerService(): CertificateLedgerService {
+  return new CertificateLedgerService(
+    new CompletionCertificateRepository(),
+    new EnrollmentApplicationRepository(),
+    getUserManagementService(),
+    new ReactPdfLedgerGenerator()
+  );
 }

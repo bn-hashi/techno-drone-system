@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
-import { User } from "@prisma/client";
+import { User, Prisma } from "@prisma/client";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 import type { IUserRepository } from "@/repositories/userRepository";
+import { getPrisma } from "@/lib/db";
+
+type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
 import { isValidTransition } from "@/lib/constants/statusTransitions";
 import {
   BusinessError,
@@ -69,8 +72,8 @@ export class UserManagementService {
     return this.toSafeUser(user);
   }
 
-  async updateStatus(userId: string, newStatus: UserStatus): Promise<SafeUser> {
-    const user = await this.userRepository.findById(userId);
+  async updateStatus(userId: string, newStatus: UserStatus, tx?: PrismaLike): Promise<SafeUser> {
+    const user = await this.userRepository.findById(userId, tx);
     if (user === null) {
       throw new UserNotFoundError(userId);
     }
@@ -81,7 +84,7 @@ export class UserManagementService {
       throw new InvalidTransitionError(user.status, newStatus);
     }
 
-    const updated = await this.userRepository.updateStatus(userId, newStatus);
+    const updated = await this.userRepository.updateStatus(userId, newStatus, tx);
     return this.toSafeUser(updated);
   }
 

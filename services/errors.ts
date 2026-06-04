@@ -60,3 +60,43 @@ export class DuplicateEnrollmentError extends BusinessError {
     this.name = "DuplicateEnrollmentError";
   }
 }
+
+/** 科目が見つからない (404 Not Found 相当) */
+export class SubjectNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された科目が見つかりません");
+    this.name = "SubjectNotFoundError";
+  }
+}
+
+/** コースが見つからない (404 Not Found 相当) */
+export class CourseNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定されたコースが見つかりません");
+    this.name = "CourseNotFoundError";
+  }
+}
+
+/** 動画が見つからない (404 Not Found 相当) */
+export class VideoNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された動画が見つかりません");
+    this.name = "VideoNotFoundError";
+  }
+}
+
+/** 監修者が見つからない (404 Not Found 相当) */
+export class SupervisorNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された監修者が見つかりません");
+    this.name = "SupervisorNotFoundError";
+  }
+}
+
+/** 問題が見つからない (404 Not Found 相当) */
+export class QuestionNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された問題が見つかりません");
+    this.name = "QuestionNotFoundError";
+  }
+}

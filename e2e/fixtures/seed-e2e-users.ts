@@ -18,6 +18,7 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcryptjs";
 import { TEST_USERS } from "./test-users";
+import { E2E_COURSE, E2E_VIDEOS } from "./test-content";
 
 // Load .env.local then .env.test.local (test-local takes precedence)
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -112,7 +113,69 @@ async function seedE2EUsers(): Promise<void> {
   console.log("E2E user seeding complete.");
 }
 
-seedE2EUsers()
+async function seedE2EContent(): Promise<void> {
+  console.log("Seeding E2E test content (course, videos)...");
+
+  // 既存 subjects のうち最初のものに紐付ける（本番 seed が前提）
+  const firstSubject = await prisma.subject.findFirst({ orderBy: { code: "asc" } });
+  if (!firstSubject) {
+    throw new Error("No subjects found in DB. Run `make seed` to seed production data before E2E.");
+  }
+
+  // コース
+  await prisma.course.upsert({
+    where: { id: E2E_COURSE.id },
+    update: { name: E2E_COURSE.name, type: E2E_COURSE.type },
+    create: { id: E2E_COURSE.id, name: E2E_COURSE.name, type: E2E_COURSE.type },
+  });
+  console.log(`  Created/updated COURSE: ${E2E_COURSE.id}`);
+
+  // 動画 3 本（first / second / unpublished）
+  for (const video of [E2E_VIDEOS.first, E2E_VIDEOS.second, E2E_VIDEOS.unpublished]) {
+    await prisma.video.upsert({
+      where: { id: video.id },
+      update: {
+        title: video.title,
+        sortOrder: video.sortOrder,
+        duration: video.duration,
+        isPublished: video.isPublished,
+        subjectId: firstSubject.id,
+        courseId: E2E_COURSE.id,
+      },
+      create: {
+        id: video.id,
+        title: video.title,
+        sortOrder: video.sortOrder,
+        duration: video.duration,
+        isPublished: video.isPublished,
+        filePath: `e2e/${video.id}.mp4`,
+        subjectId: firstSubject.id,
+        courseId: E2E_COURSE.id,
+      },
+    });
+    console.log(`  Created/updated VIDEO: ${video.id}`);
+  }
+
+  // テスト独立性確保のため、E2E student の視聴ログをクリーンアップ
+  // (前回テスト実行で進捗が残っているとロック表示テストが失敗するため)
+  const student = await prisma.user.findUnique({
+    where: { email: TEST_USERS.student.email },
+  });
+  if (student) {
+    await prisma.viewingLog.deleteMany({ where: { userId: student.id } });
+    await prisma.subjectProgress.deleteMany({ where: { userId: student.id } });
+    console.log(`  Cleared progress for E2E student: ${student.id}`);
+  }
+
+  console.log("E2E content seeding complete.");
+}
+
+async function main(): Promise<void> {
+  await seedE2EUsers();
+  await seedE2EContent();
+}
+
+main()
   .catch((error: unknown) => {
     console.error("Seeding failed:", error);
     process.exitCode = 1;

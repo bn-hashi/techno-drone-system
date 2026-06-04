@@ -49,6 +49,7 @@ describe("EnrollmentService", () => {
     idDocumentPath: null,
     photoPath: null,
     experienceCertPath: null,
+    applicantNumber: null,
     acceptedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),

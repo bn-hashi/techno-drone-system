@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserStatus } from "@/types/prisma";
@@ -75,6 +76,40 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
             このユーザーはまだ本登録を完了していません。招待メールを送信してパスワード設定・規約同意を促してください。
           </p>
           <InviteButton studentId={params.id} />
+        </div>
+      )}
+
+      {student.status === UserStatus.EXAM_PASSED && (
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h2 className="text-sm font-medium text-blue-800 mb-2">受講確認・成立判定</h2>
+          <p className="text-sm text-blue-700 mb-4">
+            この受講者は試験に合格しています。受講時間と視聴ログを確認した上で、受講成立/不成立の判定を行ってください。
+          </p>
+          <Link
+            href={`/admin/students/${params.id}/review`}
+            className="inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            受講確認画面へ
+          </Link>
+        </div>
+      )}
+
+      {(student.status === UserStatus.COMPLETED ||
+        student.status === UserStatus.CERTIFIED ||
+        student.status === UserStatus.DIPS_LINKED) && (
+        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+          <h2 className="text-sm font-medium text-green-800 mb-2">修了証明書</h2>
+          <p className="text-sm text-green-700 mb-4">
+            {student.status === UserStatus.COMPLETED
+              ? "受講成立により修了証明書を発行できます。"
+              : "修了証明書を発行済みです。発行内容の確認・再ダウンロードが可能です。"}
+          </p>
+          <Link
+            href={`/admin/students/${params.id}/certificate`}
+            className="inline-block rounded bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+          >
+            修了証明書画面へ
+          </Link>
         </div>
       )}
     </div>
