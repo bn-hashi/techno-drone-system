@@ -98,6 +98,8 @@ model EnrollmentApplication {
   idDocumentPath       String?
   photoPath            String?
   experienceCertPath   String?
+  /// 技能証明申請者番号 (修了証明書 様式1 に記載される、管理者が入力)
+  applicantNumber      String?
   acceptedAt           DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

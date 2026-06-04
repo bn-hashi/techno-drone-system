@@ -133,6 +133,61 @@ export async function sendAnswerNotificationEmail(
   }
 }
 
+export interface SendCertificateIssuedEmailParams {
+  to: string;
+  studentName: string;
+  certificateNumber: string;
+}
+
+function buildCertificateIssuedEmailHtml(studentName: string, certificateNumber: string): string {
+  const safeName = escapeHtml(studentName);
+  const safeNumber = escapeHtml(certificateNumber);
+  return `
+<p>${safeName} 様</p>
+<p>修了証明書を発行いたしました。</p>
+<p>証明書番号: ${safeNumber}</p>
+<p>受講者画面から PDF をダウンロードいただけます。</p>
+<p>修了おめでとうございます。</p>
+<p>ドローンスクール事務局</p>
+  `.trim();
+}
+
+/**
+ * 修了証明書発行通知メールを送信する
+ *
+ * @throws Resend からエラーが返された場合、または環境変数が未設定の場合
+ */
+export async function sendCertificateIssuedEmail(
+  params: SendCertificateIssuedEmailParams
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("環境変数 RESEND_API_KEY が設定されていません");
+  }
+
+  const fromAddress = process.env.RESEND_FROM_ADDRESS;
+  if (!fromAddress) {
+    throw new Error("環境変数 RESEND_FROM_ADDRESS が設定されていません");
+  }
+
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const { to, studentName, certificateNumber } = params;
+  const html = buildCertificateIssuedEmailHtml(studentName, certificateNumber);
+
+  const { error } = await resend.emails.send({
+    from: fromAddress,
+    to,
+    subject: "【ドローンスクール】修了証明書を発行しました",
+    html,
+  });
+
+  if (error) {
+    throw new Error(`メール送信に失敗しました: ${error.message}`);
+  }
+}
+
 export interface SendJudgmentRejectedEmailParams {
   to: string;
   studentName: string;
