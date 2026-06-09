@@ -1,9 +1,6 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { authOptions } from "@/lib/auth";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
-import { UserRole } from "@/types/prisma";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 interface AdminSectionLayoutProps {
   children: ReactNode;
@@ -17,11 +14,6 @@ interface AdminSectionLayoutProps {
  * AdminLayout により全管理画面に共通ナビゲーションを表示する。
  */
 export default async function AdminSectionLayout({ children }: AdminSectionLayoutProps) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user || session.user.role !== UserRole.ADMIN) {
-    redirect("/login");
-  }
-
+  await requireAdminSession();
   return <AdminLayout>{children}</AdminLayout>;
 }
