@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getQAService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { QAList } from "@/components/admin/qa/QAList";
 import type { QARecordWithUserItem } from "@/lib/api/adminQA";
 
@@ -36,36 +35,34 @@ export default async function AdminQAPage({ searchParams }: QAPageProps) {
   }));
 
   return (
-    <AdminLayout>
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-4 text-2xl font-semibold text-gray-900">質疑応答管理</h1>
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="mb-4 text-2xl font-semibold text-gray-900">質疑応答管理</h1>
 
-        <div className="mb-4 flex items-center gap-2 text-sm">
-          <span className="text-gray-600">表示:</span>
-          <Link
-            href="/admin/qa"
-            className={`rounded px-3 py-1 ${
-              !unansweredOnly
-                ? "bg-blue-600 text-white"
-                : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            全件
-          </Link>
-          <Link
-            href="/admin/qa?unansweredOnly=true"
-            className={`rounded px-3 py-1 ${
-              unansweredOnly
-                ? "bg-blue-600 text-white"
-                : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            未回答のみ
-          </Link>
-        </div>
+      <div className="mb-4 flex items-center gap-2 text-sm">
+        <span className="text-gray-600">表示:</span>
+        <Link
+          href="/admin/qa"
+          className={`rounded px-3 py-1 ${
+            !unansweredOnly
+              ? "bg-blue-600 text-white"
+              : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          全件
+        </Link>
+        <Link
+          href="/admin/qa?unansweredOnly=true"
+          className={`rounded px-3 py-1 ${
+            unansweredOnly
+              ? "bg-blue-600 text-white"
+              : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          未回答のみ
+        </Link>
+      </div>
 
-        <QAList records={items} />
-      </main>
-    </AdminLayout>
+      <QAList records={items} />
+    </div>
   );
 }
