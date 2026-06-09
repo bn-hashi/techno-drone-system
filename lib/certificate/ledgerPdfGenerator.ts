@@ -22,7 +22,8 @@ async function ensureFontRegistered(): Promise<void> {
   // モジュール指定子をリテラルで渡すと webpack が require.resolve を静的解析し .woff を
   // バンドルしようとしてビルドが失敗する。指定子を変数に逃がして静的解析を回避する。
   const nodeRequire = createRequire(import.meta.url);
-  const fontModuleSpecifier = "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff";
+  const fontModuleSpecifier =
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff";
   const fontPath = nodeRequire.resolve(fontModuleSpecifier);
   Font.register({
     family: "NotoSansJP",
@@ -34,13 +35,14 @@ async function ensureFontRegistered(): Promise<void> {
 export class ReactPdfLedgerGenerator implements CertificateLedgerPdfGenerator {
   async generate(input: CertificateLedgerInput): Promise<Buffer> {
     await ensureFontRegistered();
-    const [{ pdf }, { CertificateLedgerPDF }] = await Promise.all([
+    const [{ renderToBuffer }, { CertificateLedgerPDF }] = await Promise.all([
       import("@react-pdf/renderer"),
       import("@/components/pdf/CertificateLedgerPDF"),
     ]);
 
     const element = createElement(CertificateLedgerPDF, input);
-    const instance = pdf(element as never);
-    return instance.toBuffer() as unknown as Promise<Buffer>;
+    // renderToBuffer は Promise<Buffer> を返す。pdf(...).toBuffer() は Node ストリーム
+    // (PDFDocument) を返すため、Buffer を期待する呼び出し側 (new Uint8Array 等) で壊れる。
+    return renderToBuffer(element as never);
   }
 }
