@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth";
 import { redirect, notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getCertificateService } from "@/lib/serviceFactory";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { IssueCertificateButton } from "@/components/admin/certificate/IssueCertificateButton";
 import {
   buildAdminCertificateDownloadUrl,
@@ -74,92 +73,89 @@ export default async function AdminCertificatePage({ params, searchParams }: Cer
   const { user, certificate, canIssue } = data;
 
   return (
-    <AdminLayout>
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="mb-1 text-2xl font-semibold text-gray-900">修了証明書</h1>
-        <p className="mb-6 text-sm text-gray-500">
-          受講者: {user.name} ({user.email})
-        </p>
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-1 text-2xl font-semibold text-gray-900">修了証明書</h1>
+      <p className="mb-6 text-sm text-gray-500">
+        受講者: {user.name} ({user.email})
+      </p>
 
-        {warnings.length > 0 && (
-          <div
-            role="status"
-            className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
-          >
-            <ul className="space-y-1">
-              {warnings.map((message) => (
-                <li key={message}>{message}</li>
-              ))}
-            </ul>
+      {warnings.length > 0 && (
+        <div
+          role="status"
+          className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+        >
+          <ul className="space-y-1">
+            {warnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-medium text-gray-700">基本情報</h2>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div>
+            <dt className="text-gray-500">現在のステータス</dt>
+            <dd className="text-gray-900">{STATUS_LABELS[user.status] ?? user.status}</dd>
           </div>
-        )}
+        </dl>
+      </section>
 
-        <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-medium text-gray-700">基本情報</h2>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div>
-              <dt className="text-gray-500">現在のステータス</dt>
-              <dd className="text-gray-900">{STATUS_LABELS[user.status] ?? user.status}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-medium text-gray-700">発行状況</h2>
-          {certificate !== null ? (
-            <div className="space-y-3 text-sm">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
-                <div>
-                  <dt className="text-gray-500">証明書番号</dt>
-                  <dd className="text-gray-900">{certificate.certificateNumber}</dd>
-                </div>
-                <div>
-                  <dt className="text-gray-500">発行日時</dt>
-                  <dd className="text-gray-900">{formatDate(certificate.issuedAt)}</dd>
-                </div>
-                <div>
-                  <dt className="text-gray-500">有効期限</dt>
-                  <dd className="text-gray-900">{formatDate(certificate.expiresAt)}</dd>
-                </div>
-                <div>
-                  <dt className="text-gray-500">PDF</dt>
-                  <dd className="text-gray-900">
-                    {certificate.pdfPath !== null ? "生成済" : "未生成 (要事務局対応)"}
-                  </dd>
-                </div>
-              </dl>
-              <div className="flex flex-wrap gap-3">
-                {certificate.pdfPath !== null && (
-                  <a
-                    href={buildAdminCertificateDownloadUrl(user.id)}
-                    className="inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-                  >
-                    PDF をダウンロード
-                  </a>
-                )}
-                <a
-                  href={buildAdminCertificateLedgerUrl(user.id)}
-                  className="inline-block rounded border border-blue-600 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
-                >
-                  交付台帳 (様式5) をダウンロード
-                </a>
+      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-medium text-gray-700">発行状況</h2>
+        {certificate !== null ? (
+          <div className="space-y-3 text-sm">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div>
+                <dt className="text-gray-500">証明書番号</dt>
+                <dd className="text-gray-900">{certificate.certificateNumber}</dd>
               </div>
+              <div>
+                <dt className="text-gray-500">発行日時</dt>
+                <dd className="text-gray-900">{formatDate(certificate.issuedAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">有効期限</dt>
+                <dd className="text-gray-900">{formatDate(certificate.expiresAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">PDF</dt>
+                <dd className="text-gray-900">
+                  {certificate.pdfPath !== null ? "生成済" : "未生成 (要事務局対応)"}
+                </dd>
+              </div>
+            </dl>
+            <div className="flex flex-wrap gap-3">
+              {certificate.pdfPath !== null && (
+                <a
+                  href={buildAdminCertificateDownloadUrl(user.id)}
+                  className="inline-block rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                >
+                  PDF をダウンロード
+                </a>
+              )}
+              <a
+                href={buildAdminCertificateLedgerUrl(user.id)}
+                className="inline-block rounded border border-blue-600 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
+              >
+                交付台帳 (様式5) をダウンロード
+              </a>
             </div>
-          ) : canIssue ? (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                修了 (COMPLETED) 状態の受講者です。修了証明書を発行できます。
-              </p>
-              <IssueCertificateButton userId={user.id} />
-            </div>
-          ) : (
+          </div>
+        ) : canIssue ? (
+          <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              修了証明書は発行されていません。発行は受講者が修了 (COMPLETED)
-              状態のときのみ可能です。
+              修了 (COMPLETED) 状態の受講者です。修了証明書を発行できます。
             </p>
-          )}
-        </section>
-      </main>
-    </AdminLayout>
+            <IssueCertificateButton userId={user.id} />
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            修了証明書は発行されていません。発行は受講者が修了 (COMPLETED) 状態のときのみ可能です。
+          </p>
+        )}
+      </section>
+    </div>
   );
 }
