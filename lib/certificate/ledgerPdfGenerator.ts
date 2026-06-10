@@ -43,6 +43,8 @@ export class ReactPdfLedgerGenerator implements CertificateLedgerPdfGenerator {
     const element = createElement(CertificateLedgerPDF, input);
     // renderToBuffer は Promise<Buffer> を返す。pdf(...).toBuffer() は Node ストリーム
     // (PDFDocument) を返すため、Buffer を期待する呼び出し側 (new Uint8Array 等) で壊れる。
-    return renderToBuffer(element as never);
+    // CertificateLedgerPDF は実体として Document を返すが props 型が DocumentProps と一致しないため、
+    // 型不一致を隠す `as never` ではなく renderToBuffer の引数型へ最小キャストする。
+    return renderToBuffer(element as unknown as Parameters<typeof renderToBuffer>[0]);
   }
 }
