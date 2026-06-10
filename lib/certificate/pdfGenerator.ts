@@ -44,15 +44,14 @@ export class ReactPdfCertificateGenerator implements CertificatePdfGenerator {
   async generate(input: CertificatePdfInput): Promise<Buffer> {
     await ensureFontRegistered();
     // dynamic import で SSR バンドル時の循環参照を避ける
-    const [{ pdf }, { CertificatePDF }] = await Promise.all([
+    const [{ renderToBuffer }, { CertificatePDF }] = await Promise.all([
       import("@react-pdf/renderer"),
       import("@/components/pdf/CertificatePDF"),
     ]);
 
     const element = createElement(CertificatePDF, input);
-    // @react-pdf/renderer の pdf() は ReactElement を受け取り、Document を生成する
-    // 型定義が緩いため satisfies/cast で吸収
-    const instance = pdf(element as never);
-    return instance.toBuffer() as unknown as Promise<Buffer>;
+    // renderToBuffer は Promise<Buffer> を返す。pdf(...).toBuffer() は Node ストリーム
+    // (PDFDocument) を返すため、Buffer を期待する呼び出し側 (fileWriter 等) で壊れる。
+    return renderToBuffer(element as never);
   }
 }
