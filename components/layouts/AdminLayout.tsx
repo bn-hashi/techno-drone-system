@@ -4,9 +4,10 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 // 管理者向けナビゲーションリンク定義
 // コース/動画/問題/試験結果は route group (admin) 配下のためルート直下 URL になる
 // (例: app/(admin)/courses → /courses)。/admin/* と混在する点に注意。
+// 受講者管理の実装は /admin/users にある。入学申請は受講者一覧から個別に行う。
 const NAVIGATION_LINKS = [
-  { href: "/admin/students", label: "受講者一覧" },
-  { href: "/admin/applications", label: "入学申請" },
+  { href: "/admin/users", label: "受講者一覧" },
+  { href: "/admin/users", label: "入学申請" },
   { href: "/courses", label: "コース管理" },
   { href: "/videos", label: "動画管理" },
   { href: "/questions", label: "問題バンク" },
