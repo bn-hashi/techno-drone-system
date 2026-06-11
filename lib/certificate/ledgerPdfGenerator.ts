@@ -1,5 +1,5 @@
-import { createRequire } from "node:module";
 import { createElement } from "react";
+import { resolveNotoSansJpFontPath } from "@/lib/certificate/fontPath";
 import type {
   CertificateLedgerPdfGenerator,
   CertificateLedgerInput,
@@ -19,15 +19,10 @@ let fontRegistered = false;
 async function ensureFontRegistered(): Promise<void> {
   if (fontRegistered) return;
   const { Font } = await import("@react-pdf/renderer");
-  // モジュール指定子をリテラルで渡すと webpack が require.resolve を静的解析し .woff を
-  // バンドルしようとしてビルドが失敗する。指定子を変数に逃がして静的解析を回避する。
-  const nodeRequire = createRequire(import.meta.url);
-  const fontModuleSpecifier =
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff";
-  const fontPath = nodeRequire.resolve(fontModuleSpecifier);
+  // フォント解決は lib/certificate/fontPath に一元化 (env override + 存在チェック付き)。
   Font.register({
     family: "NotoSansJP",
-    src: fontPath,
+    src: resolveNotoSansJpFontPath(),
   });
   fontRegistered = true;
 }
