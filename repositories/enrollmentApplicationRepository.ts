@@ -1,10 +1,15 @@
 import { getPrisma } from "@/lib/db";
-import { EnrollmentApplication } from "@prisma/client";
+import { EnrollmentApplication, User } from "@prisma/client";
 import { UserStatus } from "@/types/prisma";
+
+export type EnrollmentApplicationWithUser = EnrollmentApplication & {
+  user: Pick<User, "name" | "email">;
+};
 
 export interface IEnrollmentApplicationRepository {
   findByUserId(userId: string): Promise<EnrollmentApplication | null>;
   findById(id: string): Promise<EnrollmentApplication | null>;
+  findAll(): Promise<EnrollmentApplicationWithUser[]>;
   create(data: {
     userId: string;
     dateOfBirth: Date;
@@ -36,6 +41,14 @@ export class EnrollmentApplicationRepository implements IEnrollmentApplicationRe
     const prisma = getPrisma();
     return prisma.enrollmentApplication.findUnique({
       where: { id },
+    });
+  }
+
+  async findAll(): Promise<EnrollmentApplicationWithUser[]> {
+    const prisma = getPrisma();
+    return prisma.enrollmentApplication.findMany({
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { applicationDate: "desc" },
     });
   }
 

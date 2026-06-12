@@ -68,6 +68,7 @@ describe("EnrollmentService", () => {
     mockEnrollmentRepo = {
       findByUserId: vi.fn(),
       findById: vi.fn(),
+      findAll: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       accept: vi.fn(),
@@ -366,6 +367,33 @@ describe("EnrollmentService", () => {
       await expect(service.acceptEnrollment("nonexistent")).rejects.toThrow(
         EnrollmentNotFoundError
       );
+    });
+  });
+
+  // -----------------------------------------------
+  // listEnrollments
+  // -----------------------------------------------
+  describe("listEnrollments", () => {
+    const mockApplicationWithUser = {
+      ...mockApplication,
+      user: { name: "テスト受講者", email: "student@example.com" },
+    };
+
+    it("test_listEnrollments_returns_all_applications", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockApplicationWithUser]);
+
+      const result = await service.listEnrollments();
+
+      expect(result).toEqual([mockApplicationWithUser]);
+      expect(mockEnrollmentRepo.findAll).toHaveBeenCalledOnce();
+    });
+
+    it("test_listEnrollments_empty_returns_empty_array", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([]);
+
+      const result = await service.listEnrollments();
+
+      expect(result).toEqual([]);
     });
   });
 });

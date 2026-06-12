@@ -5,6 +5,20 @@ import { getEnrollmentService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { BusinessError, DuplicateEnrollmentError, UserNotFoundError } from "@/services/errors";
 
+export async function GET(): Promise<NextResponse> {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!session.user || session.user.role !== UserRole.ADMIN) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const applications = await getEnrollmentService().listEnrollments();
+  return NextResponse.json({ applications }, { status: 200 });
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
 

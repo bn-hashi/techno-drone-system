@@ -12,9 +12,10 @@ vi.mock("@/lib/serviceFactory", () => ({
 
 import { getServerSession } from "next-auth";
 import { getEnrollmentService } from "@/lib/serviceFactory";
-import { POST } from "@/app/api/admin/enrollment/route";
+import { GET, POST } from "@/app/api/admin/enrollment/route";
 
 const mockCreateEnrollment = vi.fn();
+const mockListEnrollments = vi.fn();
 
 describe("POST /api/admin/enrollment", () => {
   const adminSession = {
@@ -116,5 +117,66 @@ describe("POST /api/admin/enrollment", () => {
     const response = await POST(createJsonRequest());
 
     expect(response.status).toBe(500);
+  });
+});
+
+describe("GET /api/admin/enrollment", () => {
+  const adminSession = {
+    user: { id: "admin-1", email: "admin@example.com", role: UserRole.ADMIN },
+  };
+
+  const mockApplicationWithUser = {
+    id: "app-1",
+    userId: "user-1",
+    applicationDate: new Date("2026-05-01"),
+    dateOfBirth: new Date("1990-01-15"),
+    address: "東京都千代田区1-1-1",
+    phoneNumber: "090-1234-5678",
+    idDocumentPath: null,
+    photoPath: null,
+    experienceCertPath: null,
+    applicantNumber: null,
+    acceptedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    user: { name: "テスト受講者", email: "student@example.com" },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getEnrollmentService).mockReturnValue({
+      createEnrollment: mockCreateEnrollment,
+      acceptEnrollment: vi.fn(),
+      listEnrollments: mockListEnrollments,
+    } as unknown as ReturnType<typeof getEnrollmentService>);
+  });
+
+  it("test_GET_enrollments_admin_returns_200_with_list", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListEnrollments.mockResolvedValue([mockApplicationWithUser]);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.applications).toHaveLength(1);
+  });
+
+  it("test_GET_enrollments_unauthenticated_returns_401", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(null);
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+  });
+
+  it("test_GET_enrollments_non_admin_returns_403", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "u-1", email: "s@example.com", role: UserRole.STUDENT },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
   });
 });
