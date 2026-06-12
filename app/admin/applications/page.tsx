@@ -7,9 +7,15 @@ import { UserRole } from "@/types/prisma";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "入学申請一覧" };
 
+const jstFormatter = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" });
+
+function formatDateJST(date: Date): string {
+  return jstFormatter.format(new Date(date));
+}
+
 function formatAcceptedStatus(acceptedAt: Date | null): string {
   if (acceptedAt === null) return "未受理";
-  return `受理済 ${new Date(acceptedAt).toISOString().slice(0, 10)}`;
+  return `受理済 ${formatDateJST(acceptedAt)}`;
 }
 
 export default async function AdminApplicationsPage() {
@@ -44,19 +50,19 @@ export default async function AdminApplicationsPage() {
               <td className="border border-gray-300 px-4 py-2">{app.user.name}</td>
               <td className="border border-gray-300 px-4 py-2">{app.user.email}</td>
               <td className="border border-gray-300 px-4 py-2">
-                {new Date(app.applicationDate).toISOString().slice(0, 10)}
+                {formatDateJST(app.applicationDate)}
               </td>
               <td className="border border-gray-300 px-4 py-2">
                 {formatAcceptedStatus(app.acceptedAt)}
               </td>
               <td className="border border-gray-300 px-4 py-2 text-center">
-                {app.idDocumentPath !== null ? "✓" : "✗"}
+                {app.hasIdDocument ? "✓" : "✗"}
               </td>
               <td className="border border-gray-300 px-4 py-2 text-center">
-                {app.photoPath !== null ? "✓" : "✗"}
+                {app.hasPhoto ? "✓" : "✗"}
               </td>
               <td className="border border-gray-300 px-4 py-2 text-center">
-                {app.experienceCertPath !== null ? "✓" : "✗"}
+                {app.hasExperienceCert ? "✓" : "✗"}
               </td>
             </tr>
           ))}

@@ -374,17 +374,29 @@ describe("EnrollmentService", () => {
   // listEnrollments
   // -----------------------------------------------
   describe("listEnrollments", () => {
-    const mockApplicationWithUser = {
-      ...mockApplication,
+    const mockListItem = {
+      id: "app-1",
       user: { name: "テスト受講者", email: "student@example.com" },
+      applicationDate: new Date("2026-05-01"),
+      acceptedAt: null,
+      hasIdDocument: false,
+      hasPhoto: false,
+      hasExperienceCert: false,
     };
 
     it("test_listEnrollments_returns_all_applications", async () => {
-      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockApplicationWithUser]);
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockListItem]);
 
       const result = await service.listEnrollments();
 
-      expect(result).toEqual([mockApplicationWithUser]);
+      expect(result).toEqual([mockListItem]);
+    });
+
+    it("test_listEnrollments_calls_repo_findAll_once", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockListItem]);
+
+      await service.listEnrollments();
+
       expect(mockEnrollmentRepo.findAll).toHaveBeenCalledOnce();
     });
 

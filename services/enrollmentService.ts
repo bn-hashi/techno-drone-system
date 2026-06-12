@@ -1,7 +1,7 @@
 import { unlinkFile } from "@/lib/fsAdapter";
 import type { EnrollmentApplication } from "@prisma/client";
 import type {
-  EnrollmentApplicationWithUser,
+  EnrollmentApplicationListItem,
   IEnrollmentApplicationRepository,
 } from "@/repositories/enrollmentApplicationRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
@@ -40,7 +40,7 @@ export class EnrollmentService {
     private readonly userRepo: IUserRepository
   ) {}
 
-  async listEnrollments(): Promise<EnrollmentApplicationWithUser[]> {
+  async listEnrollments(): Promise<EnrollmentApplicationListItem[]> {
     return this.enrollmentRepo.findAll();
   }
 

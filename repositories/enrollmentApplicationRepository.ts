@@ -2,14 +2,20 @@ import { getPrisma } from "@/lib/db";
 import { EnrollmentApplication, User } from "@prisma/client";
 import { UserStatus } from "@/types/prisma";
 
-export type EnrollmentApplicationWithUser = EnrollmentApplication & {
+export type EnrollmentApplicationListItem = {
+  id: string;
   user: Pick<User, "name" | "email">;
+  applicationDate: Date;
+  acceptedAt: Date | null;
+  hasIdDocument: boolean;
+  hasPhoto: boolean;
+  hasExperienceCert: boolean;
 };
 
 export interface IEnrollmentApplicationRepository {
   findByUserId(userId: string): Promise<EnrollmentApplication | null>;
   findById(id: string): Promise<EnrollmentApplication | null>;
-  findAll(): Promise<EnrollmentApplicationWithUser[]>;
+  findAll(): Promise<EnrollmentApplicationListItem[]>;
   create(data: {
     userId: string;
     dateOfBirth: Date;
@@ -44,12 +50,21 @@ export class EnrollmentApplicationRepository implements IEnrollmentApplicationRe
     });
   }
 
-  async findAll(): Promise<EnrollmentApplicationWithUser[]> {
+  async findAll(): Promise<EnrollmentApplicationListItem[]> {
     const prisma = getPrisma();
-    return prisma.enrollmentApplication.findMany({
+    const records = await prisma.enrollmentApplication.findMany({
       include: { user: { select: { name: true, email: true } } },
       orderBy: { applicationDate: "desc" },
     });
+    return records.map((record) => ({
+      id: record.id,
+      user: record.user,
+      applicationDate: record.applicationDate,
+      acceptedAt: record.acceptedAt,
+      hasIdDocument: record.idDocumentPath !== null,
+      hasPhoto: record.photoPath !== null,
+      hasExperienceCert: record.experienceCertPath !== null,
+    }));
   }
 
   async create(data: {

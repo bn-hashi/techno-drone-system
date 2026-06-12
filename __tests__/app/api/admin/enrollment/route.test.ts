@@ -127,19 +127,12 @@ describe("GET /api/admin/enrollment", () => {
 
   const mockApplicationWithUser = {
     id: "app-1",
-    userId: "user-1",
-    applicationDate: new Date("2026-05-01"),
-    dateOfBirth: new Date("1990-01-15"),
-    address: "東京都千代田区1-1-1",
-    phoneNumber: "090-1234-5678",
-    idDocumentPath: null,
-    photoPath: null,
-    experienceCertPath: null,
-    applicantNumber: null,
-    acceptedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
     user: { name: "テスト受講者", email: "student@example.com" },
+    applicationDate: new Date("2026-05-01"),
+    acceptedAt: null,
+    hasIdDocument: false,
+    hasPhoto: false,
+    hasExperienceCert: false,
   };
 
   beforeEach(() => {
@@ -151,14 +144,21 @@ describe("GET /api/admin/enrollment", () => {
     } as unknown as ReturnType<typeof getEnrollmentService>);
   });
 
-  it("test_GET_enrollments_admin_returns_200_with_list", async () => {
+  it("test_GET_enrollments_admin_returns_200", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListEnrollments.mockResolvedValue([mockApplicationWithUser]);
 
     const response = await GET();
-    const body = await response.json();
 
     expect(response.status).toBe(200);
+  });
+
+  it("test_GET_enrollments_admin_returns_applications_list", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListEnrollments.mockResolvedValue([mockApplicationWithUser]);
+
+    const body = await GET().then((r) => r.json());
+
     expect(body.applications).toHaveLength(1);
   });
 
