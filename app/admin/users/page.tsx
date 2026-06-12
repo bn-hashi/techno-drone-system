@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -57,12 +58,12 @@ export default async function AdminUsersPage() {
                 </a>
               </td>
               <td className="border border-gray-300 px-4 py-2">
-                <a
+                <Link
                   href={`/students/${user.id}`}
                   className="rounded bg-gray-600 px-3 py-1 text-sm text-white hover:bg-gray-700"
                 >
                   詳細
-                </a>
+                </Link>
               </td>
             </tr>
           ))}
