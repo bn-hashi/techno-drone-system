@@ -68,6 +68,7 @@ describe("EnrollmentService", () => {
     mockEnrollmentRepo = {
       findByUserId: vi.fn(),
       findById: vi.fn(),
+      findAll: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       accept: vi.fn(),
@@ -366,6 +367,45 @@ describe("EnrollmentService", () => {
       await expect(service.acceptEnrollment("nonexistent")).rejects.toThrow(
         EnrollmentNotFoundError
       );
+    });
+  });
+
+  // -----------------------------------------------
+  // listEnrollments
+  // -----------------------------------------------
+  describe("listEnrollments", () => {
+    const mockListItem = {
+      id: "app-1",
+      user: { name: "テスト受講者", email: "student@example.com" },
+      applicationDate: new Date("2026-05-01"),
+      acceptedAt: null,
+      hasIdDocument: false,
+      hasPhoto: false,
+      hasExperienceCert: false,
+    };
+
+    it("test_listEnrollments_returns_all_applications", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockListItem]);
+
+      const result = await service.listEnrollments();
+
+      expect(result).toEqual([mockListItem]);
+    });
+
+    it("test_listEnrollments_calls_repo_findAll_once", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([mockListItem]);
+
+      await service.listEnrollments();
+
+      expect(mockEnrollmentRepo.findAll).toHaveBeenCalledOnce();
+    });
+
+    it("test_listEnrollments_empty_returns_empty_array", async () => {
+      mockEnrollmentRepo.findAll = vi.fn().mockResolvedValue([]);
+
+      const result = await service.listEnrollments();
+
+      expect(result).toEqual([]);
     });
   });
 });
