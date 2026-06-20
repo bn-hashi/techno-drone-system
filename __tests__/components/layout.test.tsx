@@ -38,16 +38,12 @@ describe("RootLayout", () => {
 
 describe("メタデータ", () => {
   it("test_metadata_title_contains_drone_school", () => {
-    // Arrange
-    const title = metadata.title;
-    // Act / Assert
-    expect(String(title)).toContain("ドローンスクール");
+    // Assert
+    expect(String(metadata.title)).toContain("ドローンスクール");
   });
 
   it("test_metadata_description_is_defined", () => {
-    // Arrange / Act
-    const description = metadata.description;
     // Assert
-    expect(description).toBeTruthy();
+    expect(metadata.description).toBeTruthy();
   });
 });
