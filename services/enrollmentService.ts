@@ -1,6 +1,9 @@
 import { unlinkFile } from "@/lib/fsAdapter";
 import type { EnrollmentApplication } from "@prisma/client";
-import type { IEnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
+import type {
+  EnrollmentApplicationListItem,
+  IEnrollmentApplicationRepository,
+} from "@/repositories/enrollmentApplicationRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
 import { saveUploadedFile } from "@/lib/upload";
 import {
@@ -36,6 +39,10 @@ export class EnrollmentService {
     private readonly enrollmentRepo: IEnrollmentApplicationRepository,
     private readonly userRepo: IUserRepository
   ) {}
+
+  async listEnrollments(): Promise<EnrollmentApplicationListItem[]> {
+    return this.enrollmentRepo.findAll();
+  }
 
   async createEnrollment(input: CreateEnrollmentInput): Promise<EnrollmentApplication> {
     this.validateInput(input);

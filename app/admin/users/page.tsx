@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -36,6 +37,7 @@ export default async function AdminUsersPage() {
             <th className="border border-gray-300 px-4 py-2 text-left">ステータス</th>
             <th className="border border-gray-300 px-4 py-2 text-left">操作</th>
             <th className="border border-gray-300 px-4 py-2 text-left">入学申請</th>
+            <th className="border border-gray-300 px-4 py-2 text-left">詳細</th>
           </tr>
         </thead>
         <tbody>
@@ -55,12 +57,20 @@ export default async function AdminUsersPage() {
                   入学申請
                 </a>
               </td>
+              <td className="border border-gray-300 px-4 py-2">
+                <Link
+                  href={`/students/${user.id}`}
+                  className="rounded bg-gray-600 px-3 py-1 text-sm text-white hover:bg-gray-700"
+                >
+                  詳細
+                </Link>
+              </td>
             </tr>
           ))}
           {users.length === 0 && (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="border border-gray-300 px-4 py-2 text-center text-gray-500"
               >
                 受講者が登録されていません
