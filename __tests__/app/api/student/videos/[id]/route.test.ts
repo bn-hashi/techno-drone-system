@@ -7,15 +7,22 @@ vi.mock("@/lib/serviceFactory", () => ({
   getVideoService: vi.fn(),
   getViewingLogService: vi.fn(),
   getProgressService: vi.fn(),
+  getCourseAccessService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import { getVideoService, getViewingLogService, getProgressService } from "@/lib/serviceFactory";
+import {
+  getVideoService,
+  getViewingLogService,
+  getProgressService,
+  getCourseAccessService,
+} from "@/lib/serviceFactory";
 import { GET } from "@/app/api/student/videos/[id]/route";
 
 const mockGetVideo = vi.fn();
 const mockGetMaxWatched = vi.fn();
 const mockCanWatchVideo = vi.fn();
+const mockCanAccessCourse = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -60,8 +67,12 @@ beforeEach(() => {
     getProgressByUser: vi.fn(),
     canWatchVideo: mockCanWatchVideo,
   } as unknown as ReturnType<typeof getProgressService>);
-  // デフォルトで受講許可（既存テストに影響を出さない）
+  vi.mocked(getCourseAccessService).mockReturnValue({
+    canAccessCourse: mockCanAccessCourse,
+  } as unknown as ReturnType<typeof getCourseAccessService>);
+  // デフォルトで受講許可・アクセス許可（既存テストに影響を出さない）
   mockCanWatchVideo.mockResolvedValue(true);
+  mockCanAccessCourse.mockResolvedValue(true);
 });
 
 describe("GET /api/student/videos/[id]", () => {
@@ -152,5 +163,49 @@ describe("GET /api/student/videos/[id]", () => {
     const response = await GET(makeRequest(), { params });
 
     expect(response.status).toBe(403);
+  });
+
+  it("test_GET_inaccessible_course_returns_404", async () => {
+    // 別 CourseType のコースに属する動画は存在秘匿のため 404
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetVideo.mockResolvedValue(mockVideo);
+    mockCanAccessCourse.mockResolvedValue(false);
+
+    const response = await GET(makeRequest(), { params });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("test_GET_checks_access_with_video_courseId", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetVideo.mockResolvedValue(mockVideo);
+    mockGetMaxWatched.mockResolvedValue(0);
+
+    await GET(makeRequest(), { params });
+
+    expect(mockCanAccessCourse).toHaveBeenCalledWith("user-1", "course-1");
+  });
+
+  it("test_GET_all_404_paths_return_same_body", async () => {
+    // 存在しない動画・未公開・認可外はすべて同じ 404 本文
+    // （videoId の存在状態を本文差分で推測できないことを保証する）
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+
+    mockGetVideo.mockRejectedValue(new VideoNotFoundError("video-1"));
+    const resNotFound = await GET(makeRequest(), { params });
+
+    mockGetVideo.mockResolvedValue({ ...mockVideo, isPublished: false });
+    const resUnpublished = await GET(makeRequest(), { params });
+
+    mockGetVideo.mockResolvedValue(mockVideo);
+    mockCanAccessCourse.mockResolvedValue(false);
+    const resNoAccess = await GET(makeRequest(), { params });
+
+    const bodies = await Promise.all([
+      resNotFound.json(),
+      resUnpublished.json(),
+      resNoAccess.json(),
+    ]);
+    expect(new Set(bodies.map((b) => JSON.stringify(b))).size).toBe(1);
   });
 });
