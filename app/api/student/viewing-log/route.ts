@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getViewingLogService } from "@/lib/serviceFactory";
+import {
+  getViewingLogService,
+  getVideoService,
+  getCourseAccessService,
+  getProgressService,
+} from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 
@@ -46,6 +51,26 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
+    // IDOR 対策: videoId から動画を解決し、自分の CourseType と一致するコースか確認する。
+    // 存在しない動画も認可されないコースの動画も、存在秘匿のため 404 を返す。
+    const video = await getVideoService().getVideo(body.videoId);
+    const canAccess = await getCourseAccessService().canAccessCourse(
+      session.user.id,
+      video.courseId
+    );
+    if (!canAccess) {
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    }
+
+    // 未公開動画・順番視聴ロック: 存在秘匿のため 404
+    if (!video.isPublished) {
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    }
+    const canWatch = await getProgressService().canWatchVideo(session.user.id, video.id);
+    if (!canWatch) {
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    }
+
     const log = await getViewingLogService().recordSession({
       userId: session.user.id,
       videoId: body.videoId,
@@ -57,7 +82,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ log }, { status: 201 });
   } catch (err) {
     if (err instanceof VideoNotFoundError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 400 });

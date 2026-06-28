@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getProgressService } from "@/lib/serviceFactory";
+import { getProgressService, getCourseAccessService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,15 @@ export default async function CourseVideosPage({ params }: Props) {
     session.user.role !== UserRole.STUDENT ||
     session.user.status !== UserStatus.ACTIVE
   ) {
+    notFound();
+  }
+
+  // IDOR 対策: 自分の CourseType と一致しないコースは存在秘匿のため 404
+  const canAccess = await getCourseAccessService().canAccessCourse(
+    session.user.id,
+    params.courseId
+  );
+  if (!canAccess) {
     notFound();
   }
 

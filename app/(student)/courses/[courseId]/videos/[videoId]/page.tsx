@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getVideoService, getViewingLogService } from "@/lib/serviceFactory";
+import {
+  getVideoService,
+  getViewingLogService,
+  getCourseAccessService,
+  getProgressService,
+} from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { VideoNotFoundError } from "@/services/errors";
 import { VideoPlayer } from "@/components/student/VideoPlayer";
@@ -23,6 +28,15 @@ export default async function StudentVideoViewingPage({ params }: Props) {
     notFound();
   }
 
+  // IDOR 対策: 自分の CourseType と一致しないコースは存在秘匿のため 404
+  const canAccess = await getCourseAccessService().canAccessCourse(
+    session.user.id,
+    params.courseId
+  );
+  if (!canAccess) {
+    notFound();
+  }
+
   let video;
   try {
     video = await getVideoService().getVideo(params.videoId);
@@ -32,6 +46,12 @@ export default async function StudentVideoViewingPage({ params }: Props) {
   }
 
   if (!video.isPublished || video.courseId !== params.courseId) {
+    notFound();
+  }
+
+  // 順番視聴ロック: 前の動画が 80% 未完了なら存在秘匿のため 404
+  const canWatch = await getProgressService().canWatchVideo(session.user.id, video.id);
+  if (!canWatch) {
     notFound();
   }
 

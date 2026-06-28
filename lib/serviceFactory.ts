@@ -1,5 +1,6 @@
 import { UserRepository } from "@/repositories/userRepository";
 import { UserManagementService } from "@/services/userManagementService";
+import { CourseAccessService } from "@/services/courseAccessService";
 import { EnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
 import { EnrollmentService } from "@/services/enrollmentService";
 import { AgreementLogRepository } from "@/repositories/agreementLogRepository";
@@ -59,6 +60,11 @@ export function getSubjectService(): SubjectService {
 /** コース Service のインスタンスを返す */
 export function getCourseService(): CourseService {
   return new CourseService(new CourseRepository());
+}
+
+/** コースアクセス認可 Service のインスタンスを返す */
+export function getCourseAccessService(): CourseAccessService {
+  return new CourseAccessService(new UserRepository(), new CourseRepository());
 }
 
 /** 動画 Service のインスタンスを返す */

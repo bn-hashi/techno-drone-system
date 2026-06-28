@@ -4,8 +4,13 @@ description: PR 説明文を統一フォーマットで生成する
 
 # /pr-description
 
-現在のブランチと main の差分 (`git diff main...HEAD`) を確認し、
+現在のブランチとベースブランチの差分を確認し、
 以下のフォーマットで Pull Request の説明文を**日本語**で出力してください。
+
+## ベースブランチの判断（~/.claude/branch-strategy.md 準拠）
+- `feature/*`・`fix/*` ブランチ → `git diff dev...HEAD`（マージ先は dev のみ）
+- リリースPR（dev → main）・`hotfix/*` → `git diff main...HEAD`
+- `dev` ブランチが存在しないリポジトリ → `git diff main...HEAD`
 
 ## 出力フォーマット
 
