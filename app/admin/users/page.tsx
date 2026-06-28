@@ -59,7 +59,7 @@ export default async function AdminUsersPage() {
               </td>
               <td className="border border-gray-300 px-4 py-2">
                 <Link
-                  href={`/students/${user.id}`}
+                  href={`/admin/students/${user.id}`}
                   className="rounded bg-gray-600 px-3 py-1 text-sm text-white hover:bg-gray-700"
                 >
                   詳細
