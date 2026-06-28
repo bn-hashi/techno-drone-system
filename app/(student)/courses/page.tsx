@@ -3,13 +3,17 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCourseService, getUserManagementService } from "@/lib/serviceFactory";
-import { UserRole } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
 import type { Course } from "@prisma/client";
 
 export default async function CoursesPage() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user || session.user.role !== UserRole.STUDENT) {
+  if (
+    !session?.user ||
+    session.user.role !== UserRole.STUDENT ||
+    session.user.status !== UserStatus.ACTIVE
+  ) {
     notFound();
   }
 

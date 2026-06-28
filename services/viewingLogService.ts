@@ -5,20 +5,42 @@ import type {
 } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
+import type { ICourseAccessService } from "@/services/courseAccessService";
 import { getPrisma } from "@/lib/db";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 import { VIEWING_LOG_BUFFER_SECONDS, MAX_PLAYBACK_RATE } from "@/lib/constants";
+
+interface IVideoWatchChecker {
+  canWatchVideo(userId: string, videoId: string): Promise<boolean>;
+}
 
 export class ViewingLogService {
   constructor(
     private readonly logRepo: IViewingLogRepository,
     private readonly videoRepo: IVideoRepository,
-    private readonly subjectProgressRepo: ISubjectProgressRepository
+    private readonly subjectProgressRepo: ISubjectProgressRepository,
+    private readonly courseAccessService: ICourseAccessService,
+    private readonly watchChecker: IVideoWatchChecker
   ) {}
 
   async recordSession(input: CreateViewingLogInput): Promise<ViewingLog> {
     const video = await this.videoRepo.findById(input.videoId);
     if (video === null) {
+      throw new VideoNotFoundError(input.videoId);
+    }
+
+    // IDOR 対策: videoId のコースへのアクセス権を確認する。存在秘匿のため VideoNotFoundError。
+    const canAccess = await this.courseAccessService.canAccessCourse(input.userId, video.courseId);
+    if (!canAccess) {
+      throw new VideoNotFoundError(input.videoId);
+    }
+
+    // 未公開動画・順番視聴ロックも存在秘匿のため VideoNotFoundError。
+    if (!video.isPublished) {
+      throw new VideoNotFoundError(input.videoId);
+    }
+    const canWatch = await this.watchChecker.canWatchVideo(input.userId, input.videoId);
+    if (!canWatch) {
       throw new VideoNotFoundError(input.videoId);
     }
 

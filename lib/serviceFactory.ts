@@ -77,7 +77,9 @@ export function getViewingLogService(): ViewingLogService {
   return new ViewingLogService(
     new ViewingLogRepository(),
     new VideoRepository(),
-    new SubjectProgressRepository()
+    new SubjectProgressRepository(),
+    getCourseAccessService(),
+    getProgressService()
   );
 }
 

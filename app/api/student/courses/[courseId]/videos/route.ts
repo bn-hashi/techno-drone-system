@@ -21,16 +21,16 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // IDOR 対策: 自分の CourseType と一致しないコースは存在秘匿のため 404
-  const canAccess = await getCourseAccessService().canAccessCourse(
-    session.user.id,
-    params.courseId
-  );
-  if (!canAccess) {
-    return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  }
-
   try {
+    // IDOR 対策: 自分の CourseType と一致しないコースは存在秘匿のため 404
+    const canAccess = await getCourseAccessService().canAccessCourse(
+      session.user.id,
+      params.courseId
+    );
+    if (!canAccess) {
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    }
+
     const videos = await getProgressService().getVideosWithLockStatus(
       session.user.id,
       params.courseId
