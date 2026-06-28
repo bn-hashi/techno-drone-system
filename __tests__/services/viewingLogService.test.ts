@@ -126,6 +126,52 @@ describe("ViewingLogService", () => {
       await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
     });
 
+    it("test_recordSession_course_access_denied_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockCourseAccessService.canAccessCourse.mockResolvedValue(false);
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_course_access_denied_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockCourseAccessService.canAccessCourse.mockResolvedValue(false);
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+    });
+
+    it("test_recordSession_video_not_published_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue({ ...mockVideo, isPublished: false });
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_video_not_published_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue({ ...mockVideo, isPublished: false });
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+    });
+
+    it("test_recordSession_watch_permission_denied_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockWatchChecker.canWatchVideo.mockResolvedValue(false);
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_watch_permission_denied_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockWatchChecker.canWatchVideo.mockResolvedValue(false);
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+    });
+
     it("test_recordSession_watchedSeconds_exceeds_duration_throws_BusinessError", async () => {
       mockVideoRepo.findById.mockResolvedValue(mockVideo);
 
