@@ -5,24 +5,13 @@ import { BusinessError, VideoNotFoundError } from "@/services/errors";
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/serviceFactory", () => ({
   getViewingLogService: vi.fn(),
-  getVideoService: vi.fn(),
-  getCourseAccessService: vi.fn(),
-  getProgressService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import {
-  getViewingLogService,
-  getVideoService,
-  getCourseAccessService,
-  getProgressService,
-} from "@/lib/serviceFactory";
+import { getViewingLogService } from "@/lib/serviceFactory";
 import { POST } from "@/app/api/student/viewing-log/route";
 
 const mockRecord = vi.fn();
-const mockGetVideo = vi.fn();
-const mockCanAccessCourse = vi.fn();
-const mockCanWatchVideo = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -33,17 +22,6 @@ const validBody = {
   startedAt: "2026-05-18T10:00:00.000Z",
   endedAt: "2026-05-18T10:00:10.000Z",
   watchedSeconds: 10,
-};
-
-const mockVideo = {
-  id: "video-1",
-  title: "ドローン基礎",
-  subjectId: "subject-1",
-  courseId: "course-1",
-  filePath: "/videos/basic.mp4",
-  duration: 3600,
-  sortOrder: 0,
-  isPublished: true,
 };
 
 const makeRequest = (body: unknown) =>
@@ -59,19 +37,8 @@ beforeEach(() => {
     recordSession: mockRecord,
     getMaxWatchedSeconds: vi.fn(),
   } as unknown as ReturnType<typeof getViewingLogService>);
-  vi.mocked(getVideoService).mockReturnValue({
-    getVideo: mockGetVideo,
-  } as unknown as ReturnType<typeof getVideoService>);
-  vi.mocked(getCourseAccessService).mockReturnValue({
-    canAccessCourse: mockCanAccessCourse,
-  } as unknown as ReturnType<typeof getCourseAccessService>);
-  vi.mocked(getProgressService).mockReturnValue({
-    canWatchVideo: mockCanWatchVideo,
-  } as unknown as ReturnType<typeof getProgressService>);
-  // デフォルトで動画解決成功・アクセス許可・視聴可能（既存テストに影響を出さない）
-  mockGetVideo.mockResolvedValue(mockVideo);
-  mockCanAccessCourse.mockResolvedValue(true);
-  mockCanWatchVideo.mockResolvedValue(true);
+  // デフォルトで正常終了。各テストで上書きする。
+  mockRecord.mockResolvedValue({ id: "log-1" });
 });
 
 describe("POST /api/student/viewing-log", () => {
@@ -172,7 +139,6 @@ describe("POST /api/student/viewing-log", () => {
 
   it("test_POST_valid_body_returns_201", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockRecord.mockResolvedValue({ id: "log-1" });
 
     const response = await POST(makeRequest(validBody));
 
@@ -181,7 +147,6 @@ describe("POST /api/student/viewing-log", () => {
 
   it("test_POST_passes_userId_from_session_to_service", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockRecord.mockResolvedValue({ id: "log-1" });
 
     await POST(makeRequest(validBody));
 
@@ -191,9 +156,9 @@ describe("POST /api/student/viewing-log", () => {
   });
 
   it("test_POST_unresolvable_video_returns_404", async () => {
-    // body の videoId が解決できない場合は 404（存在秘匿）
+    // body の videoId が解決できない場合、サービスが VideoNotFoundError を投げ 404 になる
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockGetVideo.mockRejectedValue(new VideoNotFoundError("video-1"));
+    mockRecord.mockRejectedValue(new VideoNotFoundError("video-1"));
 
     const response = await POST(makeRequest(validBody));
 
@@ -201,38 +166,19 @@ describe("POST /api/student/viewing-log", () => {
   });
 
   it("test_POST_inaccessible_course_returns_404", async () => {
-    // 別 CourseType のコースの動画には視聴ログを記録できない（404）
+    // 別 CourseType のコースへのアクセスは ViewingLogService が VideoNotFoundError を投げ 404
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockCanAccessCourse.mockResolvedValue(false);
+    mockRecord.mockRejectedValue(new VideoNotFoundError("video-1"));
 
     const response = await POST(makeRequest(validBody));
 
     expect(response.status).toBe(404);
   });
 
-  it("test_POST_inaccessible_course_does_not_record_session", async () => {
-    // 認可で弾いた場合、視聴ログ記録まで進まない
-    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockCanAccessCourse.mockResolvedValue(false);
-
-    await POST(makeRequest(validBody));
-
-    expect(mockRecord).not.toHaveBeenCalled();
-  });
-
-  it("test_POST_checks_access_with_video_courseId", async () => {
-    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockRecord.mockResolvedValue({ id: "log-1" });
-
-    await POST(makeRequest(validBody));
-
-    expect(mockCanAccessCourse).toHaveBeenCalledWith("user-1", "course-1");
-  });
-
   it("test_POST_unpublished_video_returns_404", async () => {
-    // 未公開動画への視聴ログ記録は存在秘匿のため 404
+    // 未公開動画は ViewingLogService が VideoNotFoundError を投げ 404（存在秘匿）
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockGetVideo.mockResolvedValue({ ...mockVideo, isPublished: false });
+    mockRecord.mockRejectedValue(new VideoNotFoundError("video-1"));
 
     const response = await POST(makeRequest(validBody));
 
@@ -240,44 +186,27 @@ describe("POST /api/student/viewing-log", () => {
   });
 
   it("test_POST_locked_video_returns_404", async () => {
-    // 順番視聴ロックにより canWatchVideo=false の動画は存在秘匿のため 404
+    // 順番視聴ロックの動画は ViewingLogService が VideoNotFoundError を投げ 404
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockCanWatchVideo.mockResolvedValue(false);
+    mockRecord.mockRejectedValue(new VideoNotFoundError("video-1"));
 
     const response = await POST(makeRequest(validBody));
 
     expect(response.status).toBe(404);
   });
 
-  it("test_POST_locked_video_does_not_record_session", async () => {
-    // ロックされた動画では視聴ログ記録まで進まない
-    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
-    mockCanWatchVideo.mockResolvedValue(false);
-
-    await POST(makeRequest(validBody));
-
-    expect(mockRecord).not.toHaveBeenCalled();
-  });
-
   it("test_POST_all_404_paths_return_same_body", async () => {
     // 存在しない動画・認可外・未公開・ロックされた動画はすべて同じ 404 本文
     // （videoId の存在状態を本文差分で推測できないことを保証する）
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockRecord.mockRejectedValue(new VideoNotFoundError("video-1"));
 
-    mockGetVideo.mockRejectedValue(new VideoNotFoundError("video-1"));
-    const resNotFound = await POST(makeRequest(validBody));
-
-    mockGetVideo.mockResolvedValue(mockVideo);
-    mockCanAccessCourse.mockResolvedValue(false);
-    const resNoAccess = await POST(makeRequest(validBody));
-
-    mockCanAccessCourse.mockResolvedValue(true);
-    mockGetVideo.mockResolvedValue({ ...mockVideo, isPublished: false });
-    const resUnpublished = await POST(makeRequest(validBody));
-
-    mockGetVideo.mockResolvedValue(mockVideo);
-    mockCanWatchVideo.mockResolvedValue(false);
-    const resLocked = await POST(makeRequest(validBody));
+    const [resNotFound, resNoAccess, resUnpublished, resLocked] = await Promise.all([
+      POST(makeRequest(validBody)),
+      POST(makeRequest(validBody)),
+      POST(makeRequest(validBody)),
+      POST(makeRequest(validBody)),
+    ]);
 
     const bodies = await Promise.all([
       resNotFound.json(),

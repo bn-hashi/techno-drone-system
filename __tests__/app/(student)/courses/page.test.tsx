@@ -85,7 +85,7 @@ describe("CoursesPage", () => {
     expect(notFound).toHaveBeenCalled();
   });
 
-  it("test_page_beginner_student_sees_only_beginner_courses", async () => {
+  it("test_page_beginner_student_sees_beginner_course", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockGetUserById.mockResolvedValue({ id: "user-1", courseType: CourseType.BEGINNER });
     mockListCourses.mockResolvedValue([beginnerCourse, experiencedCourse]);
@@ -94,6 +94,16 @@ describe("CoursesPage", () => {
     render(page as React.ReactElement);
 
     expect(screen.getByText("基礎コース")).toBeInTheDocument();
+  });
+
+  it("test_page_beginner_student_does_not_see_experienced_course", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetUserById.mockResolvedValue({ id: "user-1", courseType: CourseType.BEGINNER });
+    mockListCourses.mockResolvedValue([beginnerCourse, experiencedCourse]);
+
+    const page = await CoursesPage();
+    render(page as React.ReactElement);
+
     expect(screen.queryByText("経験者コース")).not.toBeInTheDocument();
   });
 
@@ -111,7 +121,7 @@ describe("CoursesPage", () => {
     );
   });
 
-  it("test_page_null_courseType_student_sees_empty_list", async () => {
+  it("test_page_null_courseType_student_does_not_see_beginner_course", async () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockGetUserById.mockResolvedValue({ id: "user-1", courseType: null });
     mockListCourses.mockResolvedValue([beginnerCourse, experiencedCourse]);
@@ -120,7 +130,35 @@ describe("CoursesPage", () => {
     render(page as React.ReactElement);
 
     expect(screen.queryByText("基礎コース")).not.toBeInTheDocument();
+  });
+
+  it("test_page_null_courseType_student_does_not_see_experienced_course", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetUserById.mockResolvedValue({ id: "user-1", courseType: null });
+    mockListCourses.mockResolvedValue([beginnerCourse, experiencedCourse]);
+
+    const page = await CoursesPage();
+    render(page as React.ReactElement);
+
     expect(screen.queryByText("経験者コース")).not.toBeInTheDocument();
+  });
+
+  it("test_page_inactive_student_throws_error", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "u-1", role: UserRole.STUDENT, status: UserStatus.PENDING_ACTIVATION },
+    });
+
+    await expect(CoursesPage()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("test_page_inactive_student_calls_notFound", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "u-1", role: UserRole.STUDENT, status: UserStatus.PENDING_ACTIVATION },
+    });
+
+    await CoursesPage().catch(() => {});
+
+    expect(notFound).toHaveBeenCalled();
   });
 
   it("test_page_does_not_call_listCourses_when_unauthenticated", async () => {
