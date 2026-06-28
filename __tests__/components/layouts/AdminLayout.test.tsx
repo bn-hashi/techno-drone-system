@@ -26,7 +26,7 @@ describe("AdminLayout", () => {
     render(<AdminLayout>コンテンツ</AdminLayout>);
 
     // Assert
-    expect(screen.getByText("受講者一覧")).toBeInTheDocument();
+    expect(screen.getByText("受講者管理")).toBeInTheDocument();
   });
 
   it("test_AdminLayout_on_render_navigation_link_applications_is_displayed", () => {
@@ -49,23 +49,29 @@ describe("AdminLayout", () => {
     // Arrange / Act
     render(<AdminLayout>コンテンツ</AdminLayout>);
 
-    // Assert: コース管理ページの実体は /courses (route group はURLに出ない)
-    expect(screen.getByRole("link", { name: "コース管理" })).toHaveAttribute("href", "/courses");
+    // Assert
+    expect(screen.getByRole("link", { name: "コース管理" })).toHaveAttribute(
+      "href",
+      "/admin/courses"
+    );
   });
 
   it("test_AdminLayout_video_link_points_to_existing_videos_url", () => {
     // Arrange / Act
     render(<AdminLayout>コンテンツ</AdminLayout>);
 
-    // Assert: 動画管理ページの実体は /videos
-    expect(screen.getByRole("link", { name: "動画管理" })).toHaveAttribute("href", "/videos");
+    // Assert
+    expect(screen.getByRole("link", { name: "動画管理" })).toHaveAttribute("href", "/admin/videos");
   });
 
   it("test_AdminLayout_question_link_points_to_existing_questions_url", () => {
     // Arrange / Act
     render(<AdminLayout>コンテンツ</AdminLayout>);
 
-    // Assert: 問題バンクページの実体は /questions
-    expect(screen.getByRole("link", { name: "問題バンク" })).toHaveAttribute("href", "/questions");
+    // Assert
+    expect(screen.getByRole("link", { name: "問題バンク" })).toHaveAttribute(
+      "href",
+      "/admin/questions"
+    );
   });
 });
