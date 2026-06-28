@@ -52,4 +52,31 @@ describe("StudentLayout", () => {
     // Assert
     expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
   });
+
+  it("test_StudentLayout_dashboard_link_href_points_to_student", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "ダッシュボード" })).toHaveAttribute(
+      "href",
+      "/student"
+    );
+  });
+
+  it("test_StudentLayout_course_link_href_points_to_courses", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "受講" })).toHaveAttribute("href", "/courses");
+  });
+
+  it("test_StudentLayout_exam_link_href_points_to_exams", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "試験" })).toHaveAttribute("href", "/exams");
+  });
 });
