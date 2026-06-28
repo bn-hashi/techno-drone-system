@@ -11,6 +11,18 @@ const nextConfig = {
       "@react-pdf/renderer",
     ],
   },
+  async redirects() {
+    return [
+      { source: "/videos", destination: "/admin/videos", permanent: false },
+      { source: "/questions", destination: "/admin/questions", permanent: false },
+      { source: "/exam-results", destination: "/admin/exam-results", permanent: false },
+      {
+        source: "/students/:id",
+        destination: "/admin/students/:id",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
