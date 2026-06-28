@@ -46,11 +46,26 @@ beforeEach(() => {
 });
 
 describe("CourseVideosPage", () => {
-  it("test_page_unauthenticated_calls_notFound", async () => {
+  it("test_page_unauthenticated_throws_error", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("test_page_unauthenticated_calls_notFound", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(null);
+
+    await CourseVideosPage({ params }).catch(() => {});
+
     expect(notFound).toHaveBeenCalled();
+  });
+
+  it("test_page_admin_role_throws_error", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "u-1", role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+    });
+
+    await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("test_page_admin_role_calls_notFound", async () => {
@@ -58,18 +73,26 @@ describe("CourseVideosPage", () => {
       user: { id: "u-1", role: UserRole.ADMIN, status: UserStatus.ACTIVE },
     });
 
-    await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
+    await CourseVideosPage({ params }).catch(() => {});
+
     expect(notFound).toHaveBeenCalled();
+  });
+
+  it("test_page_inaccessible_course_throws_error", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockCanAccessCourse.mockResolvedValue(false);
+    mockGetVideosWithLockStatus.mockResolvedValue([lockedVideo]);
+
+    await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("test_page_inaccessible_course_calls_notFound", async () => {
     // 別 CourseType のコースは存在秘匿のため notFound
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockCanAccessCourse.mockResolvedValue(false);
-    // 認可で弾く前に動画一覧を取得しないことを確認するため、空配列以外を返す
-    mockGetVideosWithLockStatus.mockResolvedValue([lockedVideo]);
 
-    await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
+    await CourseVideosPage({ params }).catch(() => {});
+
     expect(notFound).toHaveBeenCalled();
   });
 
@@ -77,7 +100,8 @@ describe("CourseVideosPage", () => {
     vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
     mockCanAccessCourse.mockResolvedValue(false);
 
-    await expect(CourseVideosPage({ params })).rejects.toThrow("NEXT_NOT_FOUND");
+    await CourseVideosPage({ params }).catch(() => {});
+
     expect(mockGetVideosWithLockStatus).not.toHaveBeenCalled();
   });
 

@@ -106,6 +106,13 @@ describe("CourseAccessService", () => {
       const result = await service.canAccessCourse("nonexistent-user", "course-beginner");
 
       expect(result).toBe(false);
+    });
+
+    it("test_canAccessCourse_user_not_found_does_not_call_course_repo", async () => {
+      mockUserRepo.findById.mockResolvedValue(null);
+
+      await service.canAccessCourse("nonexistent-user", "course-beginner");
+
       expect(mockCourseRepo.findById).not.toHaveBeenCalled();
     });
 
@@ -128,6 +135,17 @@ describe("CourseAccessService", () => {
       const result = await service.canAccessCourse("user-beginner", "course-beginner");
 
       expect(result).toBe(false);
+    });
+
+    it("test_canAccessCourse_user_courseType_null_does_not_call_course_repo", async () => {
+      const studentWithNullCourseType: User = {
+        ...mockBeginnerStudent,
+        courseType: null,
+      };
+      mockUserRepo.findById.mockResolvedValue(studentWithNullCourseType);
+
+      await service.canAccessCourse("user-beginner", "course-beginner");
+
       expect(mockCourseRepo.findById).not.toHaveBeenCalled();
     });
 
@@ -141,6 +159,17 @@ describe("CourseAccessService", () => {
       const result = await service.canAccessCourse("user-beginner", "course-beginner");
 
       expect(result).toBe(false);
+    });
+
+    it("test_canAccessCourse_student_status_pending_does_not_call_course_repo", async () => {
+      const pendingStudent: User = {
+        ...mockBeginnerStudent,
+        status: UserStatus.PENDING_REGISTRATION,
+      };
+      mockUserRepo.findById.mockResolvedValue(pendingStudent);
+
+      await service.canAccessCourse("user-beginner", "course-beginner");
+
       expect(mockCourseRepo.findById).not.toHaveBeenCalled();
     });
 
@@ -168,6 +197,19 @@ describe("CourseAccessService", () => {
       const result = await service.canAccessCourse("user-admin", "course-beginner");
 
       expect(result).toBe(false);
+    });
+
+    it("test_canAccessCourse_admin_user_does_not_call_course_repo", async () => {
+      const adminUser: User = {
+        ...mockBeginnerStudent,
+        id: "user-admin",
+        role: UserRole.ADMIN,
+        courseType: CourseType.BEGINNER,
+      };
+      mockUserRepo.findById.mockResolvedValue(adminUser);
+
+      await service.canAccessCourse("user-admin", "course-beginner");
+
       expect(mockCourseRepo.findById).not.toHaveBeenCalled();
     });
 
