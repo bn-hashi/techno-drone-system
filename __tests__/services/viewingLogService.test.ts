@@ -140,6 +140,7 @@ describe("ViewingLogService", () => {
       await service.recordSession(validInput).catch(() => undefined);
 
       expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
 
     it("test_recordSession_video_not_published_throws_VideoNotFoundError", async () => {
@@ -154,6 +155,7 @@ describe("ViewingLogService", () => {
       await service.recordSession(validInput).catch(() => undefined);
 
       expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
 
     it("test_recordSession_watch_permission_denied_throws_VideoNotFoundError", async () => {
@@ -170,6 +172,7 @@ describe("ViewingLogService", () => {
       await service.recordSession(validInput).catch(() => undefined);
 
       expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
 
     it("test_recordSession_watchedSeconds_exceeds_duration_throws_BusinessError", async () => {
