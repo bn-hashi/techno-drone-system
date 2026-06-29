@@ -12,6 +12,7 @@ import { ViewingLogService } from "@/services/viewingLogService";
 import type { IViewingLogRepository } from "@/repositories/viewingLogRepository";
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
+import type { ICourseAccessService } from "@/services/courseAccessService";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 
 describe("ViewingLogService", () => {
@@ -19,6 +20,8 @@ describe("ViewingLogService", () => {
   let mockLogRepo: Mocked<IViewingLogRepository>;
   let mockVideoRepo: Mocked<IVideoRepository>;
   let mockSubjectProgressRepo: Mocked<ISubjectProgressRepository>;
+  let mockCourseAccessService: Mocked<ICourseAccessService>;
+  let mockWatchChecker: { canWatchVideo: ReturnType<typeof vi.fn> };
 
   // テスト中のサーバー現在時刻を固定する基準
   const NOW = new Date("2026-05-18T10:00:30.000Z");
@@ -74,6 +77,14 @@ describe("ViewingLogService", () => {
       delete: vi.fn(),
     } as Mocked<IVideoRepository>;
 
+    mockCourseAccessService = {
+      canAccessCourse: vi.fn().mockResolvedValue(true),
+    } as Mocked<ICourseAccessService>;
+
+    mockWatchChecker = {
+      canWatchVideo: vi.fn().mockResolvedValue(true),
+    };
+
     // 各テストで明示的に上書きしない限り、初回扱い (前回ログなし) を既定とする
     mockLogRepo.findLatestCreatedAtByUserVideo.mockResolvedValue(null);
     mockLogRepo.sumWatchedSecondsByUserSubject.mockResolvedValue(0);
@@ -86,7 +97,13 @@ describe("ViewingLogService", () => {
       updatedAt: new Date(),
     });
 
-    service = new ViewingLogService(mockLogRepo, mockVideoRepo, mockSubjectProgressRepo);
+    service = new ViewingLogService(
+      mockLogRepo,
+      mockVideoRepo,
+      mockSubjectProgressRepo,
+      mockCourseAccessService,
+      mockWatchChecker
+    );
   });
 
   afterEach(() => {
@@ -107,6 +124,55 @@ describe("ViewingLogService", () => {
       mockVideoRepo.findById.mockResolvedValue(null);
 
       await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_course_access_denied_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockCourseAccessService.canAccessCourse.mockResolvedValue(false);
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_course_access_denied_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockCourseAccessService.canAccessCourse.mockResolvedValue(false);
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it("test_recordSession_video_not_published_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue({ ...mockVideo, isPublished: false });
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_video_not_published_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue({ ...mockVideo, isPublished: false });
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it("test_recordSession_watch_permission_denied_throws_VideoNotFoundError", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockWatchChecker.canWatchVideo.mockResolvedValue(false);
+
+      await expect(service.recordSession(validInput)).rejects.toThrow(VideoNotFoundError);
+    });
+
+    it("test_recordSession_watch_permission_denied_skips_persistence", async () => {
+      mockVideoRepo.findById.mockResolvedValue(mockVideo);
+      mockWatchChecker.canWatchVideo.mockResolvedValue(false);
+
+      await service.recordSession(validInput).catch(() => undefined);
+
+      expect(mockLogRepo.create).not.toHaveBeenCalled();
+      expect(mockSubjectProgressRepo.upsert).not.toHaveBeenCalled();
     });
 
     it("test_recordSession_watchedSeconds_exceeds_duration_throws_BusinessError", async () => {

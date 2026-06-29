@@ -4,13 +4,15 @@ import { UserRole, UserStatus } from "@/types/prisma";
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/serviceFactory", () => ({
   getProgressService: vi.fn(),
+  getCourseAccessService: vi.fn(),
 }));
 
 import { getServerSession } from "next-auth";
-import { getProgressService } from "@/lib/serviceFactory";
+import { getProgressService, getCourseAccessService } from "@/lib/serviceFactory";
 import { GET } from "@/app/api/student/courses/[courseId]/videos/route";
 
 const mockGetVideosWithLockStatus = vi.fn();
+const mockCanAccessCourse = vi.fn();
 
 const activeStudentSession = {
   user: { id: "user-1", role: UserRole.STUDENT, status: UserStatus.ACTIVE },
@@ -38,6 +40,11 @@ beforeEach(() => {
     getVideosWithLockStatus: mockGetVideosWithLockStatus,
     getProgressByUser: vi.fn(),
   } as unknown as ReturnType<typeof getProgressService>);
+  vi.mocked(getCourseAccessService).mockReturnValue({
+    canAccessCourse: mockCanAccessCourse,
+  } as unknown as ReturnType<typeof getCourseAccessService>);
+  // デフォルトでアクセス許可（既存テストに影響を出さない）
+  mockCanAccessCourse.mockResolvedValue(true);
 });
 
 describe("GET /api/student/courses/[courseId]/videos", () => {
@@ -107,5 +114,35 @@ describe("GET /api/student/courses/[courseId]/videos", () => {
     await GET(new Request("http://localhost/"), { params });
 
     expect(mockGetVideosWithLockStatus).toHaveBeenCalledWith("user-1", "course-1");
+  });
+
+  it("test_GET_inaccessible_course_returns_404", async () => {
+    // 別 CourseType のコース等、認可されない場合は存在秘匿のため 404
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockCanAccessCourse.mockResolvedValue(false);
+    mockGetVideosWithLockStatus.mockResolvedValue([{ ...video1, isLocked: false }]);
+
+    const response = await GET(new Request("http://localhost/"), { params });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("test_GET_inaccessible_course_does_not_call_progress_service", async () => {
+    // 認可で弾いた場合、コース内動画の取得まで進まない
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockCanAccessCourse.mockResolvedValue(false);
+
+    await GET(new Request("http://localhost/"), { params });
+
+    expect(mockGetVideosWithLockStatus).not.toHaveBeenCalled();
+  });
+
+  it("test_GET_checks_access_with_userId_and_courseId", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(activeStudentSession);
+    mockGetVideosWithLockStatus.mockResolvedValue([]);
+
+    await GET(new Request("http://localhost/"), { params });
+
+    expect(mockCanAccessCourse).toHaveBeenCalledWith("user-1", "course-1");
   });
 });

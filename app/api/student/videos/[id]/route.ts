@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getVideoService, getViewingLogService, getProgressService } from "@/lib/serviceFactory";
+import {
+  getVideoService,
+  getViewingLogService,
+  getProgressService,
+  getCourseAccessService,
+} from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
 import { VideoNotFoundError } from "@/services/errors";
 
@@ -25,7 +30,15 @@ export async function GET(
   try {
     const video = await getVideoService().getVideo(params.id);
     if (!video.isPublished) {
-      return NextResponse.json({ error: "動画が見つかりません" }, { status: 404 });
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    }
+    // IDOR 対策: 自分の CourseType と一致しないコースの動画は存在秘匿のため 404
+    const canAccess = await getCourseAccessService().canAccessCourse(
+      session.user.id,
+      video.courseId
+    );
+    if (!canAccess) {
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
     // 受講順序制御: 前の動画を 80% 視聴していないと視聴不可
     const canWatch = await getProgressService().canWatchVideo(session.user.id, video.id);
@@ -39,7 +52,7 @@ export async function GET(
     return NextResponse.json({ video, maxWatchedSeconds }, { status: 200 });
   } catch (err) {
     if (err instanceof VideoNotFoundError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }

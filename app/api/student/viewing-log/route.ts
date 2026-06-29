@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ log }, { status: 201 });
   } catch (err) {
     if (err instanceof VideoNotFoundError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
