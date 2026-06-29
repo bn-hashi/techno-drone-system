@@ -79,4 +79,39 @@ describe("StudentLayout", () => {
     // Assert
     expect(screen.getByRole("link", { name: "試験" })).toHaveAttribute("href", "/exams");
   });
+
+  it("test_StudentLayout_on_render_navigation_link_qa_is_displayed", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByText("質疑応答")).toBeInTheDocument();
+  });
+
+  it("test_StudentLayout_qa_link_href_points_to_qa", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "質疑応答" })).toHaveAttribute("href", "/qa");
+  });
+
+  it("test_StudentLayout_on_render_navigation_link_certificate_is_displayed", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByText("修了証明書")).toBeInTheDocument();
+  });
+
+  it("test_StudentLayout_certificate_link_href_points_to_certificate", () => {
+    // Arrange / Act
+    render(<StudentLayout>コンテンツ</StudentLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "修了証明書" })).toHaveAttribute(
+      "href",
+      "/certificate"
+    );
+  });
 });
