@@ -380,5 +380,6 @@ model Aircraft {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, isActive])
   @@map("aircrafts")
 }

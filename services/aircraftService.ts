@@ -1,4 +1,4 @@
-import type { Aircraft } from "@prisma/client";
+import { Prisma, type Aircraft } from "@prisma/client";
 import type {
   IAircraftRepository,
   CreateAircraftInput,
@@ -49,7 +49,14 @@ export class AircraftService {
       throw new AircraftDuplicateSerialError(input.serialNumber);
     }
 
-    return this.repo.create(input);
+    try {
+      return await this.repo.create(input);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new AircraftDuplicateSerialError(input.serialNumber);
+      }
+      throw error;
+    }
   }
 
   async update(id: string, data: UpdateAircraftInput, context: AccessContext): Promise<Aircraft> {
@@ -64,19 +71,23 @@ export class AircraftService {
   }
 
   private validateUpdateInput(data: UpdateAircraftInput): void {
-    if (data.weightGrams !== undefined && data.weightGrams < MIN_WEIGHT_GRAMS) {
-      throw new BusinessError("機体重量は 1g 以上で入力してください");
+    if (data.weightGrams !== undefined) {
+      if (!Number.isFinite(data.weightGrams) || data.weightGrams < MIN_WEIGHT_GRAMS) {
+        throw new BusinessError("機体重量は 1g 以上で入力してください");
+      }
     }
-    if (data.maxFlightTimeMin !== undefined && data.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
-      throw new BusinessError("最大飛行時間は 1 分以上で入力してください");
+    if (data.maxFlightTimeMin !== undefined) {
+      if (!Number.isFinite(data.maxFlightTimeMin) || data.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
+        throw new BusinessError("最大飛行時間は 1 分以上で入力してください");
+      }
     }
   }
 
   private validateCreateInput(input: CreateAircraftInput): void {
-    if (input.weightGrams < MIN_WEIGHT_GRAMS) {
+    if (!Number.isFinite(input.weightGrams) || input.weightGrams < MIN_WEIGHT_GRAMS) {
       throw new BusinessError("機体重量は 1g 以上で入力してください");
     }
-    if (input.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
+    if (!Number.isFinite(input.maxFlightTimeMin) || input.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
       throw new BusinessError("最大飛行時間は 1 分以上で入力してください");
     }
   }

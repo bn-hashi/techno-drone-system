@@ -38,11 +38,15 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...form,
+        registrationNumber: form.registrationNumber || undefined,
+      };
       if (isEdit && initialData) {
-        await updateAircraft(initialData.id, form);
+        await updateAircraft(initialData.id, submitData);
         router.push(`/flight/aircraft/${initialData.id}`);
       } else {
-        const created = await createAircraft(form);
+        const created = await createAircraft(submitData);
         router.push(`/flight/aircraft/${created.id}`);
       }
       router.refresh();
@@ -62,10 +66,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-name" className="block text-sm font-medium text-gray-700 mb-1">
           機体名 <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-name"
           type="text"
           name="name"
           value={form.name}
@@ -76,10 +81,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-manufacturer" className="block text-sm font-medium text-gray-700 mb-1">
           製造メーカー <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-manufacturer"
           type="text"
           name="manufacturer"
           value={form.manufacturer}
@@ -90,10 +96,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-model-number" className="block text-sm font-medium text-gray-700 mb-1">
           型式番号 <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-model-number"
           type="text"
           name="modelNumber"
           value={form.modelNumber}
@@ -104,10 +111,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-serial-number" className="block text-sm font-medium text-gray-700 mb-1">
           シリアル番号 <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-serial-number"
           type="text"
           name="serialNumber"
           value={form.serialNumber}
@@ -119,10 +127,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-weight-grams" className="block text-sm font-medium text-gray-700 mb-1">
           機体重量 (g) <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-weight-grams"
           type="number"
           name="weightGrams"
           value={form.weightGrams}
@@ -134,10 +143,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-max-flight-time" className="block text-sm font-medium text-gray-700 mb-1">
           最大飛行時間 (分) <span className="text-red-500">*</span>
         </label>
         <input
+          id="aircraft-max-flight-time"
           type="number"
           name="maxFlightTimeMin"
           value={form.maxFlightTimeMin}
@@ -149,10 +159,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="aircraft-registration-number" className="block text-sm font-medium text-gray-700 mb-1">
           登録記号（国土交通省）
         </label>
         <input
+          id="aircraft-registration-number"
           type="text"
           name="registrationNumber"
           value={form.registrationNumber ?? ""}

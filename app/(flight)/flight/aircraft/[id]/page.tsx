@@ -105,7 +105,7 @@ export default async function AircraftDetailPage({ params }: AircraftDetailPageP
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">登録日</dt>
             <dd className="text-sm text-gray-900">
-              {new Date(aircraft.createdAt).toLocaleDateString("ja-JP")}
+              {new Date(aircraft.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
             </dd>
           </div>
         </dl>

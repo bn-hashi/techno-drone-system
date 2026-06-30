@@ -32,6 +32,7 @@ export function DeactivateButton({ aircraftId }: DeactivateButtonProps) {
     <>
       {error && <p className="text-xs text-red-600 self-center">{error}</p>}
       <button
+        type="button"
         onClick={handleDeactivate}
         disabled={isLoading}
         className="px-3 py-1.5 bg-red-50 border border-red-300 text-red-700 text-sm rounded hover:bg-red-100 disabled:opacity-50"
