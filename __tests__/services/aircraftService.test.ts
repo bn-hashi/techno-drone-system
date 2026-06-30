@@ -44,25 +44,59 @@ describe("AircraftService", () => {
   });
 
   describe("list", () => {
-    it("test_list_returns_active_aircrafts_for_pilot", async () => {
+    it("test_list_pilot_calls_findAllByUser_with_activeonly_true", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findAllByUser).mockResolvedValue([aircraft]);
+
+      await service.list({ userId: "user-1", isAdmin: false });
+
+      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", true);
+    });
+
+    it("test_list_pilot_returns_one_aircraft", async () => {
       const aircraft = makeAircraft();
       vi.mocked(repo.findAllByUser).mockResolvedValue([aircraft]);
 
       const result = await service.list({ userId: "user-1", isAdmin: false });
 
-      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", true);
       expect(result).toHaveLength(1);
+    });
+
+    it("test_list_pilot_returns_correct_aircraft_id", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findAllByUser).mockResolvedValue([aircraft]);
+
+      const result = await service.list({ userId: "user-1", isAdmin: false });
+
       expect(result[0].id).toBe("aircraft-1");
     });
 
-    it("test_list_returns_all_aircrafts_for_admin", async () => {
+    it("test_list_admin_calls_findAll_with_activeonly_true", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findAll).mockResolvedValue([aircraft]);
+
+      await service.list({ userId: "admin-1", isAdmin: true });
+
+      expect(repo.findAll).toHaveBeenCalledWith(true);
+    });
+
+    it("test_list_admin_returns_one_aircraft", async () => {
       const aircraft = makeAircraft();
       vi.mocked(repo.findAll).mockResolvedValue([aircraft]);
 
       const result = await service.list({ userId: "admin-1", isAdmin: true });
 
-      expect(repo.findAll).toHaveBeenCalledWith(true);
       expect(result).toHaveLength(1);
+    });
+
+    it("test_list_pilot_calls_findAllByUser_with_activeonly_false", async () => {
+      const active = makeAircraft({ id: "a1" });
+      const inactive = makeAircraft({ id: "a2", isActive: false });
+      vi.mocked(repo.findAllByUser).mockResolvedValue([active, inactive]);
+
+      await service.list({ userId: "user-1", isAdmin: false, activeOnly: false });
+
+      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", false);
     });
 
     it("test_list_includes_inactive_when_flag_false", async () => {
@@ -72,7 +106,6 @@ describe("AircraftService", () => {
 
       const result = await service.list({ userId: "user-1", isAdmin: false, activeOnly: false });
 
-      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", false);
       expect(result).toHaveLength(2);
     });
   });
