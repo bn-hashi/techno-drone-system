@@ -100,3 +100,19 @@ export class QuestionNotFoundError extends NotFoundError {
     this.name = "QuestionNotFoundError";
   }
 }
+
+/** 機体が見つからない (404 Not Found 相当) */
+export class AircraftNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された機体が見つかりません");
+    this.name = "AircraftNotFoundError";
+  }
+}
+
+/** 機体のシリアル番号重複 (409 Conflict 相当) */
+export class AircraftDuplicateSerialError extends BusinessError {
+  constructor(_serialNumber: string) {
+    super("このシリアル番号の機体はすでに登録されています");
+    this.name = "AircraftDuplicateSerialError";
+  }
+}
