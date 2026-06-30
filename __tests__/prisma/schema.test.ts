@@ -38,9 +38,13 @@ describe("UserRole enum", () => {
     expect(UserRole.STUDENT).toBe("STUDENT");
   });
 
-  it("test_user_role_has_exactly_two_values", () => {
+  it("test_user_role_has_pilot_value", () => {
+    expect(UserRole.PILOT).toBe("PILOT");
+  });
+
+  it("test_user_role_has_exactly_three_values", () => {
     const values = Object.values(UserRole);
-    expect(values).toHaveLength(2);
+    expect(values).toHaveLength(3);
   });
 });
 
