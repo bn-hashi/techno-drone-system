@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AircraftService } from "@/services/aircraftService";
 import type { IAircraftRepository } from "@/repositories/aircraftRepository";
-import { AircraftNotFoundError, AircraftDuplicateSerialError } from "@/services/errors";
+import {
+  AircraftNotFoundError,
+  AircraftDuplicateSerialError,
+  BusinessError,
+} from "@/services/errors";
 import type { Aircraft } from "@prisma/client";
 
 const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft => ({
@@ -27,6 +31,7 @@ const mockRepo = (): IAircraftRepository => ({
   findBySerialNumber: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  deactivate: vi.fn(),
 });
 
 describe("AircraftService", () => {
@@ -186,18 +191,36 @@ describe("AircraftService", () => {
         service.update("aircraft-1", { name: "X" }, { userId: "user-1", isAdmin: false })
       ).rejects.toThrow(AircraftNotFoundError);
     });
+
+    it("test_update_rejects_weight_zero", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+
+      await expect(
+        service.update("aircraft-1", { weightGrams: 0 }, { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_update_rejects_flight_time_zero", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+
+      await expect(
+        service.update("aircraft-1", { maxFlightTimeMin: 0 }, { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow(BusinessError);
+    });
   });
 
   describe("deactivate", () => {
-    it("test_deactivate_sets_is_active_false", async () => {
+    it("test_deactivate_calls_repo_deactivate", async () => {
       const aircraft = makeAircraft();
       const deactivated = makeAircraft({ isActive: false });
       vi.mocked(repo.findById).mockResolvedValue(aircraft);
-      vi.mocked(repo.update).mockResolvedValue(deactivated);
+      vi.mocked(repo.deactivate).mockResolvedValue(deactivated);
 
       const result = await service.deactivate("aircraft-1", { userId: "user-1", isAdmin: false });
 
-      expect(repo.update).toHaveBeenCalledWith("aircraft-1", { isActive: false });
+      expect(repo.deactivate).toHaveBeenCalledWith("aircraft-1");
       expect(result.isActive).toBe(false);
     });
 

@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { getAircraftService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { hasFlightAccess } from "@/lib/auth/flightPermissions";
 import { AircraftNotFoundError, BusinessError } from "@/services/errors";
+
+const UpdateAircraftSchema = z.object({
+  name: z.string().min(1).optional(),
+  manufacturer: z.string().min(1).optional(),
+  modelNumber: z.string().min(1).optional(),
+  weightGrams: z.number().int().positive().optional(),
+  maxFlightTimeMin: z.number().int().positive().optional(),
+  registrationNumber: z.string().optional(),
+});
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -47,14 +57,18 @@ export async function PUT(request: Request, { params }: RouteContext): Promise<N
   }
 
   const { id } = await params;
-  const body = await request.json().catch(() => null);
-  if (!body) {
+  const rawBody = await request.json().catch(() => null);
+  if (!rawBody) {
     return NextResponse.json({ error: "リクエストボディが不正です" }, { status: 400 });
+  }
+  const parsed = UpdateAircraftSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "入力値が不正です" }, { status: 400 });
   }
 
   try {
     const service = getAircraftService();
-    const aircraft = await service.update(id, body, {
+    const aircraft = await service.update(id, parsed.data, {
       userId: session.user.id,
       isAdmin: role === UserRole.ADMIN,
     });

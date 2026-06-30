@@ -19,7 +19,6 @@ export interface UpdateAircraftInput {
   weightGrams?: number;
   maxFlightTimeMin?: number;
   registrationNumber?: string;
-  isActive?: boolean;
 }
 
 export interface IAircraftRepository {
@@ -29,6 +28,7 @@ export interface IAircraftRepository {
   findBySerialNumber(serialNumber: string): Promise<Aircraft | null>;
   create(data: CreateAircraftInput): Promise<Aircraft>;
   update(id: string, data: UpdateAircraftInput): Promise<Aircraft>;
+  deactivate(id: string): Promise<Aircraft>;
 }
 
 export class AircraftRepository implements IAircraftRepository {
@@ -66,5 +66,10 @@ export class AircraftRepository implements IAircraftRepository {
   async update(id: string, data: UpdateAircraftInput): Promise<Aircraft> {
     const prisma = getPrisma();
     return prisma.aircraft.update({ where: { id }, data });
+  }
+
+  async deactivate(id: string): Promise<Aircraft> {
+    const prisma = getPrisma();
+    return prisma.aircraft.update({ where: { id }, data: { isActive: false } });
   }
 }
