@@ -63,32 +63,63 @@ describe("GET /api/admin/fraud-flags", () => {
     expect(response.status).toBe(403);
   });
 
-  it("test_GET_admin_returns_200_with_flags", async () => {
+  it("test_GET_admin_with_flags_returns_status_200", async () => {
     // Arrange
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListAllFlags.mockResolvedValue([mockFlagWithUser]);
 
     // Act
     const response = await GET();
-    const body = await response.json();
 
     // Assert
     expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_with_flags_returns_success_true", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListAllFlags.mockResolvedValue([mockFlagWithUser]);
+
+    // Act
+    const body = await (await GET()).json();
+
+    // Assert
     expect(body.success).toBe(true);
+  });
+
+  it("test_GET_admin_with_flags_returns_flags_data", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListAllFlags.mockResolvedValue([mockFlagWithUser]);
+
+    // Act
+    const body = await (await GET()).json();
+
+    // Assert
     expect(body.data).toHaveLength(1);
   });
 
-  it("test_GET_admin_returns_empty_array_when_no_flags", async () => {
+  it("test_GET_admin_no_flags_returns_status_200", async () => {
     // Arrange
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListAllFlags.mockResolvedValue([]);
 
     // Act
     const response = await GET();
-    const body = await response.json();
 
     // Assert
     expect(response.status).toBe(200);
+  });
+
+  it("test_GET_admin_no_flags_returns_empty_data", async () => {
+    // Arrange
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListAllFlags.mockResolvedValue([]);
+
+    // Act
+    const body = await (await GET()).json();
+
+    // Assert
     expect(body.data).toEqual([]);
   });
 

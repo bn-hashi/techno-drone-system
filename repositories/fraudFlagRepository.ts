@@ -1,5 +1,5 @@
 import { getPrisma } from "@/lib/db";
-import { FraudFlag } from "@prisma/client";
+import { FraudFlag, Prisma } from "@prisma/client";
 import { FraudFlagType } from "@/types/prisma";
 
 export interface CreateFraudFlagInput {
@@ -8,9 +8,11 @@ export interface CreateFraudFlagInput {
   description?: string;
 }
 
-export type FraudFlagWithUser = FraudFlag & {
-  user: { id: string; name: string | null; email: string };
-};
+const fraudFlagWithUserArgs = {
+  include: { user: { select: { id: true, name: true, email: true } } },
+} satisfies Prisma.FraudFlagDefaultArgs;
+
+export type FraudFlagWithUser = Prisma.FraudFlagGetPayload<typeof fraudFlagWithUserArgs>;
 
 export interface IFraudFlagRepository {
   create(input: CreateFraudFlagInput): Promise<FraudFlag>;
@@ -36,7 +38,7 @@ export class FraudFlagRepository implements IFraudFlagRepository {
     const prisma = getPrisma();
     return prisma.fraudFlag.findMany({
       orderBy: { detectedAt: "desc" },
-      include: { user: { select: { id: true, name: true, email: true } } },
-    }) as Promise<FraudFlagWithUser[]>;
+      ...fraudFlagWithUserArgs,
+    });
   }
 }
