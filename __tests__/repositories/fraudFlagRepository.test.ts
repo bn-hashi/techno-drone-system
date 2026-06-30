@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FraudFlagRepository } from "@/repositories/fraudFlagRepository";
 import { FraudFlagType } from "@/types/prisma";
+import type { FraudFlagWithUser } from "@/repositories/fraudFlagRepository";
 
 const mockCreate = vi.fn();
 const mockFindMany = vi.fn();
@@ -87,6 +88,54 @@ describe("FraudFlagRepository", () => {
 
       // Assert
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("findAll", () => {
+    const mockFlagWithUser: FraudFlagWithUser = {
+      id: "flag-1",
+      userId: "user-1",
+      type: FraudFlagType.TAB_LEAVE,
+      description: "65 seconds away",
+      detectedAt: new Date("2026-01-01T10:00:00Z"),
+      resolvedAt: null,
+      user: { id: "user-1", name: "田中太郎", email: "tanaka@example.com" },
+    };
+
+    it("test_findAll_returns_all_flags_with_user", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([mockFlagWithUser]);
+
+      // Act
+      const result = await repository.findAll();
+
+      // Assert
+      expect(result).toEqual([mockFlagWithUser]);
+    });
+
+    it("test_findAll_returns_empty_array_when_no_flags", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([]);
+
+      // Act
+      const result = await repository.findAll();
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+
+    it("test_findAll_calls_prisma_with_orderBy_detectedAt_desc_and_user_include", async () => {
+      // Arrange
+      mockFindMany.mockResolvedValue([]);
+
+      // Act
+      await repository.findAll();
+
+      // Assert
+      expect(mockFindMany).toHaveBeenCalledWith({
+        orderBy: { detectedAt: "desc" },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
     });
   });
 });
