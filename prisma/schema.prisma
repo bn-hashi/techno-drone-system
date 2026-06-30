@@ -16,6 +16,7 @@ datasource db {
 enum UserRole {
   ADMIN
   STUDENT
+  PILOT
 }
 
 enum CourseType {
