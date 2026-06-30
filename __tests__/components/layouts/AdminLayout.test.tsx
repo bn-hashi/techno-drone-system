@@ -74,4 +74,23 @@ describe("AdminLayout", () => {
       "/admin/questions"
     );
   });
+
+  it("test_AdminLayout_fraud_flags_link_is_displayed", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByText("不正フラグ")).toBeInTheDocument();
+  });
+
+  it("test_AdminLayout_fraud_flags_link_points_to_correct_url", () => {
+    // Arrange / Act
+    render(<AdminLayout>コンテンツ</AdminLayout>);
+
+    // Assert
+    expect(screen.getByRole("link", { name: "不正フラグ" })).toHaveAttribute(
+      "href",
+      "/admin/fraud-flags"
+    );
+  });
 });
