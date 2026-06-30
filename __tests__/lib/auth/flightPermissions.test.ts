@@ -14,6 +14,11 @@ describe("FLIGHT_ROLES", () => {
   it("test_flight_roles_excludes_student", () => {
     expect(FLIGHT_ROLES).not.toContain(UserRole.STUDENT);
   });
+
+  it("test_flight_roles_contains_exactly_admin_and_pilot", () => {
+    expect(FLIGHT_ROLES).toHaveLength(2);
+    expect([...FLIGHT_ROLES].sort()).toEqual([UserRole.ADMIN, UserRole.PILOT].sort());
+  });
 });
 
 describe("hasFlightAccess", () => {
