@@ -1,5 +1,5 @@
 import type { FraudFlag } from "@prisma/client";
-import type { IFraudFlagRepository } from "@/repositories/fraudFlagRepository";
+import type { IFraudFlagRepository, FraudFlagWithUser } from "@/repositories/fraudFlagRepository";
 import { FraudFlagType } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
 import { TAB_LEAVE_THRESHOLD_SECONDS } from "@/lib/constants";
@@ -20,5 +20,9 @@ export class FraudFlagService {
       type: FraudFlagType.TAB_LEAVE,
       description: `タブ離脱 ${durationSeconds} 秒`,
     });
+  }
+
+  async listAllFlags(): Promise<FraudFlagWithUser[]> {
+    return this.repo.findAll();
   }
 }
