@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mocked } from "vitest";
 import { FraudFlagService } from "@/services/fraudFlagService";
-import type { IFraudFlagRepository } from "@/repositories/fraudFlagRepository";
+import type { IFraudFlagRepository, FraudFlagWithUser } from "@/repositories/fraudFlagRepository";
 import { FraudFlagType } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
 
@@ -17,10 +17,21 @@ describe("FraudFlagService", () => {
     resolvedAt: null,
   };
 
+  const mockFlagWithUser: FraudFlagWithUser = {
+    id: "flag-1",
+    userId: "user-1",
+    type: FraudFlagType.TAB_LEAVE,
+    description: "65 seconds",
+    detectedAt: new Date("2026-01-01T10:00:00Z"),
+    resolvedAt: null,
+    user: { id: "user-1", name: "田中太郎", email: "tanaka@example.com" },
+  };
+
   beforeEach(() => {
     mockRepo = {
       create: vi.fn(),
       findByUser: vi.fn(),
+      findAll: vi.fn(),
     } as Mocked<IFraudFlagRepository>;
     service = new FraudFlagService(mockRepo);
   });
@@ -62,5 +73,40 @@ describe("FraudFlagService", () => {
     mockRepo.create.mockResolvedValue(mockFlag);
 
     await expect(service.flagTabLeave("user-1", 61)).resolves.toBeDefined();
+  });
+
+  describe("listAllFlags", () => {
+    it("test_listAllFlags_returns_all_flags_from_repo", async () => {
+      // Arrange
+      mockRepo.findAll.mockResolvedValue([mockFlagWithUser]);
+
+      // Act
+      const result = await service.listAllFlags();
+
+      // Assert
+      expect(result).toEqual([mockFlagWithUser]);
+    });
+
+    it("test_listAllFlags_returns_empty_array_when_no_flags", async () => {
+      // Arrange
+      mockRepo.findAll.mockResolvedValue([]);
+
+      // Act
+      const result = await service.listAllFlags();
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+
+    it("test_listAllFlags_delegates_to_repo_findAll", async () => {
+      // Arrange
+      mockRepo.findAll.mockResolvedValue([]);
+
+      // Act
+      await service.listAllFlags();
+
+      // Assert
+      expect(mockRepo.findAll).toHaveBeenCalledOnce();
+    });
   });
 });
