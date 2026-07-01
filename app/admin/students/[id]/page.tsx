@@ -1,8 +1,12 @@
+import { getServerSession } from "next-auth";
+import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
-import { UserStatus } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
 import { InviteButton } from "./InviteButton";
+
+export const dynamic = "force-dynamic";
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_REGISTRATION: "入学申請受付前",
@@ -24,6 +28,11 @@ interface StudentDetailPageProps {
 }
 
 export default async function StudentDetailPage({ params }: StudentDetailPageProps) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== UserRole.ADMIN) {
+    redirect("/login");
+  }
+
   const student = await getUserManagementService().getUserById(params.id);
 
   if (!student) {
