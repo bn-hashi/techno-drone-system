@@ -23,9 +23,13 @@ export async function requireAdminSession(): Promise<void> {
  * 未認証または対象外ロールは /login へリダイレクトする。
  * Server Component / Server Action 専用。
  */
-export async function requireFlightSession(): Promise<void> {
+export async function requireFlightSession(): Promise<{ userId: string; role: UserRole }> {
   const session = await getServerSession(authOptions);
   if (!session?.user || !hasFlightAccess(session.user.role as UserRole)) {
     redirect("/login");
   }
+  return {
+    userId: session!.user.id,
+    role: session!.user.role as UserRole,
+  };
 }

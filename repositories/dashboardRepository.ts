@@ -24,53 +24,30 @@ export class DashboardRepository implements IDashboardRepository {
   async getStats(): Promise<DashboardStats> {
     const prisma = getPrisma();
 
-    const [
-      pendingRegistration,
-      pendingActivation,
-      active,
-      examPassed,
-      completed,
-      certified,
-      dipsLinked,
-      pendingApplications,
-      unresolvedFraudFlags,
-      unansweredQAs,
-    ] = await Promise.all([
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.PENDING_REGISTRATION },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.PENDING_ACTIVATION },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.ACTIVE },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.EXAM_PASSED },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.COMPLETED },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.CERTIFIED },
-      }),
-      prisma.user.count({
-        where: { role: UserRole.STUDENT, status: UserStatus.DIPS_LINKED },
-      }),
-      prisma.enrollmentApplication.count({ where: { acceptedAt: null } }),
-      prisma.fraudFlag.count({ where: { resolvedAt: null } }),
-      prisma.qARecord.count({ where: { answer: null } }),
-    ]);
+    const [userGroups, pendingApplications, unresolvedFraudFlags, unansweredQAs] =
+      await Promise.all([
+        prisma.user.groupBy({
+          by: ["status"],
+          where: { role: UserRole.STUDENT },
+          _count: { _all: true },
+        }),
+        prisma.enrollmentApplication.count({ where: { acceptedAt: null } }),
+        prisma.fraudFlag.count({ where: { resolvedAt: null } }),
+        prisma.qARecord.count({ where: { answer: null } }),
+      ]);
+
+    const countByStatus = (status: UserStatus): number =>
+      userGroups.find((g) => g.status === status)?._count._all ?? 0;
 
     return {
       studentsByStatus: {
-        pendingRegistration,
-        pendingActivation,
-        active,
-        examPassed,
-        completed,
-        certified,
-        dipsLinked,
+        pendingRegistration: countByStatus(UserStatus.PENDING_REGISTRATION),
+        pendingActivation: countByStatus(UserStatus.PENDING_ACTIVATION),
+        active: countByStatus(UserStatus.ACTIVE),
+        examPassed: countByStatus(UserStatus.EXAM_PASSED),
+        completed: countByStatus(UserStatus.COMPLETED),
+        certified: countByStatus(UserStatus.CERTIFIED),
+        dipsLinked: countByStatus(UserStatus.DIPS_LINKED),
       },
       pendingApplications,
       unresolvedFraudFlags,

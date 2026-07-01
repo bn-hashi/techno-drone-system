@@ -2,14 +2,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DashboardRepository } from "@/repositories/dashboardRepository";
 import { UserRole, UserStatus } from "@/types/prisma";
 
-const mockUserCount = vi.fn();
+const mockUserGroupBy = vi.fn();
 const mockApplicationCount = vi.fn();
 const mockFraudFlagCount = vi.fn();
 const mockQaRecordCount = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   getPrisma: () => ({
-    user: { count: mockUserCount },
+    user: { groupBy: mockUserGroupBy },
     enrollmentApplication: { count: mockApplicationCount },
     fraudFlag: { count: mockFraudFlagCount },
     qARecord: { count: mockQaRecordCount },
@@ -20,23 +20,25 @@ describe("DashboardRepository", () => {
   let repository: DashboardRepository;
 
   beforeEach(() => {
-    mockUserCount.mockReset();
+    mockUserGroupBy.mockReset();
     mockApplicationCount.mockReset();
     mockFraudFlagCount.mockReset();
     mockQaRecordCount.mockReset();
     repository = new DashboardRepository();
   });
 
-  const setupUserCountByStatus = (counts: Partial<Record<UserStatus, number>>) => {
-    mockUserCount.mockImplementation(({ where }: { where: { role: string; status: UserStatus } }) =>
-      Promise.resolve(counts[where.status] ?? 0)
-    );
+  const setupUserGroupByStatus = (counts: Partial<Record<UserStatus, number>>) => {
+    const groups = (Object.entries(counts) as [UserStatus, number][]).map(([status, count]) => ({
+      status,
+      _count: { _all: count },
+    }));
+    mockUserGroupBy.mockResolvedValue(groups);
   };
 
   describe("getStats", () => {
     it("test_getStats_returns_student_counts_by_status", async () => {
       // Arrange
-      setupUserCountByStatus({
+      setupUserGroupByStatus({
         [UserStatus.PENDING_REGISTRATION]: 3,
         [UserStatus.PENDING_ACTIVATION]: 2,
         [UserStatus.ACTIVE]: 10,
@@ -64,9 +66,9 @@ describe("DashboardRepository", () => {
       });
     });
 
-    it("test_getStats_queries_user_count_with_STUDENT_role_and_status", async () => {
+    it("test_getStats_queries_user_groupBy_with_STUDENT_role", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);
@@ -75,17 +77,16 @@ describe("DashboardRepository", () => {
       await repository.getStats();
 
       // Assert
-      expect(mockUserCount).toHaveBeenCalledWith({
-        where: { role: UserRole.STUDENT, status: UserStatus.ACTIVE },
-      });
-      expect(mockUserCount).toHaveBeenCalledWith({
-        where: { role: UserRole.STUDENT, status: UserStatus.PENDING_REGISTRATION },
+      expect(mockUserGroupBy).toHaveBeenCalledWith({
+        by: ["status"],
+        where: { role: UserRole.STUDENT },
+        _count: { _all: true },
       });
     });
 
     it("test_getStats_returns_pending_application_count", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(7);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);
@@ -99,7 +100,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_queries_applications_where_acceptedAt_is_null", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);
@@ -113,7 +114,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_returns_unresolved_fraud_flag_count", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(5);
       mockQaRecordCount.mockResolvedValue(0);
@@ -127,7 +128,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_queries_fraud_flags_where_resolvedAt_is_null", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);
@@ -141,7 +142,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_returns_unanswered_qa_count", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(3);
@@ -155,7 +156,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_queries_qa_records_where_answer_is_null", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);
@@ -169,7 +170,7 @@ describe("DashboardRepository", () => {
 
     it("test_getStats_returns_zero_counts_when_no_data", async () => {
       // Arrange
-      setupUserCountByStatus({});
+      setupUserGroupByStatus({});
       mockApplicationCount.mockResolvedValue(0);
       mockFraudFlagCount.mockResolvedValue(0);
       mockQaRecordCount.mockResolvedValue(0);

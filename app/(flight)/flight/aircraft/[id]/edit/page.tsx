@@ -40,16 +40,7 @@ export default async function EditAircraftPage({ params }: EditAircraftPageProps
   }
 
   const initialData: AircraftDto = {
-    id: aircraft.id,
-    userId: aircraft.userId,
-    name: aircraft.name,
-    manufacturer: aircraft.manufacturer,
-    modelNumber: aircraft.modelNumber,
-    serialNumber: aircraft.serialNumber,
-    weightGrams: aircraft.weightGrams,
-    maxFlightTimeMin: aircraft.maxFlightTimeMin,
-    registrationNumber: aircraft.registrationNumber,
-    isActive: aircraft.isActive,
+    ...aircraft,
     createdAt: aircraft.createdAt.toISOString(),
     updatedAt: aircraft.updatedAt.toISOString(),
   };

@@ -41,7 +41,7 @@ export default async function AdminJudgmentsPage() {
                   <td className="px-4 py-3 text-gray-900">{student.name}</td>
                   <td className="px-4 py-3 text-gray-600">{student.email}</td>
                   <td className="px-4 py-3 text-gray-500">
-                    {new Date(student.createdAt).toLocaleDateString("ja-JP")}
+                    {new Date(student.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                   <td className="px-4 py-3">
                     <Link

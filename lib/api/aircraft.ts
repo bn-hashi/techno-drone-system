@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { extractErrorMessage } from "@/lib/api/errorHelpers";
 
 async function throwOnError(res: Response, fallback: string): Promise<never> {
@@ -27,21 +28,36 @@ export interface AircraftFormData {
   serialNumber: string;
   weightGrams: number;
   maxFlightTimeMin: number;
-  registrationNumber?: string;
+  registrationNumber?: string | null;
 }
+
+const AircraftDtoSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  manufacturer: z.string(),
+  modelNumber: z.string(),
+  serialNumber: z.string(),
+  weightGrams: z.number(),
+  maxFlightTimeMin: z.number(),
+  registrationNumber: z.string().nullable(),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 export async function fetchAircrafts(activeOnly = true): Promise<AircraftDto[]> {
   const res = await fetch(`/api/flight/aircraft?activeOnly=${activeOnly}`);
   if (!res.ok) await throwOnError(res, "機体一覧の取得に失敗しました");
   const data = await res.json();
-  return data.aircrafts as AircraftDto[];
+  return z.array(AircraftDtoSchema).parse(data.aircrafts);
 }
 
 export async function fetchAircraft(id: string): Promise<AircraftDto> {
   const res = await fetch(`/api/flight/aircraft/${id}`);
   if (!res.ok) await throwOnError(res, "機体情報の取得に失敗しました");
   const data = await res.json();
-  return data.aircraft as AircraftDto;
+  return AircraftDtoSchema.parse(data.aircraft);
 }
 
 export async function createAircraft(input: AircraftFormData): Promise<AircraftDto> {
@@ -52,7 +68,7 @@ export async function createAircraft(input: AircraftFormData): Promise<AircraftD
   });
   if (!res.ok) await throwOnError(res, "機体の登録に失敗しました");
   const data = await res.json();
-  return data.aircraft as AircraftDto;
+  return AircraftDtoSchema.parse(data.aircraft);
 }
 
 export async function updateAircraft(
@@ -66,7 +82,7 @@ export async function updateAircraft(
   });
   if (!res.ok) await throwOnError(res, "機体の更新に失敗しました");
   const data = await res.json();
-  return data.aircraft as AircraftDto;
+  return AircraftDtoSchema.parse(data.aircraft);
 }
 
 export async function deactivateAircraft(id: string): Promise<void> {

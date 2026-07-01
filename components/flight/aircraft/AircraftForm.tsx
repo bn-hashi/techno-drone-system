@@ -9,28 +9,35 @@ interface AircraftFormProps {
   initialData?: AircraftDto;
 }
 
+interface FormState {
+  name: string;
+  manufacturer: string;
+  modelNumber: string;
+  serialNumber: string;
+  weightGrams: string;
+  maxFlightTimeMin: string;
+  registrationNumber: string;
+}
+
 export function AircraftForm({ initialData }: AircraftFormProps) {
   const router = useRouter();
   const isEdit = initialData !== undefined;
 
-  const [form, setForm] = useState<AircraftFormData>({
+  const [form, setForm] = useState<FormState>({
     name: initialData?.name ?? "",
     manufacturer: initialData?.manufacturer ?? "",
     modelNumber: initialData?.modelNumber ?? "",
     serialNumber: initialData?.serialNumber ?? "",
-    weightGrams: initialData?.weightGrams ?? 0,
-    maxFlightTimeMin: initialData?.maxFlightTimeMin ?? 0,
+    weightGrams: String(initialData?.weightGrams ?? ""),
+    maxFlightTimeMin: String(initialData?.maxFlightTimeMin ?? ""),
     registrationNumber: initialData?.registrationNumber ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "number" ? Number(value) : value,
-    }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,9 +45,14 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      const submitData = {
-        ...form,
-        registrationNumber: form.registrationNumber || undefined,
+      const submitData: AircraftFormData = {
+        name: form.name,
+        manufacturer: form.manufacturer,
+        modelNumber: form.modelNumber,
+        serialNumber: form.serialNumber,
+        weightGrams: Number(form.weightGrams),
+        maxFlightTimeMin: Number(form.maxFlightTimeMin),
+        registrationNumber: form.registrationNumber || null,
       };
       if (isEdit && initialData) {
         await updateAircraft(initialData.id, submitData);
@@ -184,7 +196,7 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
           id="aircraft-registration-number"
           type="text"
           name="registrationNumber"
-          value={form.registrationNumber ?? ""}
+          value={form.registrationNumber}
           onChange={handleChange}
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />

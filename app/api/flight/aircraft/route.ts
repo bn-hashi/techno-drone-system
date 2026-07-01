@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { getAircraftService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { hasFlightAccess } from "@/lib/auth/flightPermissions";
 import { AircraftDuplicateSerialError, BusinessError } from "@/services/errors";
+
+const CreateAircraftSchema = z.object({
+  name: z.string().min(1),
+  manufacturer: z.string().min(1),
+  modelNumber: z.string().min(1),
+  serialNumber: z.string().min(1),
+  weightGrams: z.number().int().positive(),
+  maxFlightTimeMin: z.number().int().positive(),
+  registrationNumber: z.string().nullable().optional(),
+});
 
 export async function GET(request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -47,39 +58,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "リクエストボディが不正です" }, { status: 400 });
   }
 
-  const {
-    name,
-    manufacturer,
-    modelNumber,
-    serialNumber,
-    weightGrams,
-    maxFlightTimeMin,
-    registrationNumber,
-  } = body;
-
-  if (
-    !name ||
-    !manufacturer ||
-    !modelNumber ||
-    !serialNumber ||
-    weightGrams == null ||
-    maxFlightTimeMin == null
-  ) {
+  const parsed = CreateAircraftSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json({ error: "必須項目が不足しています" }, { status: 400 });
   }
 
   try {
     const service = getAircraftService();
-    const aircraft = await service.create({
-      userId: session.user.id,
-      name,
-      manufacturer,
-      modelNumber,
-      serialNumber,
-      weightGrams: Number(weightGrams),
-      maxFlightTimeMin: Number(maxFlightTimeMin),
-      registrationNumber: registrationNumber ?? undefined,
-    });
+    const aircraft = await service.create({ userId: session.user.id, ...parsed.data });
     return NextResponse.json({ aircraft }, { status: 201 });
   } catch (error) {
     if (error instanceof AircraftDuplicateSerialError) {

@@ -9,7 +9,7 @@ export interface CreateAircraftInput {
   serialNumber: string;
   weightGrams: number;
   maxFlightTimeMin: number;
-  registrationNumber?: string;
+  registrationNumber?: string | null;
 }
 
 export interface UpdateAircraftInput {
@@ -18,7 +18,7 @@ export interface UpdateAircraftInput {
   modelNumber?: string;
   weightGrams?: number;
   maxFlightTimeMin?: number;
-  registrationNumber?: string;
+  registrationNumber?: string | null;
 }
 
 export interface IAircraftRepository {

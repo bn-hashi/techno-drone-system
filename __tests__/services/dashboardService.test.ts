@@ -37,11 +37,10 @@ describe("DashboardService", () => {
       mockRepo.getStats.mockResolvedValue(expectedStats);
 
       // Act
-      const result = await service.getStats();
+      await service.getStats();
 
       // Assert
       expect(mockRepo.getStats).toHaveBeenCalledOnce();
-      expect(result).toEqual(expectedStats);
     });
 
     it("test_getStats_returns_repository_result_unchanged", async () => {

@@ -13,11 +13,11 @@ const UpdateAircraftSchema = z.object({
   modelNumber: z.string().min(1).optional(),
   weightGrams: z.number().int().positive().optional(),
   maxFlightTimeMin: z.number().int().positive().optional(),
-  registrationNumber: z.string().optional(),
+  registrationNumber: z.string().nullable().optional(),
 });
 
 interface RouteContext {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export async function GET(_request: Request, { params }: RouteContext): Promise<NextResponse> {
@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id } = params;
   try {
     const service = getAircraftService();
     const aircraft = await service.findById(id, {
@@ -56,7 +56,7 @@ export async function PUT(request: Request, { params }: RouteContext): Promise<N
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id } = params;
   const rawBody = await request.json().catch(() => null);
   if (!rawBody) {
     return NextResponse.json({ error: "リクエストボディが不正です" }, { status: 400 });
@@ -94,7 +94,7 @@ export async function DELETE(_request: Request, { params }: RouteContext): Promi
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id } = params;
   try {
     const service = getAircraftService();
     await service.deactivate(id, {

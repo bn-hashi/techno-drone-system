@@ -61,12 +61,19 @@ describe("AdminJudgmentsPage", () => {
     await expect(AdminJudgmentsPage()).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 
-  it("test_unauthenticated_calls_redirect", async () => {
+  it("test_unauthenticated_calls_redirect_to_login", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     await AdminJudgmentsPage().catch(() => {});
 
     expect(redirect).toHaveBeenCalledWith("/login");
+  });
+
+  it("test_unauthenticated_does_not_call_list_users", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(null);
+
+    await AdminJudgmentsPage().catch(() => {});
+
     expect(mockListUsers).not.toHaveBeenCalled();
   });
 

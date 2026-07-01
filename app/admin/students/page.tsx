@@ -38,11 +38,9 @@ export default async function AdminStudentsPage() {
                 <tr key={student.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900">{student.name}</td>
                   <td className="px-4 py-3 text-gray-600">{student.email}</td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {USER_STATUS_LABELS[student.status]}
-                  </td>
+                  <td className="px-4 py-3 text-gray-700">{USER_STATUS_LABELS[student.status]}</td>
                   <td className="px-4 py-3 text-gray-500">
-                    {new Date(student.createdAt).toLocaleDateString("ja-JP")}
+                    {new Date(student.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                   <td className="px-4 py-3">
                     <Link

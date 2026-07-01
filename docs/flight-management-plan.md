@@ -42,7 +42,10 @@ export function hasFlightAccess(role: UserRole): role is FlightRole {
 API ルートのガード例：
 
 ```typescript
-if (!session || !hasFlightAccess(session.user.role)) {
+if (!session?.user) {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+if (!hasFlightAccess(session.user.role)) {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 ```
@@ -277,7 +280,7 @@ export const INSPECTION_ITEMS = [
 
 ### PDF 様式1 フィールド定義
 
-```
+```text
 - 飛行年月日
 - 操縦者氏名
 - 機体名称・登録番号
@@ -303,7 +306,7 @@ export const INSPECTION_ITEMS = [
 
 ## ファイル構成（追加分）
 
-```
+```text
 prisma/
   schema.prisma                         # 既存に追記
   migrations/
@@ -401,7 +404,7 @@ __tests__/
 
 ## 実装順序と依存関係
 
-```
+```text
 Phase 0: PILOT ロール
   schema (UserRole) → migration → flightPermissions.ts → role-redirect
 

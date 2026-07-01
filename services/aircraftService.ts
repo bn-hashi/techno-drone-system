@@ -70,25 +70,19 @@ export class AircraftService {
     return this.repo.deactivate(id);
   }
 
-  private validateUpdateInput(data: UpdateAircraftInput): void {
-    if (data.weightGrams !== undefined) {
-      if (!Number.isFinite(data.weightGrams) || data.weightGrams < MIN_WEIGHT_GRAMS) {
-        throw new BusinessError("機体重量は 1g 以上で入力してください");
-      }
-    }
-    if (data.maxFlightTimeMin !== undefined) {
-      if (!Number.isFinite(data.maxFlightTimeMin) || data.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
-        throw new BusinessError("最大飛行時間は 1 分以上で入力してください");
-      }
+  private validateNumericField(value: number | undefined, min: number, errorMessage: string): void {
+    if (value !== undefined && (!Number.isFinite(value) || value < min)) {
+      throw new BusinessError(errorMessage);
     }
   }
 
+  private validateUpdateInput(data: UpdateAircraftInput): void {
+    this.validateNumericField(data.weightGrams, MIN_WEIGHT_GRAMS, "機体重量は 1g 以上で入力してください");
+    this.validateNumericField(data.maxFlightTimeMin, MIN_FLIGHT_TIME_MIN, "最大飛行時間は 1 分以上で入力してください");
+  }
+
   private validateCreateInput(input: CreateAircraftInput): void {
-    if (!Number.isFinite(input.weightGrams) || input.weightGrams < MIN_WEIGHT_GRAMS) {
-      throw new BusinessError("機体重量は 1g 以上で入力してください");
-    }
-    if (!Number.isFinite(input.maxFlightTimeMin) || input.maxFlightTimeMin < MIN_FLIGHT_TIME_MIN) {
-      throw new BusinessError("最大飛行時間は 1 分以上で入力してください");
-    }
+    this.validateNumericField(input.weightGrams, MIN_WEIGHT_GRAMS, "機体重量は 1g 以上で入力してください");
+    this.validateNumericField(input.maxFlightTimeMin, MIN_FLIGHT_TIME_MIN, "最大飛行時間は 1 分以上で入力してください");
   }
 }

@@ -56,9 +56,7 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-32 text-sm font-medium text-gray-500 shrink-0">ステータス</dt>
-            <dd className="text-sm text-gray-900">
-              {USER_STATUS_LABELS[student.status]}
-            </dd>
+            <dd className="text-sm text-gray-900">{USER_STATUS_LABELS[student.status]}</dd>
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-32 text-sm font-medium text-gray-500 shrink-0">登録日</dt>

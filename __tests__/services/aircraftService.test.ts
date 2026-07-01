@@ -277,7 +277,17 @@ describe("AircraftService", () => {
   });
 
   describe("deactivate", () => {
-    it("test_deactivate_calls_repo_deactivate", async () => {
+    it("test_deactivate_calls_repo_deactivate_with_aircraft_id", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+      vi.mocked(repo.deactivate).mockResolvedValue(makeAircraft({ isActive: false }));
+
+      await service.deactivate("aircraft-1", { userId: "user-1", isAdmin: false });
+
+      expect(repo.deactivate).toHaveBeenCalledWith("aircraft-1");
+    });
+
+    it("test_deactivate_returns_deactivated_aircraft", async () => {
       const aircraft = makeAircraft();
       const deactivated = makeAircraft({ isActive: false });
       vi.mocked(repo.findById).mockResolvedValue(aircraft);
@@ -285,7 +295,6 @@ describe("AircraftService", () => {
 
       const result = await service.deactivate("aircraft-1", { userId: "user-1", isAdmin: false });
 
-      expect(repo.deactivate).toHaveBeenCalledWith("aircraft-1");
       expect(result.isActive).toBe(false);
     });
 
