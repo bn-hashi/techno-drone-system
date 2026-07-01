@@ -46,18 +46,30 @@ const AircraftDtoSchema = z.object({
   updatedAt: z.string(),
 });
 
+function parseAircraftDto(raw: unknown, context: string): AircraftDto {
+  const result = AircraftDtoSchema.safeParse(raw);
+  if (!result.success) {
+    throw new Error(`${context}: レスポンスの形式が不正です`);
+  }
+  return result.data;
+}
+
 export async function fetchAircrafts(activeOnly = true): Promise<AircraftDto[]> {
   const res = await fetch(`/api/flight/aircraft?activeOnly=${activeOnly}`);
   if (!res.ok) await throwOnError(res, "機体一覧の取得に失敗しました");
   const data = await res.json();
-  return z.array(AircraftDtoSchema).parse(data.aircrafts);
+  const result = z.array(AircraftDtoSchema).safeParse(data.aircrafts);
+  if (!result.success) {
+    throw new Error("機体一覧の取得に失敗しました: レスポンスの形式が不正です");
+  }
+  return result.data;
 }
 
 export async function fetchAircraft(id: string): Promise<AircraftDto> {
   const res = await fetch(`/api/flight/aircraft/${id}`);
   if (!res.ok) await throwOnError(res, "機体情報の取得に失敗しました");
   const data = await res.json();
-  return AircraftDtoSchema.parse(data.aircraft);
+  return parseAircraftDto(data.aircraft, "機体情報の取得に失敗しました");
 }
 
 export async function createAircraft(input: AircraftFormData): Promise<AircraftDto> {
@@ -68,7 +80,7 @@ export async function createAircraft(input: AircraftFormData): Promise<AircraftD
   });
   if (!res.ok) await throwOnError(res, "機体の登録に失敗しました");
   const data = await res.json();
-  return AircraftDtoSchema.parse(data.aircraft);
+  return parseAircraftDto(data.aircraft, "機体の登録に失敗しました");
 }
 
 export async function updateAircraft(
@@ -82,7 +94,7 @@ export async function updateAircraft(
   });
   if (!res.ok) await throwOnError(res, "機体の更新に失敗しました");
   const data = await res.json();
-  return AircraftDtoSchema.parse(data.aircraft);
+  return parseAircraftDto(data.aircraft, "機体の更新に失敗しました");
 }
 
 export async function deactivateAircraft(id: string): Promise<void> {
