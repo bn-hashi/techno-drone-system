@@ -1,18 +1,13 @@
+import { getServerSession } from "next-auth";
+import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
-import { UserStatus } from "@/types/prisma";
+import { UserRole, UserStatus } from "@/types/prisma";
+import { USER_STATUS_LABELS } from "@/lib/constants/userStatusLabels";
 import { InviteButton } from "./InviteButton";
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING_REGISTRATION: "入学申請受付前",
-  PENDING_ACTIVATION: "本登録待ち",
-  ACTIVE: "受講中",
-  EXAM_PASSED: "試験合格",
-  COMPLETED: "修了",
-  CERTIFIED: "資格取得",
-  DIPS_LINKED: "DIPS連携済",
-};
+export const dynamic = "force-dynamic";
 
 const COURSE_TYPE_LABELS: Record<string, string> = {
   BEGINNER: "初学者コース",
@@ -24,6 +19,11 @@ interface StudentDetailPageProps {
 }
 
 export default async function StudentDetailPage({ params }: StudentDetailPageProps) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== UserRole.ADMIN) {
+    redirect("/login");
+  }
+
   const student = await getUserManagementService().getUserById(params.id);
 
   if (!student) {
@@ -56,9 +56,7 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-32 text-sm font-medium text-gray-500 shrink-0">ステータス</dt>
-            <dd className="text-sm text-gray-900">
-              {STATUS_LABELS[student.status] ?? student.status}
-            </dd>
+            <dd className="text-sm text-gray-900">{USER_STATUS_LABELS[student.status]}</dd>
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-32 text-sm font-medium text-gray-500 shrink-0">登録日</dt>

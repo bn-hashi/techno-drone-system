@@ -17,6 +17,9 @@ import {
   ExamStatus,
   DIPSExportStatus,
   FraudFlagType,
+  FlightPlanStatus,
+  InspectionPhase,
+  InspectionResult,
 } from "@/types/prisma";
 import {
   INSTITUTION_CODE,
@@ -38,9 +41,13 @@ describe("UserRole enum", () => {
     expect(UserRole.STUDENT).toBe("STUDENT");
   });
 
-  it("test_user_role_has_exactly_two_values", () => {
+  it("test_user_role_has_pilot_value", () => {
+    expect(UserRole.PILOT).toBe("PILOT");
+  });
+
+  it("test_user_role_has_exactly_three_values", () => {
     const values = Object.values(UserRole);
-    expect(values).toHaveLength(2);
+    expect(values).toHaveLength(3);
   });
 });
 
@@ -182,6 +189,60 @@ describe("FraudFlagType enum", () => {
   it("test_fraud_flag_type_has_exactly_three_values", () => {
     const values = Object.values(FraudFlagType);
     expect(values).toHaveLength(3);
+  });
+});
+
+describe("FlightPlanStatus enum", () => {
+  it("test_flight_plan_status_has_draft", () => {
+    expect(FlightPlanStatus.DRAFT).toBe("DRAFT");
+  });
+
+  it("test_flight_plan_status_has_approved", () => {
+    expect(FlightPlanStatus.APPROVED).toBe("APPROVED");
+  });
+
+  it("test_flight_plan_status_has_rejected", () => {
+    expect(FlightPlanStatus.REJECTED).toBe("REJECTED");
+  });
+
+  it("test_flight_plan_status_has_completed", () => {
+    expect(FlightPlanStatus.COMPLETED).toBe("COMPLETED");
+  });
+
+  it("test_flight_plan_status_has_exactly_four_values", () => {
+    expect(Object.values(FlightPlanStatus)).toHaveLength(4);
+  });
+});
+
+describe("InspectionPhase enum", () => {
+  it("test_inspection_phase_has_pre_flight", () => {
+    expect(InspectionPhase.PRE_FLIGHT).toBe("PRE_FLIGHT");
+  });
+
+  it("test_inspection_phase_has_post_flight", () => {
+    expect(InspectionPhase.POST_FLIGHT).toBe("POST_FLIGHT");
+  });
+
+  it("test_inspection_phase_has_exactly_two_values", () => {
+    expect(Object.values(InspectionPhase)).toHaveLength(2);
+  });
+});
+
+describe("InspectionResult enum", () => {
+  it("test_inspection_result_has_pass", () => {
+    expect(InspectionResult.PASS).toBe("PASS");
+  });
+
+  it("test_inspection_result_has_fail", () => {
+    expect(InspectionResult.FAIL).toBe("FAIL");
+  });
+
+  it("test_inspection_result_has_na", () => {
+    expect(InspectionResult.NA).toBe("NA");
+  });
+
+  it("test_inspection_result_has_exactly_three_values", () => {
+    expect(Object.values(InspectionResult)).toHaveLength(3);
   });
 });
 

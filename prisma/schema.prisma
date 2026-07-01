@@ -16,6 +16,7 @@ datasource db {
 enum UserRole {
   ADMIN
   STUDENT
+  PILOT
 }
 
 enum CourseType {
@@ -56,6 +57,24 @@ enum FraudFlagType {
   SPEED_VIOLATION
 }
 
+enum FlightPlanStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum InspectionPhase {
+  PRE_FLIGHT
+  POST_FLIGHT
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+  NA
+}
+
 // ===========================
 // テーブル定義
 // ===========================
@@ -83,6 +102,7 @@ model User {
   dipsExportLogs        DIPSExportLog[]
   fraudFlags            FraudFlag[]
   judgmentRecords       JudgmentRecord[]
+  aircrafts             Aircraft[]
 
   @@map("users")
 }
@@ -341,4 +361,25 @@ model JudgmentRecord {
 
   @@index([userId, judgedAt])
   @@map("judgment_records")
+}
+
+/// 飛行機体マスタ
+model Aircraft {
+  id                 String   @id @default(cuid())
+  userId             String
+  name               String
+  manufacturer       String
+  modelNumber        String
+  serialNumber       String   @unique
+  weightGrams        Int
+  maxFlightTimeMin   Int
+  registrationNumber String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, isActive])
+  @@map("aircrafts")
 }

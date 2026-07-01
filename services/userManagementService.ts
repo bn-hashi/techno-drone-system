@@ -33,6 +33,7 @@ export interface CreateUserInput {
 
 export interface UserListFilter {
   status?: UserStatus;
+  role?: UserRole;
 }
 
 export class UserManagementService {

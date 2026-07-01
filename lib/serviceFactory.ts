@@ -33,6 +33,10 @@ import { CertificateLedgerService } from "@/services/certificateLedgerService";
 import { ReactPdfCertificateGenerator } from "@/lib/certificate/pdfGenerator";
 import { ReactPdfLedgerGenerator } from "@/lib/certificate/ledgerPdfGenerator";
 import { LocalFsCertificateFileWriter } from "@/lib/certificate/fileWriter";
+import { AircraftRepository } from "@/repositories/aircraftRepository";
+import { AircraftService } from "@/services/aircraftService";
+import { DashboardRepository } from "@/repositories/dashboardRepository";
+import { DashboardService } from "@/services/dashboardService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -148,4 +152,14 @@ export function getCertificateLedgerService(): CertificateLedgerService {
     getUserManagementService(),
     new ReactPdfLedgerGenerator()
   );
+}
+
+/** 機体管理 Service のインスタンスを返す */
+export function getAircraftService(): AircraftService {
+  return new AircraftService(new AircraftRepository());
+}
+
+/** 管理ダッシュボード統計 Service のインスタンスを返す */
+export function getDashboardService(): DashboardService {
+  return new DashboardService(new DashboardRepository());
 }

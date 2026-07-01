@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/student", request.url));
   }
 
+  if (token.role === UserRole.PILOT) {
+    return NextResponse.redirect(new URL("/flight/aircraft", request.url));
+  }
+
   // Unknown role — fail closed
   return NextResponse.redirect(new URL("/login", request.url));
 }
