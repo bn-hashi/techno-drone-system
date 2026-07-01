@@ -49,9 +49,7 @@ export default async function AdminDashboardPage() {
 
       {/* 要対応 */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">
-          要対応
-        </h2>
+        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">要対応</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard
             label="未受理の入学申請"
@@ -65,12 +63,7 @@ export default async function AdminDashboardPage() {
             href="/admin/fraud-flags"
             urgent
           />
-          <StatCard
-            label="未回答の質問"
-            value={unansweredQAs}
-            href="/admin/qa"
-            urgent
-          />
+          <StatCard label="未回答の質問" value={unansweredQAs} href="/admin/qa" urgent />
         </div>
       </section>
 
