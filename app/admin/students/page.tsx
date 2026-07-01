@@ -23,8 +23,7 @@ export default async function AdminStudentsPage() {
     redirect("/login");
   }
 
-  const allUsers = await getUserManagementService().listUsers();
-  const students = allUsers.filter((u) => u.role === UserRole.STUDENT);
+  const students = await getUserManagementService().listUsers({ role: UserRole.STUDENT });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">

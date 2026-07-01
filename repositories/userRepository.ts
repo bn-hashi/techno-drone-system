@@ -13,10 +13,10 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   /**
    * ユーザー一覧を取得する
-   * @param filter - ステータスによる絞り込み条件
+   * @param filter - ロール・ステータスによる絞り込み条件
    * @param limit - 取得上限（デフォルト: 500、全件取得によるメモリ消費を防ぐ）
    */
-  findAll(filter?: { status?: UserStatus }, limit?: number): Promise<User[]>;
+  findAll(filter?: { status?: UserStatus; role?: UserRole }, limit?: number): Promise<User[]>;
   /** ID でユーザーを検索する */
   findById(id: string, tx?: PrismaLike): Promise<User | null>;
   /** ユーザーを新規作成する */
@@ -42,10 +42,12 @@ export class UserRepository implements IUserRepository {
     });
   }
 
-  async findAll(filter?: { status?: UserStatus }, limit = 500): Promise<User[]> {
+  async findAll(filter?: { status?: UserStatus; role?: UserRole }, limit = 500): Promise<User[]> {
     const prisma = getPrisma();
-    const where = filter?.status ? { status: filter.status } : undefined;
-    return prisma.user.findMany({ where, take: limit });
+    const where: { status?: UserStatus; role?: UserRole } = {};
+    if (filter?.status) where.status = filter.status;
+    if (filter?.role) where.role = filter.role;
+    return prisma.user.findMany({ where: Object.keys(where).length > 0 ? where : undefined, take: limit });
   }
 
   async findById(id: string, tx?: PrismaLike): Promise<User | null> {

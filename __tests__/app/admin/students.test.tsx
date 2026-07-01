@@ -77,6 +77,15 @@ describe("AdminStudentsPage", () => {
     await expect(AdminStudentsPage()).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 
+  it("test_calls_listUsers_with_student_role_filter", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(adminSession);
+    mockListUsers.mockResolvedValue([]);
+
+    await AdminStudentsPage();
+
+    expect(mockListUsers).toHaveBeenCalledWith({ role: UserRole.STUDENT });
+  });
+
   it("test_admin_shows_student_name", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListUsers.mockResolvedValue([makeStudent()]);
@@ -120,18 +129,18 @@ describe("AdminStudentsPage", () => {
     );
   });
 
-  it("test_admin_filters_out_non_student_users", async () => {
+  it("test_admin_shows_multiple_students", async () => {
     vi.mocked(getServerSession).mockResolvedValue(adminSession);
     mockListUsers.mockResolvedValue([
-      makeStudent({ id: "stu-1", name: "受講者A", role: UserRole.STUDENT }),
-      makeStudent({ id: "adm-1", name: "管理者B", role: UserRole.ADMIN }),
+      makeStudent({ id: "stu-1", name: "受講者A" }),
+      makeStudent({ id: "stu-2", name: "受講者B" }),
     ]);
 
     const page = await AdminStudentsPage();
     render(page as React.ReactElement);
 
     expect(screen.getByText("受講者A")).toBeInTheDocument();
-    expect(screen.queryByText("管理者B")).not.toBeInTheDocument();
+    expect(screen.getByText("受講者B")).toBeInTheDocument();
   });
 
   it("test_empty_student_list_shows_message", async () => {

@@ -13,15 +13,15 @@ export default async function AdminJudgmentsPage() {
     redirect("/login");
   }
 
-  const allUsers = await getUserManagementService().listUsers({ status: UserStatus.EXAM_PASSED });
-  const pendingStudents = allUsers.filter((u) => u.role === UserRole.STUDENT);
+  const pendingStudents = await getUserManagementService().listUsers({
+    role: UserRole.STUDENT,
+    status: UserStatus.EXAM_PASSED,
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="mb-2 text-2xl font-semibold text-gray-900">成績・修了判定</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        試験合格済みで判定待ちの受講者を表示しています。
-      </p>
+      <p className="mb-6 text-sm text-gray-500">試験合格済みで判定待ちの受講者を表示しています。</p>
       {pendingStudents.length === 0 ? (
         <p className="text-sm text-gray-500">現在、判定待ちの受講者はいません。</p>
       ) : (
