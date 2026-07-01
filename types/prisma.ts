@@ -8,6 +8,7 @@
 export const UserRole = {
   ADMIN: "ADMIN",
   STUDENT: "STUDENT",
+  PILOT: "PILOT",
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
@@ -54,3 +55,24 @@ export const JudgmentResult = {
   REJECTED: "REJECTED",
 } as const;
 export type JudgmentResult = (typeof JudgmentResult)[keyof typeof JudgmentResult];
+
+export const FlightPlanStatus = {
+  DRAFT: "DRAFT",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  COMPLETED: "COMPLETED",
+} as const;
+export type FlightPlanStatus = (typeof FlightPlanStatus)[keyof typeof FlightPlanStatus];
+
+export const InspectionPhase = {
+  PRE_FLIGHT: "PRE_FLIGHT",
+  POST_FLIGHT: "POST_FLIGHT",
+} as const;
+export type InspectionPhase = (typeof InspectionPhase)[keyof typeof InspectionPhase];
+
+export const InspectionResult = {
+  PASS: "PASS",
+  FAIL: "FAIL",
+  NA: "NA",
+} as const;
+export type InspectionResult = (typeof InspectionResult)[keyof typeof InspectionResult];
