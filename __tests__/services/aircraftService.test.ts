@@ -183,7 +183,7 @@ describe("AircraftService", () => {
       ).rejects.toThrow(AircraftDuplicateSerialError);
     });
 
-    it("test_create_validates_positive_weight", async () => {
+    it("test_create_rejects_zero_weight_with_business_error", async () => {
       vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
 
       await expect(
@@ -196,7 +196,39 @@ describe("AircraftService", () => {
           weightGrams: 0,
           maxFlightTimeMin: 38,
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_rejects_nan_weight_with_business_error", async () => {
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: NaN,
+          maxFlightTimeMin: 38,
+        })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_rejects_infinity_weight_with_business_error", async () => {
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: Infinity,
+          maxFlightTimeMin: 38,
+        })
+      ).rejects.toThrow(BusinessError);
     });
   });
 
