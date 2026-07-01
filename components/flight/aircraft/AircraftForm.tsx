@@ -81,7 +81,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-manufacturer" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-manufacturer"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           製造メーカー <span className="text-red-500">*</span>
         </label>
         <input
@@ -96,7 +99,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-model-number" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-model-number"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           型式番号 <span className="text-red-500">*</span>
         </label>
         <input
@@ -111,7 +117,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-serial-number" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-serial-number"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           シリアル番号 <span className="text-red-500">*</span>
         </label>
         <input
@@ -127,7 +136,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-weight-grams" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-weight-grams"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           機体重量 (g) <span className="text-red-500">*</span>
         </label>
         <input
@@ -143,7 +155,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-max-flight-time" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-max-flight-time"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           最大飛行時間 (分) <span className="text-red-500">*</span>
         </label>
         <input
@@ -159,7 +174,10 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label htmlFor="aircraft-registration-number" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="aircraft-registration-number"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           登録記号（国土交通省）
         </label>
         <input

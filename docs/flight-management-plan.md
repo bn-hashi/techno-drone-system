@@ -183,7 +183,7 @@ flightLogs   FlightLog[]
 | 2 | マイグレーション | `npx prisma migrate dev --name add_pilot_role` |
 | 3 | `types/prisma.ts` | `UserRole.PILOT` エクスポート確認 (Prisma 自動生成から再エクスポート) |
 | 4 | `lib/auth/flightPermissions.ts` | `FLIGHT_ROLES`, `hasFlightAccess()` を新規作成 |
-| 5 | `app/auth/role-redirect/page.tsx` | PILOT ロール時のリダイレクト先 `/flight/aircraft` を追加 |
+| 5 | `app/auth/role-redirect/route.ts` | PILOT ロール時のリダイレクト先 `/flight/aircraft` を追加 |
 
 ---
 
@@ -197,7 +197,7 @@ flightLogs   FlightLog[]
 |---|------|------|
 | 1 | `prisma/schema.prisma` | Aircraft モデル + 関連 enum 追加。マイグレーション |
 | 2 | `types/prisma.ts` | Aircraft 関連型をエクスポート |
-| 3 | `app/exceptions.ts` | `AircraftNotFoundError`, `AircraftDuplicateSerialError` 追加 |
+| 3 | `services/errors.ts` | `AircraftNotFoundError`, `AircraftDuplicateSerialError` 追加 |
 | 4 | `repositories/aircraftRepository.ts` | `IAircraftRepository` + `AircraftRepository` |
 | 5 | `services/aircraftService.ts` | TDD: `list`, `findById`, `create`, `update`, `deactivate` |
 | 6 | `lib/serviceFactory.ts` | `getAircraftService()` 追加 |
