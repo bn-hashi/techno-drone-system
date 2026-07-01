@@ -4,19 +4,10 @@ import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
+import { USER_STATUS_LABELS } from "@/lib/constants/userStatusLabels";
 import { InviteButton } from "./InviteButton";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING_REGISTRATION: "入学申請受付前",
-  PENDING_ACTIVATION: "本登録待ち",
-  ACTIVE: "受講中",
-  EXAM_PASSED: "試験合格",
-  COMPLETED: "修了",
-  CERTIFIED: "資格取得",
-  DIPS_LINKED: "DIPS連携済",
-};
 
 const COURSE_TYPE_LABELS: Record<string, string> = {
   BEGINNER: "初学者コース",
@@ -66,7 +57,7 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-32 text-sm font-medium text-gray-500 shrink-0">ステータス</dt>
             <dd className="text-sm text-gray-900">
-              {STATUS_LABELS[student.status] ?? student.status}
+              {USER_STATUS_LABELS[student.status]}
             </dd>
           </div>
           <div className="px-6 py-4 flex gap-4">

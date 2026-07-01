@@ -67,6 +67,7 @@ describe("AdminJudgmentsPage", () => {
     await AdminJudgmentsPage().catch(() => {});
 
     expect(redirect).toHaveBeenCalledWith("/login");
+    expect(mockListUsers).not.toHaveBeenCalled();
   });
 
   it("test_non_admin_role_redirects_to_login", async () => {

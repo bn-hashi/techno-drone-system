@@ -20,16 +20,13 @@ vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/serviceFactory", () => ({
   getUserManagementService: vi.fn(),
 }));
-vi.mock(
-  "@/app/admin/students/[id]/InviteButton",
-  () => ({
-    InviteButton: ({ studentId }: { studentId: string }) => (
-      <button data-testid="invite-button" data-student-id={studentId}>
-        招待を送る
-      </button>
-    ),
-  }),
-);
+vi.mock("@/app/admin/students/[id]/InviteButton", () => ({
+  InviteButton: ({ studentId }: { studentId: string }) => (
+    <button data-testid="invite-button" data-student-id={studentId}>
+      招待を送る
+    </button>
+  ),
+}));
 
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
@@ -72,7 +69,7 @@ describe("StudentDetailPage", () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
     await expect(StudentDetailPage({ params: { id: "s-1" } })).rejects.toThrow(
-      "NEXT_REDIRECT:/login",
+      "NEXT_REDIRECT:/login"
     );
   });
 
@@ -90,7 +87,7 @@ describe("StudentDetailPage", () => {
     });
 
     await expect(StudentDetailPage({ params: { id: "s-1" } })).rejects.toThrow(
-      "NEXT_REDIRECT:/login",
+      "NEXT_REDIRECT:/login"
     );
   });
 
@@ -139,7 +136,7 @@ describe("StudentDetailPage", () => {
     mockGetUserById.mockResolvedValue(null);
 
     await expect(StudentDetailPage({ params: { id: "nonexistent" } })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
+      "NEXT_NOT_FOUND"
     );
   });
 });

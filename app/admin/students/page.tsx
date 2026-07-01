@@ -3,19 +3,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
-import { UserRole, UserStatus } from "@/types/prisma";
+import { UserRole } from "@/types/prisma";
+import { USER_STATUS_LABELS } from "@/lib/constants/userStatusLabels";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING_REGISTRATION: "入学申請受付前",
-  PENDING_ACTIVATION: "本登録待ち",
-  ACTIVE: "受講中",
-  EXAM_PASSED: "試験合格",
-  COMPLETED: "修了",
-  CERTIFIED: "資格取得",
-  DIPS_LINKED: "DIPS連携済",
-};
 
 export default async function AdminStudentsPage() {
   const session = await getServerSession(authOptions);
@@ -48,7 +39,7 @@ export default async function AdminStudentsPage() {
                   <td className="px-4 py-3 text-gray-900">{student.name}</td>
                   <td className="px-4 py-3 text-gray-600">{student.email}</td>
                   <td className="px-4 py-3 text-gray-700">
-                    {STATUS_LABELS[student.status as UserStatus] ?? student.status}
+                    {USER_STATUS_LABELS[student.status]}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {new Date(student.createdAt).toLocaleDateString("ja-JP")}

@@ -47,7 +47,10 @@ export class UserRepository implements IUserRepository {
     const where: { status?: UserStatus; role?: UserRole } = {};
     if (filter?.status) where.status = filter.status;
     if (filter?.role) where.role = filter.role;
-    return prisma.user.findMany({ where: Object.keys(where).length > 0 ? where : undefined, take: limit });
+    return prisma.user.findMany({
+      where: Object.keys(where).length > 0 ? where : undefined,
+      take: limit,
+    });
   }
 
   async findById(id: string, tx?: PrismaLike): Promise<User | null> {
