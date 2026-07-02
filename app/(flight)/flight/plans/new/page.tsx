@@ -1,26 +1,13 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
-import { UserRole } from "@/types/prisma";
-import { hasFlightAccess } from "@/lib/auth/flightPermissions";
-import { AircraftRepository } from "@/repositories/aircraftRepository";
+import { getAircraftService } from "@/lib/serviceFactory";
+import { requireFlightSession } from "@/lib/auth/requireFlightSession";
 import { FlightPlanForm } from "@/components/flight/plans/FlightPlanForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewFlightPlanPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !hasFlightAccess(session.user.role as UserRole)) {
-    redirect("/login");
-  }
+  const { userId, isAdmin } = await requireFlightSession();
 
-  const role = session.user.role as UserRole;
-  const isAdmin = role === UserRole.ADMIN;
-
-  const repo = new AircraftRepository();
-  const aircrafts = isAdmin
-    ? await repo.findAll(true)
-    : await repo.findAllByUser(session.user.id, true);
+  const aircrafts = await getAircraftService().list({ userId, isAdmin, activeOnly: true });
 
   if (aircrafts.length === 0) {
     return (

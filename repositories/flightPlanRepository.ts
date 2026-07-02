@@ -19,9 +19,19 @@ export interface UpdateFlightPlanInput {
   purpose?: string;
 }
 
+export interface PaginationParams {
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedFlightPlans {
+  items: FlightPlan[];
+  total: number;
+}
+
 export interface IFlightPlanRepository {
-  findAllByUser(userId: string): Promise<FlightPlan[]>;
-  findAll(): Promise<FlightPlan[]>;
+  findAllByUser(userId: string, pagination: PaginationParams): Promise<PaginatedFlightPlans>;
+  findAll(pagination: PaginationParams): Promise<PaginatedFlightPlans>;
   findById(id: string): Promise<FlightPlan | null>;
   create(data: CreateFlightPlanInput): Promise<FlightPlan>;
   update(id: string, data: UpdateFlightPlanInput): Promise<FlightPlan>;
@@ -29,19 +39,36 @@ export interface IFlightPlanRepository {
 }
 
 export class FlightPlanRepository implements IFlightPlanRepository {
-  async findAllByUser(userId: string): Promise<FlightPlan[]> {
+  async findAllByUser(
+    userId: string,
+    pagination: PaginationParams
+  ): Promise<PaginatedFlightPlans> {
     const prisma = getPrisma();
-    return prisma.flightPlan.findMany({
-      where: { userId },
-      orderBy: { plannedAt: "desc" },
-    });
+    const skip = (pagination.page - 1) * pagination.limit;
+    const [items, total] = await Promise.all([
+      prisma.flightPlan.findMany({
+        where: { userId },
+        orderBy: { plannedAt: "desc" },
+        skip,
+        take: pagination.limit,
+      }),
+      prisma.flightPlan.count({ where: { userId } }),
+    ]);
+    return { items, total };
   }
 
-  async findAll(): Promise<FlightPlan[]> {
+  async findAll(pagination: PaginationParams): Promise<PaginatedFlightPlans> {
     const prisma = getPrisma();
-    return prisma.flightPlan.findMany({
-      orderBy: { plannedAt: "desc" },
-    });
+    const skip = (pagination.page - 1) * pagination.limit;
+    const [items, total] = await Promise.all([
+      prisma.flightPlan.findMany({
+        orderBy: { plannedAt: "desc" },
+        skip,
+        take: pagination.limit,
+      }),
+      prisma.flightPlan.count(),
+    ]);
+    return { items, total };
   }
 
   async findById(id: string): Promise<FlightPlan | null> {

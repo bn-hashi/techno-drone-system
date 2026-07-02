@@ -1,12 +1,21 @@
 import { z } from "zod";
 import { extractErrorMessage } from "@/lib/api/errorHelpers";
+import type { FlightPlanStatus } from "@prisma/client";
+
+export type { FlightPlanStatus };
 
 async function throwOnError(res: Response, fallback: string): Promise<never> {
   const message = await extractErrorMessage(res, fallback);
   throw new Error(message);
 }
 
-export type FlightPlanStatus = "DRAFT" | "APPROVED" | "REJECTED" | "COMPLETED";
+async function parseJsonBody(res: Response, fallback: string): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    throw new Error(fallback);
+  }
+}
 
 export interface FlightPlanDto {
   id: string;
@@ -31,6 +40,13 @@ export interface FlightPlanFormData {
   purpose: string;
 }
 
+export interface PaginatedFlightPlanDto {
+  plans: FlightPlanDto[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 const FlightPlanDtoSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -45,6 +61,13 @@ const FlightPlanDtoSchema = z.object({
   updatedAt: z.string(),
 });
 
+const PaginatedFlightPlanSchema = z.object({
+  plans: z.array(FlightPlanDtoSchema),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+});
+
 function parsePlanDto(raw: unknown, context: string): FlightPlanDto {
   const result = FlightPlanDtoSchema.safeParse(raw);
   if (!result.success) {
@@ -53,11 +76,18 @@ function parsePlanDto(raw: unknown, context: string): FlightPlanDto {
   return result.data;
 }
 
-export async function fetchFlightPlans(): Promise<FlightPlanDto[]> {
-  const res = await fetch("/api/flight/plans");
+export async function fetchFlightPlans(
+  pagination: { page?: number; limit?: number } = {}
+): Promise<PaginatedFlightPlanDto> {
+  const params = new URLSearchParams();
+  if (pagination.page) params.set("page", String(pagination.page));
+  if (pagination.limit) params.set("limit", String(pagination.limit));
+  const query = params.toString();
+
+  const res = await fetch(`/api/flight/plans${query ? `?${query}` : ""}`);
   if (!res.ok) await throwOnError(res, "飛行計画一覧の取得に失敗しました");
-  const data = await res.json();
-  const result = z.array(FlightPlanDtoSchema).safeParse(data.plans);
+  const data = await parseJsonBody(res, "飛行計画一覧の取得に失敗しました");
+  const result = PaginatedFlightPlanSchema.safeParse(data);
   if (!result.success) {
     throw new Error("飛行計画一覧の取得に失敗しました: レスポンスの形式が不正です");
   }
@@ -67,8 +97,8 @@ export async function fetchFlightPlans(): Promise<FlightPlanDto[]> {
 export async function fetchFlightPlan(id: string): Promise<FlightPlanDto> {
   const res = await fetch(`/api/flight/plans/${id}`);
   if (!res.ok) await throwOnError(res, "飛行計画の取得に失敗しました");
-  const data = await res.json();
-  return parsePlanDto(data.plan, "飛行計画の取得に失敗しました");
+  const data = await parseJsonBody(res, "飛行計画の取得に失敗しました");
+  return parsePlanDto((data as { plan: unknown }).plan, "飛行計画の取得に失敗しました");
 }
 
 export async function createFlightPlan(input: FlightPlanFormData): Promise<FlightPlanDto> {
@@ -78,13 +108,13 @@ export async function createFlightPlan(input: FlightPlanFormData): Promise<Fligh
     body: JSON.stringify(input),
   });
   if (!res.ok) await throwOnError(res, "飛行計画の作成に失敗しました");
-  const data = await res.json();
-  return parsePlanDto(data.plan, "飛行計画の作成に失敗しました");
+  const data = await parseJsonBody(res, "飛行計画の作成に失敗しました");
+  return parsePlanDto((data as { plan: unknown }).plan, "飛行計画の作成に失敗しました");
 }
 
 export async function updateFlightPlanStatus(
   id: string,
-  status: FlightPlanStatus,
+  status: FlightPlanStatus
 ): Promise<FlightPlanDto> {
   const res = await fetch(`/api/flight/plans/${id}`, {
     method: "PATCH",
@@ -92,6 +122,6 @@ export async function updateFlightPlanStatus(
     body: JSON.stringify({ status }),
   });
   if (!res.ok) await throwOnError(res, "ステータスの更新に失敗しました");
-  const data = await res.json();
-  return parsePlanDto(data.plan, "ステータスの更新に失敗しました");
+  const data = await parseJsonBody(res, "ステータスの更新に失敗しました");
+  return parsePlanDto((data as { plan: unknown }).plan, "ステータスの更新に失敗しました");
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createFlightPlan } from "@/lib/api/flightPlan";
+import { toJstIso, getJstNowAsDatetimeLocal } from "@/lib/utils/jstDatetime";
 
 interface AircraftOption {
   id: string;
@@ -37,7 +38,7 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -52,7 +53,7 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
         aircraftId: form.aircraftId,
         title: form.title,
         location: form.location,
-        plannedAt: new Date(form.plannedAt).toISOString(),
+        plannedAt: toJstIso(form.plannedAt),
         durationMin: Number(form.durationMin),
         purpose: form.purpose,
       });
@@ -131,6 +132,7 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
           type="datetime-local"
           value={form.plannedAt}
           onChange={handleChange}
+          min={getJstNowAsDatetimeLocal()}
           required
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />

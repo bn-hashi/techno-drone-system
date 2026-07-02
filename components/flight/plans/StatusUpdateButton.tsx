@@ -12,11 +12,13 @@ interface StatusUpdateButtonProps {
   variant?: "primary" | "danger" | "success";
 }
 
-const VARIANT_CLASSES: Record<string, string> = {
+const VARIANT_CLASSES: Record<NonNullable<StatusUpdateButtonProps["variant"]>, string> = {
   primary: "bg-blue-600 text-white hover:bg-blue-700",
   danger: "bg-red-600 text-white hover:bg-red-700",
   success: "bg-green-600 text-white hover:bg-green-700",
 };
+
+const DESTRUCTIVE_STATUSES: readonly FlightPlanStatus[] = ["REJECTED"];
 
 export function StatusUpdateButton({
   planId,
@@ -29,6 +31,9 @@ export function StatusUpdateButton({
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = async () => {
+    if (DESTRUCTIVE_STATUSES.includes(nextStatus) && !window.confirm(`この飛行計画を「${label}」にしますか？`)) {
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {

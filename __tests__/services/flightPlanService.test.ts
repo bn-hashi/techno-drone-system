@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { FlightPlanService } from "@/services/flightPlanService";
 import type { IFlightPlanRepository } from "@/repositories/flightPlanRepository";
-import { FlightPlanNotFoundError, FlightPlanInvalidTransitionError } from "@/services/errors";
-import type { FlightPlan } from "@prisma/client";
+import type { AircraftService } from "@/services/aircraftService";
+import {
+  FlightPlanNotFoundError,
+  FlightPlanInvalidTransitionError,
+  AircraftNotFoundError,
+} from "@/services/errors";
+import type { FlightPlan, Aircraft } from "@prisma/client";
 import { FlightPlanStatus } from "@prisma/client";
 
 const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan => ({
@@ -20,6 +25,23 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan => ({
   ...overrides,
 });
 
+const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft =>
+  ({
+    id: "aircraft-1",
+    userId: "user-1",
+    name: "テスト機体",
+    manufacturer: "テストメーカー",
+    modelNumber: "T-1",
+    serialNumber: "SN-1",
+    weightGrams: 500,
+    maxFlightTimeMin: 20,
+    registrationNumber: null,
+    isActive: true,
+    createdAt: new Date("2026-07-01"),
+    updatedAt: new Date("2026-07-01"),
+    ...overrides,
+  }) as Aircraft;
+
 const mockRepo = (): IFlightPlanRepository => ({
   findAllByUser: vi.fn(),
   findAll: vi.fn(),
@@ -29,41 +51,64 @@ const mockRepo = (): IFlightPlanRepository => ({
   updateStatus: vi.fn(),
 });
 
+const mockAircraftService = (): AircraftService =>
+  ({
+    findById: vi.fn(),
+  }) as unknown as AircraftService;
+
 describe("FlightPlanService", () => {
   let repo: IFlightPlanRepository;
+  let aircraftService: AircraftService;
   let service: FlightPlanService;
 
   beforeEach(() => {
     repo = mockRepo();
-    service = new FlightPlanService(repo);
+    aircraftService = mockAircraftService();
+    service = new FlightPlanService(repo, aircraftService);
   });
 
   // ─── list ───────────────────────────────────────────────────────────────────
 
   describe("list", () => {
     it("test_list_pilot_calls_findAllByUser", async () => {
-      vi.mocked(repo.findAllByUser).mockResolvedValue([makePlan()]);
+      vi.mocked(repo.findAllByUser).mockResolvedValue({ items: [makePlan()], total: 1 });
 
       await service.list({ userId: "user-1", isAdmin: false });
 
-      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1");
+      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", { page: 1, limit: 20 });
     });
 
     it("test_list_admin_calls_findAll", async () => {
-      vi.mocked(repo.findAll).mockResolvedValue([makePlan()]);
+      vi.mocked(repo.findAll).mockResolvedValue({ items: [makePlan()], total: 1 });
 
       await service.list({ userId: "admin-1", isAdmin: true });
 
-      expect(repo.findAll).toHaveBeenCalled();
+      expect(repo.findAll).toHaveBeenCalledWith({ page: 1, limit: 20 });
     });
 
-    it("test_list_pilot_returns_plans", async () => {
+    it("test_list_returns_plans_total_page_limit", async () => {
       const plan = makePlan();
-      vi.mocked(repo.findAllByUser).mockResolvedValue([plan]);
+      vi.mocked(repo.findAllByUser).mockResolvedValue({ items: [plan], total: 42 });
 
       const result = await service.list({ userId: "user-1", isAdmin: false });
 
-      expect(result).toEqual([plan]);
+      expect(result).toEqual({ plans: [plan], total: 42, page: 1, limit: 20 });
+    });
+
+    it("test_list_clamps_page_below_one_to_one", async () => {
+      vi.mocked(repo.findAllByUser).mockResolvedValue({ items: [], total: 0 });
+
+      await service.list({ userId: "user-1", isAdmin: false }, { page: 0 });
+
+      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", { page: 1, limit: 20 });
+    });
+
+    it("test_list_clamps_limit_above_max_to_max", async () => {
+      vi.mocked(repo.findAllByUser).mockResolvedValue({ items: [], total: 0 });
+
+      await service.list({ userId: "user-1", isAdmin: false }, { limit: 500 });
+
+      expect(repo.findAllByUser).toHaveBeenCalledWith("user-1", { page: 1, limit: 100 });
     });
   });
 
@@ -92,7 +137,7 @@ describe("FlightPlanService", () => {
       vi.mocked(repo.findById).mockResolvedValue(null);
 
       await expect(
-        service.findById("plan-1", { userId: "user-1", isAdmin: false }),
+        service.findById("plan-1", { userId: "user-1", isAdmin: false })
       ).rejects.toThrow(FlightPlanNotFoundError);
     });
 
@@ -101,7 +146,7 @@ describe("FlightPlanService", () => {
       vi.mocked(repo.findById).mockResolvedValue(plan);
 
       await expect(
-        service.findById("plan-1", { userId: "user-1", isAdmin: false }),
+        service.findById("plan-1", { userId: "user-1", isAdmin: false })
       ).rejects.toThrow(FlightPlanNotFoundError);
     });
   });
@@ -118,41 +163,131 @@ describe("FlightPlanService", () => {
       durationMin: 30,
       purpose: "点検飛行",
     };
+    const context = { userId: "user-1", isAdmin: false };
 
-    it("test_create_calls_repo_create_with_input", async () => {
+    it("test_create_calls_repo_create_with_input_when_aircraft_is_owned", async () => {
       const plan = makePlan();
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(repo.create).mockResolvedValue(plan);
 
-      await service.create(validInput);
+      await service.create(validInput, context);
 
+      expect(aircraftService.findById).toHaveBeenCalledWith("aircraft-1", context);
       expect(repo.create).toHaveBeenCalledWith(validInput);
     });
 
     it("test_create_returns_created_plan", async () => {
       const plan = makePlan();
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(repo.create).mockResolvedValue(plan);
 
-      const result = await service.create(validInput);
+      const result = await service.create(validInput, context);
 
       expect(result).toEqual(plan);
     });
 
+    it("test_create_throws_and_skips_repo_create_when_aircraft_not_owned", async () => {
+      vi.mocked(aircraftService.findById).mockRejectedValue(new AircraftNotFoundError("aircraft-1"));
+
+      await expect(service.create(validInput, context)).rejects.toThrow(AircraftNotFoundError);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it("test_create_allows_admin_to_use_any_aircraft", async () => {
+      const plan = makePlan();
+      const adminContext = { userId: "admin-1", isAdmin: true };
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ userId: "other-user" }));
+      vi.mocked(repo.create).mockResolvedValue(plan);
+
+      await service.create(validInput, adminContext);
+
+      expect(aircraftService.findById).toHaveBeenCalledWith("aircraft-1", adminContext);
+      expect(repo.create).toHaveBeenCalledWith(validInput);
+    });
+
     it("test_create_throws_when_durationMin_is_zero", async () => {
       await expect(
-        service.create({ ...validInput, durationMin: 0 }),
+        service.create({ ...validInput, durationMin: 0 }, context)
       ).rejects.toThrow();
+      expect(aircraftService.findById).not.toHaveBeenCalled();
     });
 
     it("test_create_throws_when_title_is_empty", async () => {
-      await expect(
-        service.create({ ...validInput, title: "" }),
-      ).rejects.toThrow();
+      await expect(service.create({ ...validInput, title: "" }, context)).rejects.toThrow();
     });
 
     it("test_create_throws_when_location_is_empty", async () => {
+      await expect(service.create({ ...validInput, location: "" }, context)).rejects.toThrow();
+    });
+  });
+
+  // ─── getAircraftForPlan ──────────────────────────────────────────────────────
+
+  describe("getAircraftForPlan", () => {
+    it("test_getAircraftForPlan_returns_aircraft_when_found", async () => {
+      const plan = makePlan();
+      const aircraft = makeAircraft();
+      vi.mocked(aircraftService.findById).mockResolvedValue(aircraft);
+
+      const result = await service.getAircraftForPlan(plan);
+
+      expect(result).toEqual(aircraft);
+      expect(aircraftService.findById).toHaveBeenCalledWith(plan.aircraftId, {
+        userId: plan.userId,
+        isAdmin: true,
+      });
+    });
+
+    it("test_getAircraftForPlan_returns_null_when_aircraft_not_found", async () => {
+      const plan = makePlan();
+      vi.mocked(aircraftService.findById).mockRejectedValue(
+        new AircraftNotFoundError(plan.aircraftId)
+      );
+
+      const result = await service.getAircraftForPlan(plan);
+
+      expect(result).toBeNull();
+    });
+
+    it("test_getAircraftForPlan_rethrows_unexpected_errors", async () => {
+      const plan = makePlan();
+      vi.mocked(aircraftService.findById).mockRejectedValue(new Error("unexpected"));
+
+      await expect(service.getAircraftForPlan(plan)).rejects.toThrow("unexpected");
+    });
+  });
+
+  // ─── getRisk ─────────────────────────────────────────────────────────────────
+
+  describe("getRisk", () => {
+    it("test_getRisk_returns_risk_info_when_aircraft_found", async () => {
+      const plan = makePlan();
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ weightGrams: 500 }));
+
+      const result = await service.getRisk("plan-1", { userId: "user-1", isAdmin: false });
+
+      expect(result.hazard.fallDistanceM).toBeGreaterThan(0);
+    });
+
+    it("test_getRisk_throws_when_aircraft_not_found", async () => {
+      const plan = makePlan();
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(aircraftService.findById).mockRejectedValue(
+        new AircraftNotFoundError(plan.aircraftId)
+      );
+
       await expect(
-        service.create({ ...validInput, location: "" }),
-      ).rejects.toThrow();
+        service.getRisk("plan-1", { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow(AircraftNotFoundError);
+    });
+
+    it("test_getRisk_throws_when_plan_not_found", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(null);
+
+      await expect(
+        service.getRisk("plan-1", { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow(FlightPlanNotFoundError);
     });
   });
 
@@ -195,7 +330,7 @@ describe("FlightPlanService", () => {
         service.updateStatus("plan-1", FlightPlanStatus.APPROVED, {
           userId: "user-1",
           isAdmin: false,
-        }),
+        })
       ).rejects.toThrow(FlightPlanInvalidTransitionError);
     });
 
@@ -207,7 +342,7 @@ describe("FlightPlanService", () => {
         service.updateStatus("plan-1", FlightPlanStatus.APPROVED, {
           userId: "admin-1",
           isAdmin: true,
-        }),
+        })
       ).rejects.toThrow(FlightPlanInvalidTransitionError);
     });
 
@@ -218,7 +353,7 @@ describe("FlightPlanService", () => {
         service.updateStatus("plan-1", FlightPlanStatus.APPROVED, {
           userId: "admin-1",
           isAdmin: true,
-        }),
+        })
       ).rejects.toThrow(FlightPlanNotFoundError);
     });
   });

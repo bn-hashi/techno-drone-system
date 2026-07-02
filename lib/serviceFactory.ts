@@ -168,5 +168,5 @@ export function getDashboardService(): DashboardService {
 
 /** 飛行計画 Service のインスタンスを返す */
 export function getFlightPlanService(): FlightPlanService {
-  return new FlightPlanService(new FlightPlanRepository());
+  return new FlightPlanService(new FlightPlanRepository(), getAircraftService());
 }

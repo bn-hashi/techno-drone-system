@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
 import { getFlightPlanService } from "@/lib/serviceFactory";
-import { UserRole } from "@/types/prisma";
-import { hasFlightAccess } from "@/lib/auth/flightPermissions";
+import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import {
   FlightPlanNotFoundError,
   FlightPlanInvalidTransitionError,
@@ -15,13 +12,13 @@ import { FlightPlanStatus } from "@prisma/client";
 const UpdateFlightPlanSchema = z.object({
   title: z.string().min(1).optional(),
   location: z.string().min(1).optional(),
-  plannedAt: z.string().datetime().optional(),
+  plannedAt: z.iso.datetime().optional(),
   durationMin: z.number().int().positive().optional(),
   purpose: z.string().min(1).optional(),
 });
 
 const UpdateStatusSchema = z.object({
-  status: z.nativeEnum(FlightPlanStatus),
+  status: z.enum(FlightPlanStatus),
 });
 
 interface RouteContext {
@@ -29,22 +26,13 @@ interface RouteContext {
 }
 
 export async function GET(_request: Request, { params }: RouteContext): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const role = session.user.role as UserRole;
-  if (!hasFlightAccess(role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireFlightAccess();
+  if (!auth.ok) return auth.response;
 
   const { id } = params;
   try {
     const service = getFlightPlanService();
-    const plan = await service.findById(id, {
-      userId: session.user.id,
-      isAdmin: role === UserRole.ADMIN,
-    });
+    const plan = await service.findById(id, { userId: auth.userId, isAdmin: auth.isAdmin });
     return NextResponse.json({ plan }, { status: 200 });
   } catch (error) {
     if (error instanceof FlightPlanNotFoundError) {
@@ -55,14 +43,8 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
 }
 
 export async function PUT(request: Request, { params }: RouteContext): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const role = session.user.role as UserRole;
-  if (!hasFlightAccess(role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireFlightAccess();
+  if (!auth.ok) return auth.response;
 
   const { id } = params;
   const rawBody = await request.json().catch(() => null);
@@ -80,7 +62,7 @@ export async function PUT(request: Request, { params }: RouteContext): Promise<N
     const updatedPlan = await service.update(
       id,
       { ...data, plannedAt: data.plannedAt ? new Date(data.plannedAt) : undefined },
-      { userId: session.user.id, isAdmin: role === UserRole.ADMIN },
+      { userId: auth.userId, isAdmin: auth.isAdmin }
     );
     return NextResponse.json({ plan: updatedPlan }, { status: 200 });
   } catch (error) {
@@ -95,14 +77,8 @@ export async function PUT(request: Request, { params }: RouteContext): Promise<N
 }
 
 export async function PATCH(request: Request, { params }: RouteContext): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const role = session.user.role as UserRole;
-  if (!hasFlightAccess(role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireFlightAccess();
+  if (!auth.ok) return auth.response;
 
   const { id } = params;
   const rawBody = await request.json().catch(() => null);
@@ -117,8 +93,8 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
   try {
     const service = getFlightPlanService();
     const plan = await service.updateStatus(id, parsed.data.status, {
-      userId: session.user.id,
-      isAdmin: role === UserRole.ADMIN,
+      userId: auth.userId,
+      isAdmin: auth.isAdmin,
     });
     return NextResponse.json({ plan }, { status: 200 });
   } catch (error) {

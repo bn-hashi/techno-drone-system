@@ -404,5 +404,6 @@ model FlightPlan {
   aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Restrict)
 
   @@index([userId, status])
+  @@index([aircraftId])
   @@map("flight_plans")
 }

@@ -1,32 +1,15 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { notFound } from "next/navigation";
 import { getFlightPlanService } from "@/lib/serviceFactory";
-import { AircraftRepository } from "@/repositories/aircraftRepository";
+import { requireFlightSession } from "@/lib/auth/requireFlightSession";
 import { FlightPlanNotFoundError } from "@/services/errors";
-import { UserRole } from "@/types/prisma";
-import { hasFlightAccess } from "@/lib/auth/flightPermissions";
 import { calcFallDistance } from "@/lib/utils/fallDistance";
 import { getRiskStub } from "@/lib/stubs/weatherStub";
+import { STUB_ALTITUDE_METERS } from "@/lib/constants/flightPlan";
+import { FLIGHT_PLAN_STATUS_LABELS, FLIGHT_PLAN_STATUS_STYLE } from "@/lib/constants/flightPlanStatusLabels";
+import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
 import { StatusUpdateButton } from "@/components/flight/plans/StatusUpdateButton";
 import type { FlightPlanStatus } from "@prisma/client";
-
-const STUB_ALTITUDE_METERS = 50;
-
-const STATUS_LABEL: Record<FlightPlanStatus, string> = {
-  DRAFT: "下書き",
-  APPROVED: "承認済み",
-  REJECTED: "却下",
-  COMPLETED: "完了",
-};
-
-const STATUS_STYLE: Record<FlightPlanStatus, string> = {
-  DRAFT: "bg-gray-100 text-gray-600",
-  APPROVED: "bg-blue-100 text-blue-700",
-  REJECTED: "bg-red-100 text-red-700",
-  COMPLETED: "bg-green-100 text-green-700",
-};
 
 interface FlightPlanDetailPageProps {
   params: { id: string };
@@ -35,18 +18,13 @@ interface FlightPlanDetailPageProps {
 export const dynamic = "force-dynamic";
 
 export default async function FlightPlanDetailPage({ params }: FlightPlanDetailPageProps) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !hasFlightAccess(session.user.role as UserRole)) {
-    redirect("/login");
-  }
-
-  const role = session.user.role as UserRole;
-  const isAdmin = role === UserRole.ADMIN;
-  const context = { userId: session.user.id, isAdmin };
+  const { userId, isAdmin } = await requireFlightSession();
+  const context = { userId, isAdmin };
+  const service = getFlightPlanService();
 
   let plan;
   try {
-    plan = await getFlightPlanService().findById(params.id, context);
+    plan = await service.findById(params.id, context);
   } catch (err) {
     if (err instanceof FlightPlanNotFoundError) {
       notFound();
@@ -54,8 +32,7 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
     throw err;
   }
 
-  const aircraftRepo = new AircraftRepository();
-  const aircraft = await aircraftRepo.findById(plan.aircraftId);
+  const aircraft = await service.getAircraftForPlan(plan);
 
   let risk = null;
   if (aircraft) {
@@ -64,7 +41,7 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
   }
 
   const status = plan.status as FlightPlanStatus;
-  const isOwnPlan = plan.userId === session.user.id;
+  const isOwnPlan = plan.userId === userId;
 
   return (
     <div className="p-6 max-w-2xl">
@@ -79,9 +56,9 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
           <h1 className="text-xl font-semibold text-gray-900">{plan.title}</h1>
         </div>
         <span
-          className={`mt-1 px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[status]}`}
+          className={`mt-1 px-2 py-0.5 rounded text-xs font-medium ${FLIGHT_PLAN_STATUS_STYLE[status]}`}
         >
-          {STATUS_LABEL[status]}
+          {FLIGHT_PLAN_STATUS_LABELS[status]}
         </span>
       </div>
 
@@ -93,16 +70,7 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">飛行予定日時</dt>
-            <dd className="text-sm text-gray-900">
-              {new Date(plan.plannedAt).toLocaleString("ja-JP", {
-                timeZone: "Asia/Tokyo",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </dd>
+            <dd className="text-sm text-gray-900">{formatFlightDateTime(new Date(plan.plannedAt))}</dd>
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">飛行時間</dt>
