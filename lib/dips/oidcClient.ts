@@ -58,8 +58,7 @@ export class DipsOidcClient {
       throw new DipsAuthError(`DIPSトークンレスポンスの形式が不正です (グループ: ${group})`);
     }
 
-    const expiresAt =
-      Date.now() + (body.expires_in - EXPIRY_SAFETY_MARGIN_SECONDS) * 1000;
+    const expiresAt = Date.now() + (body.expires_in - EXPIRY_SAFETY_MARGIN_SECONDS) * 1000;
     this.cache.set(group, { token: body.access_token, expiresAt });
     return body.access_token;
   }

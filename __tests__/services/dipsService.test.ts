@@ -128,9 +128,7 @@ describe("DipsService", () => {
 
     it("test_verify_returns_not_registered_when_ua_status_inactive", async () => {
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeDipsAircraft({ uaStatus: 2 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([makeDipsAircraft({ uaStatus: 2 })]);
 
       const result = await service.verifyAircraftRegistration("aircraft-1", context);
 

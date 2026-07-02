@@ -27,11 +27,14 @@ describe("DipsApiClient", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    oidcClient = { getAccessToken: vi.fn().mockResolvedValue("test-token") } as unknown as DipsOidcClient;
+    oidcClient = {
+      getAccessToken: vi.fn().mockResolvedValue("test-token"),
+    } as unknown as DipsOidcClient;
     fetchMock = vi.fn();
   });
 
-  const makeClient = () => new DipsApiClient(config, oidcClient, fetchMock as unknown as typeof fetch);
+  const makeClient = () =>
+    new DipsApiClient(config, oidcClient, fetchMock as unknown as typeof fetch);
 
   it("test_fetchAircraftList_requests_with_bearer_token", async () => {
     fetchMock.mockResolvedValue(jsonResponse([]));
