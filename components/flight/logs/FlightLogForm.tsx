@@ -42,11 +42,7 @@ type InspectionResults = Record<InspectionPhase, Record<string, InspectionResult
 
 const PHASES = [InspectionPhase.PRE_FLIGHT, InspectionPhase.POST_FLIGHT] as const;
 
-const RESULT_OPTIONS = [
-  InspectionResult.PASS,
-  InspectionResult.FAIL,
-  InspectionResult.NA,
-] as const;
+const RESULT_OPTIONS = [InspectionResult.PASS, InspectionResult.FAIL, InspectionResult.NA] as const;
 
 function buildInitialInspections(): InspectionResults {
   const perPhase = () =>

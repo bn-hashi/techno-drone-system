@@ -56,10 +56,7 @@ export interface IFlightLogRepository {
 }
 
 export class FlightLogRepository implements IFlightLogRepository {
-  async findAllByUser(
-    userId: string,
-    pagination: PaginationParams
-  ): Promise<PaginatedFlightLogs> {
+  async findAllByUser(userId: string, pagination: PaginationParams): Promise<PaginatedFlightLogs> {
     const prisma = getPrisma();
     const skip = (pagination.page - 1) * pagination.limit;
     const [items, total] = await Promise.all([

@@ -144,7 +144,9 @@ function InspectionTable({ inspections }: { inspections: FlightLogPdfInspection[
           style={index === inspections.length - 1 ? styles.lastRow : styles.inspectionRow}
         >
           <Text style={styles.inspectionItemCell}>{inspectionLabel(inspection.itemKey)}</Text>
-          <Text style={styles.inspectionResultCell}>{INSPECTION_RESULT_LABELS[inspection.result]}</Text>
+          <Text style={styles.inspectionResultCell}>
+            {INSPECTION_RESULT_LABELS[inspection.result]}
+          </Text>
           <Text style={styles.inspectionNoteCell}>{inspection.note ?? ""}</Text>
         </View>
       ))}

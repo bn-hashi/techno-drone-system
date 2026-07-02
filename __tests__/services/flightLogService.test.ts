@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { FlightLogService } from "@/services/flightLogService";
-import type { IFlightLogRepository, FlightLogWithInspections } from "@/repositories/flightLogRepository";
+import type {
+  IFlightLogRepository,
+  FlightLogWithInspections,
+} from "@/repositories/flightLogRepository";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
 import {
@@ -28,9 +31,7 @@ const makeLog = (overrides: Partial<FlightLog> = {}): FlightLog => ({
   ...overrides,
 });
 
-const makeLogWithInspections = (
-  overrides: Partial<FlightLog> = {}
-): FlightLogWithInspections => ({
+const makeLogWithInspections = (overrides: Partial<FlightLog> = {}): FlightLogWithInspections => ({
   ...makeLog(overrides),
   inspections: [
     {
@@ -73,7 +74,11 @@ const mockRepo = (): IFlightLogRepository => ({
 const makeLogForPdf = (overrides: Partial<FlightLog> = {}) => ({
   ...makeLogWithInspections(overrides),
   user: { name: "操縦者 太郎" },
-  aircraft: { name: "テスト機体", manufacturer: "テストメーカー", registrationNumber: "JU1234567890" },
+  aircraft: {
+    name: "テスト機体",
+    manufacturer: "テストメーカー",
+    registrationNumber: "JU1234567890",
+  },
   flightPlan: null,
 });
 
@@ -162,18 +167,18 @@ describe("FlightLogService", () => {
     it("test_findById_throws_when_not_found", async () => {
       vi.mocked(repo.findById).mockResolvedValue(null);
 
-      await expect(
-        service.findById("log-1", { userId: "user-1", isAdmin: false })
-      ).rejects.toThrow(FlightLogNotFoundError);
+      await expect(service.findById("log-1", { userId: "user-1", isAdmin: false })).rejects.toThrow(
+        FlightLogNotFoundError
+      );
     });
 
     it("test_findById_throws_when_not_owner_and_not_admin", async () => {
       const log = makeLogWithInspections({ userId: "other-user" });
       vi.mocked(repo.findById).mockResolvedValue(log);
 
-      await expect(
-        service.findById("log-1", { userId: "user-1", isAdmin: false })
-      ).rejects.toThrow(FlightLogNotFoundError);
+      await expect(service.findById("log-1", { userId: "user-1", isAdmin: false })).rejects.toThrow(
+        FlightLogNotFoundError
+      );
     });
   });
 
@@ -284,7 +289,9 @@ describe("FlightLogService", () => {
 
     it("test_create_throws_when_flight_plan_not_found", async () => {
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(flightPlanService.findById).mockRejectedValue(new FlightPlanNotFoundError("plan-1"));
+      vi.mocked(flightPlanService.findById).mockRejectedValue(
+        new FlightPlanNotFoundError("plan-1")
+      );
 
       await expect(
         service.create({ ...validInput, flightPlanId: "plan-1" }, validInspections, context)

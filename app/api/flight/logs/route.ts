@@ -3,11 +3,7 @@ import { z } from "zod";
 import { getFlightLogService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { InspectionListSchema } from "@/lib/zod/inspectionSchema";
-import {
-  BusinessError,
-  AircraftNotFoundError,
-  FlightPlanNotFoundError,
-} from "@/services/errors";
+import { BusinessError, AircraftNotFoundError, FlightPlanNotFoundError } from "@/services/errors";
 
 const MAX_NOTE_LENGTH = 2000;
 
