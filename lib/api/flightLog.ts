@@ -63,6 +63,8 @@ const FlightLogDtoSchema = z.object({
   updatedAt: z.string(),
 });
 
+const CreateFlightLogResponseSchema = z.object({ log: FlightLogDtoSchema });
+
 export async function createFlightLog(input: FlightLogFormData): Promise<FlightLogDto> {
   const res = await fetch("/api/flight/logs", {
     method: "POST",
@@ -71,9 +73,9 @@ export async function createFlightLog(input: FlightLogFormData): Promise<FlightL
   });
   if (!res.ok) await throwOnError(res, "飛行日誌の作成に失敗しました");
   const data = await parseJsonBody(res, "飛行日誌の作成に失敗しました");
-  const result = FlightLogDtoSchema.safeParse((data as { log: unknown }).log);
+  const result = CreateFlightLogResponseSchema.safeParse(data);
   if (!result.success) {
     throw new Error("飛行日誌の作成に失敗しました: レスポンスの形式が不正です");
   }
-  return result.data;
+  return result.data.log;
 }

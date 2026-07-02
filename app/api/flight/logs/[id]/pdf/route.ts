@@ -3,6 +3,7 @@ import { getFlightLogService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { generateFlightLogPdf } from "@/lib/pdf/generateFlightLogPdf";
 import { FlightLogNotFoundError } from "@/services/errors";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -63,6 +64,10 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     if (error instanceof FlightLogNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
+    logger.error("飛行日誌 PDF の生成に失敗しました", error, {
+      route: "GET /api/flight/logs/[id]/pdf",
+      id,
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

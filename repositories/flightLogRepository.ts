@@ -4,7 +4,9 @@ import type {
   FlightInspection,
   InspectionPhase,
   InspectionResult,
+  Prisma,
 } from "@prisma/client";
+import type { InspectionItemKey } from "@/lib/constants/inspectionItems";
 
 export interface CreateFlightLogInput {
   userId: string;
@@ -20,7 +22,7 @@ export interface CreateFlightLogInput {
 
 export interface CreateInspectionInput {
   phase: InspectionPhase;
-  itemKey: string;
+  itemKey: InspectionItemKey;
   result: InspectionResult;
   note?: string | null;
 }
@@ -54,6 +56,12 @@ export interface IFlightLogRepository {
     inspections: CreateInspectionInput[]
   ): Promise<FlightLogWithInspections>;
 }
+
+/** createdAt が同一時刻になり得る (ネストした create のバッチ挿入) ため id を第2ソートキーにして順序を安定させる */
+const INSPECTION_ORDER_BY: Prisma.FlightInspectionOrderByWithRelationInput[] = [
+  { createdAt: "asc" },
+  { id: "asc" },
+];
 
 export class FlightLogRepository implements IFlightLogRepository {
   async findAllByUser(userId: string, pagination: PaginationParams): Promise<PaginatedFlightLogs> {
@@ -89,7 +97,7 @@ export class FlightLogRepository implements IFlightLogRepository {
     const prisma = getPrisma();
     return prisma.flightLog.findUnique({
       where: { id },
-      include: { inspections: { orderBy: { createdAt: "asc" } } },
+      include: { inspections: { orderBy: INSPECTION_ORDER_BY } },
     });
   }
 
@@ -98,7 +106,7 @@ export class FlightLogRepository implements IFlightLogRepository {
     return prisma.flightLog.findUnique({
       where: { id },
       include: {
-        inspections: { orderBy: { createdAt: "asc" } },
+        inspections: { orderBy: INSPECTION_ORDER_BY },
         user: { select: { name: true } },
         aircraft: { select: { name: true, manufacturer: true, registrationNumber: true } },
         flightPlan: { select: { title: true, purpose: true } },
@@ -118,7 +126,7 @@ export class FlightLogRepository implements IFlightLogRepository {
         ...data,
         inspections: { create: inspections },
       },
-      include: { inspections: { orderBy: { createdAt: "asc" } } },
+      include: { inspections: { orderBy: INSPECTION_ORDER_BY } },
     });
   }
 }

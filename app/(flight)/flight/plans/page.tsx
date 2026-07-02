@@ -3,6 +3,7 @@ import { getFlightPlanService } from "@/lib/serviceFactory";
 import { requireFlightSession } from "@/lib/auth/requireFlightSession";
 import { FLIGHT_PLAN_STATUS_LABELS, FLIGHT_PLAN_STATUS_STYLE } from "@/lib/constants/flightPlanStatusLabels";
 import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
+import { parsePageParam } from "@/lib/utils/parsePageParam";
 import type { FlightPlanStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ interface FlightPlanListPageProps {
 export default async function FlightPlanListPage({ searchParams }: FlightPlanListPageProps) {
   const { userId, isAdmin } = await requireFlightSession();
 
-  const page = Number(searchParams.page ?? "1") || 1;
+  const page = parsePageParam(searchParams.page);
   const { plans, total, limit } = await getFlightPlanService().list({ userId, isAdmin }, { page });
   const hasNextPage = page * limit < total;
   const hasPreviousPage = page > 1;

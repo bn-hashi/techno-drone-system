@@ -3,6 +3,7 @@ import { FlightLogService } from "@/services/flightLogService";
 import type {
   IFlightLogRepository,
   FlightLogWithInspections,
+  CreateInspectionInput,
 } from "@/repositories/flightLogRepository";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
@@ -88,7 +89,7 @@ const mockAircraftService = (): AircraftService =>
 const mockFlightPlanService = (): FlightPlanService =>
   ({ findById: vi.fn() }) as unknown as FlightPlanService;
 
-const validInspections = [
+const validInspections: CreateInspectionInput[] = [
   { phase: InspectionPhase.PRE_FLIGHT, itemKey: "battery", result: InspectionResult.PASS },
   { phase: InspectionPhase.POST_FLIGHT, itemKey: "propeller", result: InspectionResult.PASS },
 ];
@@ -258,7 +259,7 @@ describe("FlightLogService", () => {
       expect(aircraftService.findById).toHaveBeenCalledWith("aircraft-1", context);
     });
 
-    it("test_create_throws_and_skips_repo_when_aircraft_not_owned", async () => {
+    it("test_create_throws_when_aircraft_not_owned", async () => {
       vi.mocked(aircraftService.findById).mockRejectedValue(
         new AircraftNotFoundError("aircraft-1")
       );
@@ -266,7 +267,29 @@ describe("FlightLogService", () => {
       await expect(service.create(validInput, validInspections, context)).rejects.toThrow(
         AircraftNotFoundError
       );
+    });
+
+    it("test_create_skips_repo_when_aircraft_not_owned", async () => {
+      vi.mocked(aircraftService.findById).mockRejectedValue(
+        new AircraftNotFoundError("aircraft-1")
+      );
+
+      await expect(
+        service.create(validInput, validInspections, context)
+      ).rejects.toThrow(AircraftNotFoundError);
       expect(repo.createWithInspections).not.toHaveBeenCalled();
+    });
+
+    it("test_create_trims_location_before_persisting", async () => {
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(repo.createWithInspections).mockResolvedValue(makeLogWithInspections());
+
+      await service.create({ ...validInput, location: "  東京都港区  " }, validInspections, context);
+
+      expect(repo.createWithInspections).toHaveBeenCalledWith(
+        expect.objectContaining({ location: "東京都港区" }),
+        validInspections
+      );
     });
 
     it("test_create_verifies_flight_plan_when_flightPlanId_given", async () => {
@@ -296,10 +319,31 @@ describe("FlightLogService", () => {
       await expect(
         service.create({ ...validInput, flightPlanId: "plan-1" }, validInspections, context)
       ).rejects.toThrow(FlightPlanNotFoundError);
+    });
+
+    it("test_create_skips_repo_when_flight_plan_not_found", async () => {
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(flightPlanService.findById).mockRejectedValue(
+        new FlightPlanNotFoundError("plan-1")
+      );
+
+      await expect(
+        service.create({ ...validInput, flightPlanId: "plan-1" }, validInspections, context)
+      ).rejects.toThrow(FlightPlanNotFoundError);
       expect(repo.createWithInspections).not.toHaveBeenCalled();
     });
 
     it("test_create_throws_when_endedAt_not_after_startedAt", async () => {
+      await expect(
+        service.create(
+          { ...validInput, endedAt: new Date("2026-07-02T10:00:00+09:00") },
+          validInspections,
+          context
+        )
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_skips_aircraft_check_when_endedAt_not_after_startedAt", async () => {
       await expect(
         service.create(
           { ...validInput, endedAt: new Date("2026-07-02T10:00:00+09:00") },
@@ -317,6 +361,10 @@ describe("FlightLogService", () => {
     });
 
     it("test_create_throws_when_inspections_empty", async () => {
+      await expect(service.create(validInput, [], context)).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_skips_repo_when_inspections_empty", async () => {
       await expect(service.create(validInput, [], context)).rejects.toThrow(BusinessError);
       expect(repo.createWithInspections).not.toHaveBeenCalled();
     });

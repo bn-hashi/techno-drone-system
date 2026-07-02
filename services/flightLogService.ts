@@ -58,19 +58,13 @@ export class FlightLogService {
 
   async findById(id: string, context: AccessContext): Promise<FlightLogWithInspections> {
     const log = await this.repo.findById(id);
-    if (log === null || (!context.isAdmin && log.userId !== context.userId)) {
-      throw new FlightLogNotFoundError(id);
-    }
-    return log;
+    return this.assertOwnership(log, id, context);
   }
 
   /** PDF (様式1) 出力用に関連情報込みで取得する。アクセス制御は findById と同一 */
   async findByIdForPdf(id: string, context: AccessContext): Promise<FlightLogForPdf> {
     const log = await this.repo.findByIdForPdf(id);
-    if (log === null || (!context.isAdmin && log.userId !== context.userId)) {
-      throw new FlightLogNotFoundError(id);
-    }
-    return log;
+    return this.assertOwnership(log, id, context);
   }
 
   async create(
@@ -86,7 +80,21 @@ export class FlightLogService {
     }
 
     const durationMin = calcDurationMin(input.startedAt, input.endedAt);
-    return this.repo.createWithInspections({ ...input, durationMin }, inspections);
+    return this.repo.createWithInspections(
+      { ...input, location: input.location.trim(), durationMin },
+      inspections
+    );
+  }
+
+  private assertOwnership<T extends { userId: string }>(
+    log: T | null,
+    id: string,
+    context: AccessContext
+  ): T {
+    if (log === null || (!context.isAdmin && log.userId !== context.userId)) {
+      throw new FlightLogNotFoundError(id);
+    }
+    return log;
   }
 
   private validateCreateInput(

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFlightLogService } from "@/lib/serviceFactory";
 import { requireFlightSession } from "@/lib/auth/requireFlightSession";
 import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
+import { parsePageParam } from "@/lib/utils/parsePageParam";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ interface FlightLogListPageProps {
 export default async function FlightLogListPage({ searchParams }: FlightLogListPageProps) {
   const { userId, isAdmin } = await requireFlightSession();
 
-  const page = Number(searchParams.page ?? "1") || 1;
+  const page = parsePageParam(searchParams.page);
   const { logs, total, limit } = await getFlightLogService().list({ userId, isAdmin }, { page });
   const hasNextPage = page * limit < total;
   const hasPreviousPage = page > 1;

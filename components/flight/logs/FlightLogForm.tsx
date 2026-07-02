@@ -38,19 +38,25 @@ interface FormState {
   incidentNote: string;
 }
 
-type InspectionResults = Record<InspectionPhase, Record<string, InspectionResult>>;
+type InspectionResults = Record<InspectionPhase, Record<string, InspectionResult | null>>;
 
 const PHASES = [InspectionPhase.PRE_FLIGHT, InspectionPhase.POST_FLIGHT] as const;
 
 const RESULT_OPTIONS = [InspectionResult.PASS, InspectionResult.FAIL, InspectionResult.NA] as const;
 
+/** 未点検のまま送信させないため、初期値は未選択(null)にする */
 function buildInitialInspections(): InspectionResults {
-  const perPhase = () =>
-    Object.fromEntries(INSPECTION_ITEMS.map((item) => [item.key, InspectionResult.PASS]));
+  const perPhase = () => Object.fromEntries(INSPECTION_ITEMS.map((item) => [item.key, null]));
   return {
     [InspectionPhase.PRE_FLIGHT]: perPhase(),
     [InspectionPhase.POST_FLIGHT]: perPhase(),
   };
+}
+
+function isInspectionComplete(inspections: InspectionResults): boolean {
+  return PHASES.every((phase) =>
+    INSPECTION_ITEMS.every((item) => inspections[phase][item.key] !== null)
+  );
 }
 
 export function FlightLogForm({ aircrafts, completedPlans }: FlightLogFormProps) {
@@ -89,13 +95,18 @@ export function FlightLogForm({ aircrafts, completedPlans }: FlightLogFormProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!isInspectionComplete(inspections)) {
+      setError("点検項目は全て選択してください");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const inspectionList: FlightLogInspectionInput[] = PHASES.flatMap((phase) =>
         INSPECTION_ITEMS.map((item) => ({
           phase,
           itemKey: item.key,
-          result: inspections[phase][item.key],
+          // isInspectionComplete で全項目が非nullであることを確認済み
+          result: inspections[phase][item.key] as InspectionResult,
         }))
       );
       const log = await createFlightLog({
@@ -193,6 +204,7 @@ export function FlightLogForm({ aircrafts, completedPlans }: FlightLogFormProps)
             value={form.endedAt}
             onChange={handleChange}
             min={form.startedAt || undefined}
+            max={getJstNowAsDatetimeLocal()}
             required
             className={inputClassName}
           />

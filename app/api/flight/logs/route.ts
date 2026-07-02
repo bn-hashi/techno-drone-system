@@ -4,15 +4,17 @@ import { getFlightLogService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { InspectionListSchema } from "@/lib/zod/inspectionSchema";
 import { BusinessError, AircraftNotFoundError, FlightPlanNotFoundError } from "@/services/errors";
+import { logger } from "@/lib/logger";
 
 const MAX_NOTE_LENGTH = 2000;
+const MAX_LOCATION_LENGTH = 200;
 
 const CreateFlightLogSchema = z.object({
   aircraftId: z.string().min(1),
   flightPlanId: z.string().min(1).nullish(),
   startedAt: z.iso.datetime(),
   endedAt: z.iso.datetime(),
-  location: z.string().min(1),
+  location: z.string().min(1).max(MAX_LOCATION_LENGTH),
   pilotNote: z.string().max(MAX_NOTE_LENGTH).nullish(),
   incidentNote: z.string().max(MAX_NOTE_LENGTH).nullish(),
   inspections: InspectionListSchema,
@@ -81,6 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (error instanceof BusinessError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    logger.error("飛行日誌の作成に失敗しました", error, { route: "POST /api/flight/logs" });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

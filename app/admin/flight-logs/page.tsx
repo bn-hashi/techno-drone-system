@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFlightLogService } from "@/lib/serviceFactory";
 import { requireAdminSession } from "@/lib/serverAuth";
 import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
+import { parsePageParam } from "@/lib/utils/parsePageParam";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ interface AdminFlightLogsPageProps {
 export default async function AdminFlightLogsPage({ searchParams }: AdminFlightLogsPageProps) {
   await requireAdminSession();
 
-  const page = Number(searchParams.page ?? "1") || 1;
+  const page = parsePageParam(searchParams.page);
   // ADMIN は全操縦者の日誌を閲覧できる (userId はページネーション用途では未使用)
   const { logs, total, limit } = await getFlightLogService().list(
     { userId: "", isAdmin: true },
