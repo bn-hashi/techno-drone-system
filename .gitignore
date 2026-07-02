@@ -42,3 +42,8 @@ next-env.d.ts
 /e2e/fixtures/.auth/
 /playwright-report/
 e2e-test-output.log
+# DIPS 2.0 API 設定通知書 (検証環境の ClientSecret・パスワードを含むためコミット禁止)
+docs/R08-DRS-0005*.xlsx
+
+# Playwright MCP セッション成果物・検証用スクリーンショット
+/.playwright-mcp/

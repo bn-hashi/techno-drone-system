@@ -39,6 +39,8 @@ import { DashboardRepository } from "@/repositories/dashboardRepository";
 import { DashboardService } from "@/services/dashboardService";
 import { FlightPlanRepository } from "@/repositories/flightPlanRepository";
 import { FlightPlanService } from "@/services/flightPlanService";
+import { FlightLogRepository } from "@/repositories/flightLogRepository";
+import { FlightLogService } from "@/services/flightLogService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -169,4 +171,13 @@ export function getDashboardService(): DashboardService {
 /** 飛行計画 Service のインスタンスを返す */
 export function getFlightPlanService(): FlightPlanService {
   return new FlightPlanService(new FlightPlanRepository(), getAircraftService());
+}
+
+/** 飛行日誌 Service のインスタンスを返す */
+export function getFlightLogService(): FlightLogService {
+  return new FlightLogService(
+    new FlightLogRepository(),
+    getAircraftService(),
+    getFlightPlanService()
+  );
 }

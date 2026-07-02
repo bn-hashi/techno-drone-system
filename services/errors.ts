@@ -132,3 +132,11 @@ export class FlightPlanInvalidTransitionError extends BusinessError {
     this.name = "FlightPlanInvalidTransitionError";
   }
 }
+
+/** 飛行日誌が見つからない (404 Not Found 相当) */
+export class FlightLogNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された飛行日誌が見つかりません");
+    this.name = "FlightLogNotFoundError";
+  }
+}
