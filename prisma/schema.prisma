@@ -104,6 +104,7 @@ model User {
   judgmentRecords       JudgmentRecord[]
   aircrafts             Aircraft[]
   flightPlans           FlightPlan[]
+  flightLogs            FlightLog[]
 
   @@map("users")
 }
@@ -381,6 +382,7 @@ model Aircraft {
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
   flightPlans FlightPlan[]
+  flightLogs  FlightLog[]
 
   @@index([userId, isActive])
   @@map("aircrafts")
@@ -400,10 +402,55 @@ model FlightPlan {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Restrict)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  aircraft   Aircraft    @relation(fields: [aircraftId], references: [id], onDelete: Restrict)
+  flightLogs FlightLog[]
 
   @@index([userId, status])
   @@index([aircraftId])
   @@map("flight_plans")
+}
+
+/// 飛行日誌 (国交省様式1 相当の飛行記録)
+model FlightLog {
+  id           String   @id @default(cuid())
+  userId       String
+  aircraftId   String
+  flightPlanId String?
+  startedAt    DateTime
+  endedAt      DateTime
+  durationMin  Int
+  location     String
+  pilotNote    String?
+  incidentNote String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  aircraft    Aircraft           @relation(fields: [aircraftId], references: [id], onDelete: Restrict)
+  flightPlan  FlightPlan?        @relation(fields: [flightPlanId], references: [id], onDelete: SetNull)
+  inspections FlightInspection[]
+
+  @@index([userId, startedAt])
+  @@index([startedAt])
+  @@index([aircraftId])
+  @@index([flightPlanId])
+  @@map("flight_logs")
+}
+
+/// 飛行前後の点検記録 (飛行日誌に紐づく)
+model FlightInspection {
+  id          String           @id @default(cuid())
+  flightLogId String
+  phase       InspectionPhase
+  itemKey     String
+  result      InspectionResult
+  note        String?
+  createdAt   DateTime         @default(now())
+
+  flightLog FlightLog @relation(fields: [flightLogId], references: [id], onDelete: Cascade)
+
+  @@unique([flightLogId, phase, itemKey])
+  @@index([flightLogId])
+  @@map("flight_inspections")
 }
