@@ -274,9 +274,9 @@ describe("FlightLogService", () => {
         new AircraftNotFoundError("aircraft-1")
       );
 
-      await expect(
-        service.create(validInput, validInspections, context)
-      ).rejects.toThrow(AircraftNotFoundError);
+      await expect(service.create(validInput, validInspections, context)).rejects.toThrow(
+        AircraftNotFoundError
+      );
       expect(repo.createWithInspections).not.toHaveBeenCalled();
     });
 
@@ -284,7 +284,11 @@ describe("FlightLogService", () => {
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(repo.createWithInspections).mockResolvedValue(makeLogWithInspections());
 
-      await service.create({ ...validInput, location: "  東京都港区  " }, validInspections, context);
+      await service.create(
+        { ...validInput, location: "  東京都港区  " },
+        validInspections,
+        context
+      );
 
       expect(repo.createWithInspections).toHaveBeenCalledWith(
         expect.objectContaining({ location: "東京都港区" }),

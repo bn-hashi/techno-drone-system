@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getFlightPlanService } from "@/lib/serviceFactory";
 import { requireFlightSession } from "@/lib/auth/requireFlightSession";
-import { FLIGHT_PLAN_STATUS_LABELS, FLIGHT_PLAN_STATUS_STYLE } from "@/lib/constants/flightPlanStatusLabels";
+import {
+  FLIGHT_PLAN_STATUS_LABELS,
+  FLIGHT_PLAN_STATUS_STYLE,
+} from "@/lib/constants/flightPlanStatusLabels";
 import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
 import { parsePageParam } from "@/lib/utils/parsePageParam";
 import type { FlightPlanStatus } from "@prisma/client";
@@ -89,7 +92,9 @@ export default async function FlightPlanListPage({ searchParams }: FlightPlanLis
                   前へ
                 </Link>
               ) : (
-                <span className="px-3 py-1.5 border border-gray-200 rounded text-gray-300">前へ</span>
+                <span className="px-3 py-1.5 border border-gray-200 rounded text-gray-300">
+                  前へ
+                </span>
               )}
               {hasNextPage ? (
                 <Link
@@ -99,7 +104,9 @@ export default async function FlightPlanListPage({ searchParams }: FlightPlanLis
                   次へ
                 </Link>
               ) : (
-                <span className="px-3 py-1.5 border border-gray-200 rounded text-gray-300">次へ</span>
+                <span className="px-3 py-1.5 border border-gray-200 rounded text-gray-300">
+                  次へ
+                </span>
               )}
             </div>
           </div>
