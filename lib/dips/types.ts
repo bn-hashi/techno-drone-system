@@ -86,6 +86,35 @@ export type DipsRemoteIdBroadcastMethod = 0 | 1 | 2 | 3;
 /** 所有者区分: 1=個人, 2=法人 */
 export type DipsOwnerCategory = 1 | 2;
 
+// ─── 飛行計画通報受付 API (暫定: ガイドライン突合前) ────────────────────────────
+
+/**
+ * 飛行計画通報のリクエストペイロード (暫定)
+ *
+ * ⚠️ フィールド名・形式は「DIPS2.0 API 接続システム向けガイドライン」の
+ * 正式仕様と突合して確定させること (設定通知書にはリクエスト仕様の記載なし)
+ */
+export interface DipsFlightPlanNotificationPayload {
+  /** 申請者ID (飛行計画通報受付用) */
+  applicantId: string;
+  /** 飛行開始日時 (ISO 8601) */
+  flightStartDatetime: string;
+  /** 飛行終了日時 (ISO 8601) */
+  flightEndDatetime: string;
+  /** 飛行目的 */
+  flightPurpose: string;
+  /** 飛行場所 */
+  flightLocation: string;
+  /** 機体の登録記号 (12桁) */
+  regSymbol: string;
+}
+
+/** 飛行計画通報の受付結果 (暫定) */
+export interface DipsFlightPlanNotificationResult {
+  /** 受付番号 */
+  receptionNumber: string;
+}
+
 /**
  * 機体情報 (別紙1「機体情報詳細」の主要属性のみ。フィールド名は暫定訳 — Phase 4 で正式仕様と突合)
  */
