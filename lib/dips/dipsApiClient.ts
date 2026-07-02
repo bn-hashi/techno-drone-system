@@ -17,6 +17,9 @@ interface RequestOptions {
   body?: unknown;
 }
 
+/** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
+const REQUEST_TIMEOUT_MS = 10_000;
+
 /**
  * DIPS 2.0 API クライアント (6 API)
  *
@@ -58,7 +61,7 @@ export class DipsApiClient {
       method: "POST",
       group: "permission",
       path: DIPS_ENDPOINTS.permissionApplication,
-      body: { applicantId: this.config.applicantIds.permissionApply, ...payload },
+      body: { ...payload, applicantId: this.config.applicantIds.permissionApply },
     });
   }
 
@@ -104,15 +107,26 @@ export class DipsApiClient {
       url.searchParams.set(key, value);
     }
 
-    const response = await this.fetchFn(url.toString(), {
-      method: options.method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: "application/json",
-        ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
-      },
-      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-    });
+    let response: Response;
+    try {
+      response = await this.fetchFn(url.toString(), {
+        method: options.method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: "application/json",
+          ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
+        },
+        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new DipsApiError(
+        `DIPS API への接続に失敗しました (${options.method} ${options.path})`,
+        undefined,
+        undefined,
+        error
+      );
+    }
 
     if (!response.ok) {
       const responseBody = await response.text().catch(() => undefined);
@@ -123,6 +137,15 @@ export class DipsApiClient {
       );
     }
 
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch (error) {
+      throw new DipsApiError(
+        `DIPS API のレスポンス形式が不正です (${options.method} ${options.path})`,
+        response.status,
+        undefined,
+        error
+      );
+    }
   }
 }

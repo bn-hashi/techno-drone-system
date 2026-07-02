@@ -58,12 +58,21 @@ export class DipsService {
     };
   }
 
-  /** 飛行計画を DIPS の飛行計画通報受付 API へ通報する */
+  /**
+   * 飛行計画を DIPS の飛行計画通報受付 API へ通報する。
+   *
+   * 検証環境 DB は他事業者と共用のため、重複通報を防ぐ冪等性保護として
+   * 既に受付番号が記録されている飛行計画は再通報せず BusinessError を投げる。
+   */
   async notifyFlightPlan(
     flightPlanId: string,
     context: AccessContext
   ): Promise<DipsFlightPlanNotificationResult> {
     const plan = await this.flightPlanService.findById(flightPlanId, context);
+    if (plan.dipsReceptionNumber) {
+      throw new BusinessError("この飛行計画は既にDIPSへ通報済みです");
+    }
+
     const aircraft = await this.aircraftService.findById(plan.aircraftId, context);
     if (!aircraft.registrationNumber) {
       throw new BusinessError("機体に登録記号が設定されていません");
@@ -73,13 +82,21 @@ export class DipsService {
       plan.plannedAt.getTime() + plan.durationMin * MILLISECONDS_PER_MINUTE
     );
 
-    return this.apiClient.notifyFlightPlan({
+    const result = await this.apiClient.notifyFlightPlan({
       flightStartDatetime: plan.plannedAt.toISOString(),
       flightEndDatetime: flightEndDatetime.toISOString(),
       flightPurpose: plan.purpose,
       flightLocation: plan.location,
       regSymbol: aircraft.registrationNumber,
     });
+
+    await this.flightPlanService.recordDipsNotification(
+      flightPlanId,
+      result.receptionNumber,
+      context
+    );
+
+    return result;
   }
 
   /** 許可・承認情報を取得する (パススルー) */

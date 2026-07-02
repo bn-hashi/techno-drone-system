@@ -4,6 +4,9 @@ import { DipsAuthError } from "@/lib/dips/errors";
 /** トークン失効前に再取得を始める安全マージン (秒) */
 const EXPIRY_SAFETY_MARGIN_SECONDS = 60;
 
+/** トークンエンドポイントの応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
+const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
+
 interface CachedToken {
   token: string;
   /** epoch ms。この時刻を過ぎたら再取得する */
@@ -36,15 +39,25 @@ export class DipsOidcClient {
     }
 
     const { clientId, clientSecret } = this.config.credentials[group];
-    const response = await this.fetchFn(this.config.tokenUrl, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        client_id: clientId,
-        client_secret: clientSecret,
-      }).toString(),
-    });
+    let response: Response;
+    try {
+      response = await this.fetchFn(this.config.tokenUrl, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: clientId,
+          client_secret: clientSecret,
+        }).toString(),
+        signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new DipsAuthError(
+        `DIPSトークンエンドポイントへの接続に失敗しました (グループ: ${group})`,
+        undefined,
+        error
+      );
+    }
 
     if (!response.ok) {
       throw new DipsAuthError(

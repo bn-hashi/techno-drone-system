@@ -20,6 +20,7 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan => ({
   durationMin: 30,
   purpose: "点検飛行",
   status: FlightPlanStatus.DRAFT,
+  dipsReceptionNumber: null,
   createdAt: new Date("2026-07-01"),
   updatedAt: new Date("2026-07-01"),
   ...overrides,
@@ -49,6 +50,7 @@ const mockRepo = (): IFlightPlanRepository => ({
   create: vi.fn(),
   update: vi.fn(),
   updateStatus: vi.fn(),
+  recordDipsNotification: vi.fn(),
 });
 
 const mockAircraftService = (): AircraftService =>
@@ -187,7 +189,9 @@ describe("FlightPlanService", () => {
     });
 
     it("test_create_throws_and_skips_repo_create_when_aircraft_not_owned", async () => {
-      vi.mocked(aircraftService.findById).mockRejectedValue(new AircraftNotFoundError("aircraft-1"));
+      vi.mocked(aircraftService.findById).mockRejectedValue(
+        new AircraftNotFoundError("aircraft-1")
+      );
 
       await expect(service.create(validInput, context)).rejects.toThrow(AircraftNotFoundError);
       expect(repo.create).not.toHaveBeenCalled();
@@ -206,9 +210,7 @@ describe("FlightPlanService", () => {
     });
 
     it("test_create_throws_when_durationMin_is_zero", async () => {
-      await expect(
-        service.create({ ...validInput, durationMin: 0 }, context)
-      ).rejects.toThrow();
+      await expect(service.create({ ...validInput, durationMin: 0 }, context)).rejects.toThrow();
       expect(aircraftService.findById).not.toHaveBeenCalled();
     });
 
@@ -277,17 +279,48 @@ describe("FlightPlanService", () => {
         new AircraftNotFoundError(plan.aircraftId)
       );
 
-      await expect(
-        service.getRisk("plan-1", { userId: "user-1", isAdmin: false })
-      ).rejects.toThrow(AircraftNotFoundError);
+      await expect(service.getRisk("plan-1", { userId: "user-1", isAdmin: false })).rejects.toThrow(
+        AircraftNotFoundError
+      );
     });
 
     it("test_getRisk_throws_when_plan_not_found", async () => {
       vi.mocked(repo.findById).mockResolvedValue(null);
 
+      await expect(service.getRisk("plan-1", { userId: "user-1", isAdmin: false })).rejects.toThrow(
+        FlightPlanNotFoundError
+      );
+    });
+  });
+
+  // ─── recordDipsNotification ─────────────────────────────────────────────────
+
+  describe("recordDipsNotification", () => {
+    it("test_recordDipsNotification_calls_repo_when_not_yet_notified", async () => {
+      const plan = makePlan();
+      const updated = makePlan({ dipsReceptionNumber: "P250700001" });
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(repo.recordDipsNotification).mockResolvedValue(updated);
+
+      await service.recordDipsNotification("plan-1", "P250700001", {
+        userId: "user-1",
+        isAdmin: false,
+      });
+
+      expect(repo.recordDipsNotification).toHaveBeenCalledWith("plan-1", "P250700001");
+    });
+
+    it("test_recordDipsNotification_throws_when_already_notified", async () => {
+      const plan = makePlan({ dipsReceptionNumber: "P250700001" });
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+
       await expect(
-        service.getRisk("plan-1", { userId: "user-1", isAdmin: false })
-      ).rejects.toThrow(FlightPlanNotFoundError);
+        service.recordDipsNotification("plan-1", "P250700002", {
+          userId: "user-1",
+          isAdmin: false,
+        })
+      ).rejects.toThrow();
+      expect(repo.recordDipsNotification).not.toHaveBeenCalled();
     });
   });
 

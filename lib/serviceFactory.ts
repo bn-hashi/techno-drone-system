@@ -42,6 +42,7 @@ import { FlightPlanService } from "@/services/flightPlanService";
 import { FlightLogRepository } from "@/repositories/flightLogRepository";
 import { FlightLogService } from "@/services/flightLogService";
 import { isDipsEnabled, getDipsConfig } from "@/lib/dips/config";
+import type { DipsConfig } from "@/lib/dips/config";
 import { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import { DipsDisabledError } from "@/lib/dips/errors";
@@ -187,6 +188,17 @@ export function getFlightLogService(): FlightLogService {
   );
 }
 
+// DipsOidcClient はグループ別トークンをメモリキャッシュするため、リクエストのたびに
+// 再生成すると毎回トークンを再取得してしまう。プロセス内で使い回すモジュールレベル変数として保持する。
+let cachedDipsOidcClient: DipsOidcClient | undefined;
+
+function getDipsOidcClient(config: DipsConfig): DipsOidcClient {
+  if (!cachedDipsOidcClient) {
+    cachedDipsOidcClient = new DipsOidcClient(config);
+  }
+  return cachedDipsOidcClient;
+}
+
 /**
  * DIPS 連携 Service のインスタンスを返す
  *
@@ -198,9 +210,8 @@ export function getDipsService(): DipsService {
     throw new DipsDisabledError();
   }
   const config = getDipsConfig();
-  const oidcClient = new DipsOidcClient(config);
   return new DipsService(
-    new DipsApiClient(config, oidcClient),
+    new DipsApiClient(config, getDipsOidcClient(config)),
     getAircraftService(),
     getFlightPlanService()
   );

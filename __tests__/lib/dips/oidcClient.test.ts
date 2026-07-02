@@ -23,16 +23,43 @@ const tokenResponse = (token: string, expiresIn = 3600) =>
   new Response(JSON.stringify({ access_token: token, expires_in: expiresIn }), { status: 200 });
 
 describe("DipsOidcClient", () => {
-  it("test_getAccessToken_posts_client_credentials_to_token_url", async () => {
+  it("test_getAccessToken_posts_to_token_url", async () => {
     const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
     const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
 
     await client.getAccessToken("aircraft");
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("https://dips.example.test/token");
+  });
+
+  it("test_getAccessToken_uses_POST_method", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
+    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+
+    await client.getAccessToken("aircraft");
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe("POST");
+  });
+
+  it("test_getAccessToken_includes_grant_type_in_request_body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
+    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+
+    await client.getAccessToken("aircraft");
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(init.body).toContain("grant_type=client_credentials");
+  });
+
+  it("test_getAccessToken_includes_client_id_in_request_body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
+    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+
+    await client.getAccessToken("aircraft");
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(init.body).toContain("client_id=utm-app-test");
   });
 
@@ -83,6 +110,24 @@ describe("DipsOidcClient", () => {
       const token = await client.getAccessToken("aircraft");
 
       expect(token).toBe("token-new");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("test_getAccessToken_calls_fetch_twice_after_expiry", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(tokenResponse("token-old", 120))
+        .mockResolvedValueOnce(tokenResponse("token-new", 120));
+      const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+
+      await client.getAccessToken("aircraft");
+      vi.advanceTimersByTime(61_000);
+      await client.getAccessToken("aircraft");
+
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();

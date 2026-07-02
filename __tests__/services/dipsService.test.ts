@@ -36,6 +36,7 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan =>
     durationMin: 60,
     purpose: "操縦訓練",
     status: FlightPlanStatus.APPROVED,
+    dipsReceptionNumber: null,
     createdAt: new Date("2026-07-01"),
     updatedAt: new Date("2026-07-01"),
     ...overrides,
@@ -76,7 +77,7 @@ const mockAircraftService = (): AircraftService =>
   ({ findById: vi.fn() }) as unknown as AircraftService;
 
 const mockFlightPlanService = (): FlightPlanService =>
-  ({ findById: vi.fn() }) as unknown as FlightPlanService;
+  ({ findById: vi.fn(), recordDipsNotification: vi.fn() }) as unknown as FlightPlanService;
 
 const context = { userId: "user-1", isAdmin: false };
 
@@ -198,6 +199,39 @@ describe("DipsService", () => {
       const result = await service.notifyFlightPlan("plan-1", context);
 
       expect(result).toEqual({ receptionNumber: "P250700001" });
+    });
+
+    it("test_notify_records_reception_number_after_successful_notification", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        receptionNumber: "P250700001",
+      });
+
+      await service.notifyFlightPlan("plan-1", context);
+
+      expect(flightPlanService.recordDipsNotification).toHaveBeenCalledWith(
+        "plan-1",
+        "P250700001",
+        context
+      );
+    });
+
+    it("test_notify_throws_BusinessError_when_already_notified", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(
+        makePlan({ dipsReceptionNumber: "P250700001" })
+      );
+
+      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(BusinessError);
+    });
+
+    it("test_notify_skips_api_call_when_already_notified", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(
+        makePlan({ dipsReceptionNumber: "P250700001" })
+      );
+
+      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(BusinessError);
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
 
     it("test_notify_throws_BusinessError_when_registration_number_missing", async () => {

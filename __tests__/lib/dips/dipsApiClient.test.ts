@@ -36,14 +36,29 @@ describe("DipsApiClient", () => {
   const makeClient = () =>
     new DipsApiClient(config, oidcClient, fetchMock as unknown as typeof fetch);
 
-  it("test_fetchAircraftList_requests_with_bearer_token", async () => {
+  it("test_fetchAircraftList_requests_correct_url", async () => {
     fetchMock.mockResolvedValue(jsonResponse([]));
 
     await makeClient().fetchAircraftList();
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("https://dips.example.test/api/v1/aircrafts");
+  });
+
+  it("test_fetchAircraftList_sends_bearer_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]));
+
+    await makeClient().fetchAircraftList();
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(init.headers.authorization).toBe("Bearer test-token");
+  });
+
+  it("test_fetchAircraftList_requests_token_for_aircraft_group", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]));
+
+    await makeClient().fetchAircraftList();
+
     expect(oidcClient.getAccessToken).toHaveBeenCalledWith("aircraft");
   });
 
@@ -63,13 +78,20 @@ describe("DipsApiClient", () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("applicantId=USR063011");
+  });
+
+  it("test_fetchPermissions_requests_token_for_permission_group", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ permissions: [] }));
+
+    await makeClient().fetchPermissions();
+
     expect(oidcClient.getAccessToken).toHaveBeenCalledWith("permission");
   });
 
-  it("test_notifyFlightPlan_posts_payload_with_applicant_id", async () => {
+  it("test_notifyFlightPlan_requests_correct_url_and_method", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ receptionNumber: "P250700001" }));
 
-    const result = await makeClient().notifyFlightPlan({
+    await makeClient().notifyFlightPlan({
       flightStartDatetime: "2026-07-03T01:00:00.000Z",
       flightEndDatetime: "2026-07-03T02:00:00.000Z",
       flightPurpose: "訓練",
@@ -80,8 +102,48 @@ describe("DipsApiClient", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://dips.example.test/api/v1/flight-plan-notifications");
     expect(init.method).toBe("POST");
+  });
+
+  it("test_notifyFlightPlan_includes_applicant_id_in_body", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ receptionNumber: "P250700001" }));
+
+    await makeClient().notifyFlightPlan({
+      flightStartDatetime: "2026-07-03T01:00:00.000Z",
+      flightEndDatetime: "2026-07-03T02:00:00.000Z",
+      flightPurpose: "訓練",
+      flightLocation: "東京都港区",
+      regSymbol: "JU1234567890",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(init.body).applicantId).toBe("USR063041");
+  });
+
+  it("test_notifyFlightPlan_returns_parsed_result", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ receptionNumber: "P250700001" }));
+
+    const result = await makeClient().notifyFlightPlan({
+      flightStartDatetime: "2026-07-03T01:00:00.000Z",
+      flightEndDatetime: "2026-07-03T02:00:00.000Z",
+      flightPurpose: "訓練",
+      flightLocation: "東京都港区",
+      regSymbol: "JU1234567890",
+    });
+
     expect(result).toEqual({ receptionNumber: "P250700001" });
+  });
+
+  it("test_notifyFlightPlan_requests_token_for_flightPlan_group", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ receptionNumber: "P250700001" }));
+
+    await makeClient().notifyFlightPlan({
+      flightStartDatetime: "2026-07-03T01:00:00.000Z",
+      flightEndDatetime: "2026-07-03T02:00:00.000Z",
+      flightPurpose: "訓練",
+      flightLocation: "東京都港区",
+      regSymbol: "JU1234567890",
+    });
+
     expect(oidcClient.getAccessToken).toHaveBeenCalledWith("flightPlan");
   });
 
@@ -103,7 +165,23 @@ describe("DipsApiClient", () => {
     expect.assertions(1);
   });
 
-  it("test_submitPermissionApplication_merges_applicant_id_into_body", async () => {
+  it("test_request_wraps_network_failure_in_DipsApiError", async () => {
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(makeClient().fetchAircraftList()).rejects.toMatchObject({
+      name: "DipsApiError",
+    });
+  });
+
+  it("test_request_wraps_malformed_json_response_in_DipsApiError", async () => {
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeClient().fetchAircraftList()).rejects.toMatchObject({
+      name: "DipsApiError",
+    });
+  });
+
+  it("test_submitPermissionApplication_includes_applicant_id_in_body", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
 
     await makeClient().submitPermissionApplication({ destination: "東京航空局" });
@@ -111,6 +189,25 @@ describe("DipsApiClient", () => {
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
     expect(body.applicantId).toBe("USR063021");
+  });
+
+  it("test_submitPermissionApplication_preserves_payload_fields", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+
+    await makeClient().submitPermissionApplication({ destination: "東京航空局" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
     expect(body.destination).toBe("東京航空局");
+  });
+
+  it("test_submitPermissionApplication_does_not_let_payload_override_applicant_id", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+
+    await makeClient().submitPermissionApplication({ applicantId: "SPOOFED" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.applicantId).toBe("USR063021");
   });
 });

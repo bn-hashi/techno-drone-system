@@ -14,23 +14,25 @@ export class DipsConfigError extends Error {
   }
 }
 
-/** OIDC トークン取得に失敗した */
+/** OIDC トークン取得に失敗した (HTTPエラー応答、またはタイムアウト・接続失敗などネットワークエラー) */
 export class DipsAuthError extends Error {
   constructor(
     message: string,
-    readonly status?: number
+    readonly status?: number,
+    readonly cause?: unknown
   ) {
     super(message);
     this.name = "DipsAuthError";
   }
 }
 
-/** DIPS API がエラーレスポンスを返した */
+/** DIPS API がエラーレスポンスを返した (HTTPエラー応答、またはタイムアウト・接続失敗・不正JSONなど) */
 export class DipsApiError extends Error {
   constructor(
     message: string,
-    readonly status: number,
-    readonly responseBody?: string
+    readonly status?: number,
+    readonly responseBody?: string,
+    readonly cause?: unknown
   ) {
     super(message);
     this.name = "DipsApiError";
