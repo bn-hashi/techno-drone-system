@@ -17,7 +17,7 @@ export interface NavGroup {
  * href がダッシュボード等のルート (例: /admin) の場合は完全一致のみ、
  * それ以外は配下パス (例: /admin/users/new) もアクティブ扱いにする
  */
-function isActiveLink(pathname: string, href: string, isRootLink: boolean): boolean {
+export function isActiveLink(pathname: string, href: string, isRootLink: boolean): boolean {
   if (isRootLink) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -27,15 +27,27 @@ interface SidebarNavProps {
   groups: readonly NavGroup[];
   /** 完全一致でのみアクティブにする href (ダッシュボードなど他リンクの親パス) */
   rootHrefs?: readonly string[];
+  /** モバイル (md未満) でドロワーとして開いているか */
+  isMobileOpen: boolean;
+  /** リンク遷移時に呼ばれる (モバイルドロワーを閉じる用途) */
+  onNavigate: () => void;
 }
 
-export function SidebarNav({ navLabel, groups, rootHrefs = [] }: SidebarNavProps) {
+export function SidebarNav({
+  navLabel,
+  groups,
+  rootHrefs = [],
+  isMobileOpen,
+  onNavigate,
+}: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
     <aside
       aria-label={navLabel}
-      className="hidden md:flex w-[252px] flex-none flex-col bg-sidebar px-3.5 py-[18px] sticky top-0 h-screen overflow-y-auto"
+      className={`fixed inset-y-0 left-0 z-30 flex w-[252px] flex-none transform flex-col overflow-y-auto bg-sidebar px-3.5 py-[18px] transition-transform duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 ${
+        isMobileOpen ? "translate-x-0" : "-translate-x-full"
+      }`}
     >
       <div className="flex items-center gap-3 px-2 pb-4">
         <div className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-accent text-lg text-white">
@@ -60,6 +72,7 @@ export function SidebarNav({ navLabel, groups, rootHrefs = [] }: SidebarNavProps
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
+                  onClick={onNavigate}
                   className={`mb-0.5 flex items-center gap-2.5 rounded-[9px] px-[11px] py-2 text-[13.5px] ${
                     active
                       ? "bg-accent font-medium text-white"

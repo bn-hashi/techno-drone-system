@@ -35,12 +35,12 @@ export default async function AdminUsersPage() {
         <span className="text-[13px] text-[#475467]">
           該当 <b className="text-heading">{users.length}</b> 名
         </span>
-        <a
+        <Link
           href="/admin/users/new"
           className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-primary"
         >
           ＋ 新規登録
-        </a>
+        </Link>
       </div>
 
       <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
@@ -77,12 +77,12 @@ export default async function AdminUsersPage() {
                     />
                   </td>
                   <td className="whitespace-nowrap px-3 py-[11px]">
-                    <a
+                    <Link
                       href={`/admin/enrollment/new?userId=${user.id}`}
                       className="rounded-[7px] bg-success px-3 py-1 text-xs font-medium text-white hover:opacity-90"
                     >
                       入学申請
-                    </a>
+                    </Link>
                   </td>
                   <td className="whitespace-nowrap px-3 py-[11px]">
                     <Link

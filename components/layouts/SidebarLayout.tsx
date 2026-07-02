@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { SidebarNav } from "@/components/layouts/SidebarNav";
+import { SidebarShell } from "@/components/layouts/SidebarShell";
 import type { NavGroup } from "@/components/layouts/SidebarNav";
-import { HeaderBar } from "@/components/layouts/HeaderBar";
 
 interface SidebarLayoutProps {
   /** スクリーンリーダー向けナビゲーション領域のラベル */
@@ -16,8 +15,9 @@ interface SidebarLayoutProps {
   children: ReactNode;
 }
 
-// Server Component: SidebarNav / HeaderBar (Client Component) を子として含む。
+// Server Component: SidebarShell (Client Component) に children をそのまま渡す。
 // レイアウトは Claude Design「登録講習機関 管理システム」のサイドバー+ヘッダー構成に準拠。
+// モバイル (md未満) のドロワー開閉状態は SidebarShell 側で一元管理する。
 export function SidebarLayout({
   navLabel,
   groups,
@@ -27,12 +27,14 @@ export function SidebarLayout({
   children,
 }: SidebarLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-surface text-body">
-      <SidebarNav navLabel={navLabel} groups={groups} rootHrefs={rootHrefs} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <HeaderBar groups={groups} userLabel={userLabel} fallbackTitle={fallbackTitle} />
-        <main className="flex-1 p-6 lg:px-7">{children}</main>
-      </div>
-    </div>
+    <SidebarShell
+      navLabel={navLabel}
+      groups={groups}
+      rootHrefs={rootHrefs}
+      userLabel={userLabel}
+      fallbackTitle={fallbackTitle}
+    >
+      {children}
+    </SidebarShell>
   );
 }
