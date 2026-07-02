@@ -77,12 +77,28 @@ export class AircraftService {
   }
 
   private validateUpdateInput(data: UpdateAircraftInput): void {
-    this.validateNumericField(data.weightGrams, MIN_WEIGHT_GRAMS, "機体重量は 1g 以上で入力してください");
-    this.validateNumericField(data.maxFlightTimeMin, MIN_FLIGHT_TIME_MIN, "最大飛行時間は 1 分以上で入力してください");
+    this.validateNumericField(
+      data.weightGrams,
+      MIN_WEIGHT_GRAMS,
+      "機体重量は 1g 以上で入力してください"
+    );
+    this.validateNumericField(
+      data.maxFlightTimeMin,
+      MIN_FLIGHT_TIME_MIN,
+      "最大飛行時間は 1 分以上で入力してください"
+    );
   }
 
   private validateCreateInput(input: CreateAircraftInput): void {
-    this.validateNumericField(input.weightGrams, MIN_WEIGHT_GRAMS, "機体重量は 1g 以上で入力してください");
-    this.validateNumericField(input.maxFlightTimeMin, MIN_FLIGHT_TIME_MIN, "最大飛行時間は 1 分以上で入力してください");
+    this.validateNumericField(
+      input.weightGrams,
+      MIN_WEIGHT_GRAMS,
+      "機体重量は 1g 以上で入力してください"
+    );
+    this.validateNumericField(
+      input.maxFlightTimeMin,
+      MIN_FLIGHT_TIME_MIN,
+      "最大飛行時間は 1 分以上で入力してください"
+    );
   }
 }
