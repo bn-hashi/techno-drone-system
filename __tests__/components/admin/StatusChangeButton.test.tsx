@@ -33,7 +33,7 @@ describe("StatusChangeButton", () => {
   it("test_StatusChangeButton_renders_next_status_label_for_ACTIVE", () => {
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
-    expect(screen.getByRole("button", { name: /EXAM_PASSED/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /試験合格/ })).toBeInTheDocument();
   });
 
   it("test_StatusChangeButton_renders_disabled_button_for_DIPS_LINKED", () => {
@@ -45,7 +45,7 @@ describe("StatusChangeButton", () => {
   it("test_StatusChangeButton_click_shows_confirm_dialog", () => {
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
+    fireEvent.click(screen.getByRole("button", { name: /試験合格/ }));
 
     expect(window.confirm).toHaveBeenCalled();
   });
@@ -55,7 +55,7 @@ describe("StatusChangeButton", () => {
 
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
+    fireEvent.click(screen.getByRole("button", { name: /試験合格/ }));
 
     await waitFor(() => {
       expect(mockPatchUserStatus).toHaveBeenCalledWith("user-1", UserStatus.EXAM_PASSED);
@@ -67,7 +67,7 @@ describe("StatusChangeButton", () => {
 
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
+    fireEvent.click(screen.getByRole("button", { name: /試験合格/ }));
 
     await waitFor(() => {
       expect(mockRefresh).toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe("StatusChangeButton", () => {
 
     renderWithQuery(<StatusChangeButton userId="user-1" currentStatus={UserStatus.ACTIVE} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /EXAM_PASSED/ }));
+    fireEvent.click(screen.getByRole("button", { name: /試験合格/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("無効なステータス遷移です");

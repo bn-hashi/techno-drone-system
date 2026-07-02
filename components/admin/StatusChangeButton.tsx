@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { UserStatus } from "@/types/prisma";
 import { getNextStatuses } from "@/lib/constants/statusTransitions";
+import { USER_STATUS_LABELS } from "@/lib/constants/userStatusLabels";
 import { patchUserStatus } from "@/lib/api/adminUsers";
 
 interface StatusChangeButtonProps {
@@ -32,7 +33,7 @@ export function StatusChangeButton({ userId, currentStatus }: StatusChangeButton
   function handleClick() {
     if (!nextStatus) return;
     const confirmed = window.confirm(
-      `ステータスを "${currentStatus}" から "${nextStatus}" に変更しますか？`
+      `ステータスを「${USER_STATUS_LABELS[currentStatus]}」から「${USER_STATUS_LABELS[nextStatus]}」に変更しますか？`
     );
     if (confirmed) {
       mutation.mutate();
@@ -44,9 +45,9 @@ export function StatusChangeButton({ userId, currentStatus }: StatusChangeButton
       <button
         onClick={handleClick}
         disabled={isDisabled}
-        className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded-[7px] bg-accent px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {nextStatus ?? "変更不可"}
+        {nextStatus ? `${USER_STATUS_LABELS[nextStatus]}にする` : "変更不可"}
       </button>
       {mutation.isError && (
         <p className="mt-1 text-sm text-red-600" role="alert">

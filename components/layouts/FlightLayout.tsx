@@ -1,10 +1,16 @@
 import type { ReactNode } from "react";
-import { AppLayout } from "@/components/layouts/AppLayout";
+import { SidebarLayout } from "@/components/layouts/SidebarLayout";
+import type { NavGroup } from "@/components/layouts/SidebarNav";
 
-const NAVIGATION_LINKS = [
-  { href: "/flight/aircraft", label: "機体管理" },
-  { href: "/flight/plans", label: "飛行計画" },
-  { href: "/flight/logs", label: "飛行日誌" },
+const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    title: "飛行管理",
+    items: [
+      { href: "/flight/aircraft", label: "機体管理" },
+      { href: "/flight/plans", label: "飛行計画" },
+      { href: "/flight/logs", label: "飛行日誌" },
+    ],
+  },
 ] as const;
 
 interface FlightLayoutProps {
@@ -13,8 +19,13 @@ interface FlightLayoutProps {
 
 export function FlightLayout({ children }: FlightLayoutProps) {
   return (
-    <AppLayout navLabel="飛行管理メニュー" links={NAVIGATION_LINKS}>
+    <SidebarLayout
+      navLabel="飛行管理メニュー"
+      groups={NAV_GROUPS}
+      userLabel="操縦者"
+      fallbackTitle="飛行管理"
+    >
       {children}
-    </AppLayout>
+    </SidebarLayout>
   );
 }
