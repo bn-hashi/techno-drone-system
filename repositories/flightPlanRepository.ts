@@ -36,13 +36,11 @@ export interface IFlightPlanRepository {
   create(data: CreateFlightPlanInput): Promise<FlightPlan>;
   update(id: string, data: UpdateFlightPlanInput): Promise<FlightPlan>;
   updateStatus(id: string, status: FlightPlanStatus): Promise<FlightPlan>;
+  recordDipsNotification(id: string, receptionNumber: string): Promise<FlightPlan>;
 }
 
 export class FlightPlanRepository implements IFlightPlanRepository {
-  async findAllByUser(
-    userId: string,
-    pagination: PaginationParams
-  ): Promise<PaginatedFlightPlans> {
+  async findAllByUser(userId: string, pagination: PaginationParams): Promise<PaginatedFlightPlans> {
     const prisma = getPrisma();
     const skip = (pagination.page - 1) * pagination.limit;
     const [items, total] = await Promise.all([
@@ -89,5 +87,13 @@ export class FlightPlanRepository implements IFlightPlanRepository {
   async updateStatus(id: string, status: FlightPlanStatus): Promise<FlightPlan> {
     const prisma = getPrisma();
     return prisma.flightPlan.update({ where: { id }, data: { status } });
+  }
+
+  async recordDipsNotification(id: string, receptionNumber: string): Promise<FlightPlan> {
+    const prisma = getPrisma();
+    return prisma.flightPlan.update({
+      where: { id },
+      data: { dipsReceptionNumber: receptionNumber },
+    });
   }
 }

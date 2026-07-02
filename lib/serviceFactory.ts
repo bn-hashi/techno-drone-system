@@ -41,6 +41,12 @@ import { FlightPlanRepository } from "@/repositories/flightPlanRepository";
 import { FlightPlanService } from "@/services/flightPlanService";
 import { FlightLogRepository } from "@/repositories/flightLogRepository";
 import { FlightLogService } from "@/services/flightLogService";
+import { isDipsEnabled, getDipsConfig } from "@/lib/dips/config";
+import type { DipsConfig } from "@/lib/dips/config";
+import { DipsOidcClient } from "@/lib/dips/oidcClient";
+import { DipsApiClient } from "@/lib/dips/dipsApiClient";
+import { DipsDisabledError } from "@/lib/dips/errors";
+import { DipsService } from "@/services/dipsService";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -177,6 +183,35 @@ export function getFlightPlanService(): FlightPlanService {
 export function getFlightLogService(): FlightLogService {
   return new FlightLogService(
     new FlightLogRepository(),
+    getAircraftService(),
+    getFlightPlanService()
+  );
+}
+
+// DipsOidcClient はグループ別トークンをメモリキャッシュするため、リクエストのたびに
+// 再生成すると毎回トークンを再取得してしまう。プロセス内で使い回すモジュールレベル変数として保持する。
+let cachedDipsOidcClient: DipsOidcClient | undefined;
+
+function getDipsOidcClient(config: DipsConfig): DipsOidcClient {
+  if (!cachedDipsOidcClient) {
+    cachedDipsOidcClient = new DipsOidcClient(config);
+  }
+  return cachedDipsOidcClient;
+}
+
+/**
+ * DIPS 連携 Service のインスタンスを返す
+ *
+ * DIPS_ENABLED !== "true" の場合は DipsDisabledError を投げる (呼び出し元で 503 に変換)。
+ * 検証環境は IP 制限があるためローカル開発では無効のまま運用する。
+ */
+export function getDipsService(): DipsService {
+  if (!isDipsEnabled()) {
+    throw new DipsDisabledError();
+  }
+  const config = getDipsConfig();
+  return new DipsService(
+    new DipsApiClient(config, getDipsOidcClient(config)),
     getAircraftService(),
     getFlightPlanService()
   );

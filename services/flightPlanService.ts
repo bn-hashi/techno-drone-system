@@ -56,7 +56,10 @@ export class FlightPlanService {
     private readonly aircraftService: AircraftService
   ) {}
 
-  async list(context: AccessContext, pagination: PaginationInput = {}): Promise<PaginatedFlightPlanList> {
+  async list(
+    context: AccessContext,
+    pagination: PaginationInput = {}
+  ): Promise<PaginatedFlightPlanList> {
     const page = Math.max(pagination.page ?? DEFAULT_PAGE, DEFAULT_PAGE);
     const limit = Math.min(Math.max(pagination.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 
@@ -121,6 +124,22 @@ export class FlightPlanService {
       }
       throw error;
     }
+  }
+
+  /**
+   * DIPS 2.0 飛行計画通報受付 API への通報結果 (受付番号) を記録する。
+   * 既に記録済みの場合は BusinessError を投げ、重複通報を防ぐ (冪等性保護)。
+   */
+  async recordDipsNotification(
+    id: string,
+    receptionNumber: string,
+    context: AccessContext
+  ): Promise<FlightPlan> {
+    const plan = await this.findById(id, context);
+    if (plan.dipsReceptionNumber) {
+      throw new BusinessError("この飛行計画は既にDIPSへ通報済みです");
+    }
+    return this.repo.recordDipsNotification(id, receptionNumber);
   }
 
   async getRisk(id: string, context: AccessContext): Promise<RiskInfo> {

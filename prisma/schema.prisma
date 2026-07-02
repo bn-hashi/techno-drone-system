@@ -399,6 +399,8 @@ model FlightPlan {
   durationMin Int
   purpose     String
   status      FlightPlanStatus @default(DRAFT)
+  /// DIPS 2.0 飛行計画通報受付 API の受付番号。設定済みなら通報済みとみなし、再通報を防ぐ (冪等性保護)
+  dipsReceptionNumber String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
