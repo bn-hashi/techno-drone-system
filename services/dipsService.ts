@@ -1,75 +1,61 @@
 import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
+import type { DipsOidcClient } from "@/lib/dips/oidcClient";
+import type { DipsRealm } from "@/lib/dips/config";
 import type {
-  DipsAircraftInfo,
   DipsPermissionsResponse,
   DipsFlightPlanNotificationResult,
+  DipsNotificationUserInput,
 } from "@/lib/dips/types";
+import { formatDipsStartTime } from "@/lib/dips/notificationMapper";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
 import { BusinessError } from "@/services/errors";
 
-/** 機体ステータス 1=有効(登録済) (lib/dips/types.ts DipsUaStatus 参照) */
-const UA_STATUS_ACTIVE = 1;
-
-const MILLISECONDS_PER_MINUTE = 60_000;
+/** 飛行計画名称の最大長 (FPRガイドライン 2.3.8) */
+const MAX_FLIGHT_PLAN_NAME_LENGTH = 30;
 
 interface AccessContext {
   userId: string;
   isAdmin: boolean;
 }
 
-export interface AircraftRegistrationCheck {
-  /** DIPS に登録記号が存在し、かつステータスが有効 */
-  isRegistered: boolean;
-  /** DIPS 上の機体情報 (見つからない場合は null) */
-  aircraftInfo: DipsAircraftInfo | null;
-}
-
 /**
  * DIPS 2.0 連携のビジネスロジック
  *
- * 所有者チェックは既存の AircraftService / FlightPlanService の
- * findById (非所有者には NotFoundError) に委譲する。
+ * 認証は Authorization Code Flow。realm 別トークンは DipsOidcClient が管理する。
+ * 機体情報一覧取得 (utm-app 系) はガイドライン未入手のため未対応。
  */
 export class DipsService {
   constructor(
     private readonly apiClient: DipsApiClient,
+    private readonly oidcClient: DipsOidcClient,
     private readonly aircraftService: AircraftService,
     private readonly flightPlanService: FlightPlanService
   ) {}
 
-  /** 機体の登録記号を DIPS の機体情報一覧と照合する */
-  async verifyAircraftRegistration(
-    aircraftId: string,
-    context: AccessContext
-  ): Promise<AircraftRegistrationCheck> {
-    const aircraft = await this.aircraftService.findById(aircraftId, context);
-    if (!aircraft.registrationNumber) {
-      throw new BusinessError("機体に登録記号が設定されていません");
-    }
+  /** DIPS ログイン (認可コードフロー) 開始 URL を返す */
+  buildAuthorizationUrl(realm: DipsRealm, state: string): string {
+    return this.oidcClient.buildAuthorizationUrl(realm, state);
+  }
 
-    const dipsAircrafts = await this.apiClient.fetchAircraftList();
-    const matched =
-      dipsAircrafts.find((info) => info.regSymbol === aircraft.registrationNumber) ?? null;
-
-    return {
-      isRegistered: matched !== null && matched.uaStatus === UA_STATUS_ACTIVE,
-      aircraftInfo: matched,
-    };
+  /** 認可コードをトークンに交換して保存する */
+  async completeAuthorization(userId: string, realm: DipsRealm, code: string): Promise<void> {
+    await this.oidcClient.exchangeCodeAndStore(userId, realm, code);
   }
 
   /**
    * 飛行計画を DIPS の飛行計画通報受付 API へ通報する。
    *
-   * 検証環境 DB は他事業者と共用のため、重複通報を防ぐ冪等性保護として
-   * 既に受付番号が記録されている飛行計画は再通報せず BusinessError を投げる。
+   * 既に通報済み (dipsFlightPlanId あり) の飛行計画は再通報せず BusinessError を投げる (冪等性保護)。
+   * FlightPlan/Aircraft から導出できない項目 (飛行目的・空域・速度など) は userInput で受け取る。
    */
   async notifyFlightPlan(
     flightPlanId: string,
+    userInput: DipsNotificationUserInput,
     context: AccessContext
   ): Promise<DipsFlightPlanNotificationResult> {
     const plan = await this.flightPlanService.findById(flightPlanId, context);
-    if (plan.dipsReceptionNumber) {
+    if (plan.dipsFlightPlanId) {
       throw new BusinessError("この飛行計画は既にDIPSへ通報済みです");
     }
 
@@ -78,34 +64,33 @@ export class DipsService {
       throw new BusinessError("機体に登録記号が設定されていません");
     }
 
-    const flightEndDatetime = new Date(
-      plan.plannedAt.getTime() + plan.durationMin * MILLISECONDS_PER_MINUTE
-    );
-
-    const result = await this.apiClient.notifyFlightPlan({
-      flightStartDatetime: plan.plannedAt.toISOString(),
-      flightEndDatetime: flightEndDatetime.toISOString(),
-      flightPurpose: plan.purpose,
-      flightLocation: plan.location,
-      regSymbol: aircraft.registrationNumber,
+    const result = await this.apiClient.notifyFlightPlan(context.userId, {
+      flightPlanInfo: {
+        flightPlanId: "",
+        name: plan.title.slice(0, MAX_FLIGHT_PLAN_NAME_LENGTH),
+        flightPurpose: userInput.flightPurpose,
+        flightAirspace: userInput.flightAirspace,
+        assistantsNumber: userInput.assistantsNumber,
+        departurePoint: userInput.departurePoint,
+        destinationPoint: userInput.destinationPoint,
+        startTime: formatDipsStartTime(plan.plannedAt),
+        plannedMaxTime: aircraft.maxFlightTimeMin,
+        plannedFlightTime: plan.durationMin,
+        flightSpeed: userInput.flightSpeed,
+        flightAltitude: userInput.flightAltitude,
+        flyRoute: userInput.flyRoute,
+        riskMitigationOnsiteControl: userInput.riskMitigationOnsiteControl ? "1" : "0",
+        aircraftInfo: [{ symbol: aircraft.registrationNumber }],
+      },
     });
 
-    await this.flightPlanService.recordDipsNotification(
-      flightPlanId,
-      result.receptionNumber,
-      context
-    );
+    await this.flightPlanService.recordDipsNotification(flightPlanId, result.flightPlanId, context);
 
     return result;
   }
 
   /** 許可・承認情報を取得する (パススルー) */
-  async fetchPermissions(): Promise<DipsPermissionsResponse> {
-    return this.apiClient.fetchPermissions();
-  }
-
-  /** 飛行禁止エリア情報を取得する (パススルー。型はガイドライン突合後に確定) */
-  async fetchNoFlyAreas(): Promise<unknown> {
-    return this.apiClient.fetchNoFlyAreas();
+  async fetchPermissions(userId: string): Promise<DipsPermissionsResponse> {
+    return this.apiClient.fetchPermissions(userId);
   }
 }

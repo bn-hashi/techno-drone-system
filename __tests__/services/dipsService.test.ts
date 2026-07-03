@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DipsService } from "@/services/dipsService";
 import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
-import type { DipsAircraftInfo } from "@/lib/dips/types";
+import type { DipsOidcClient } from "@/lib/dips/oidcClient";
+import type { DipsNotificationUserInput } from "@/lib/dips/types";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
-import { AircraftNotFoundError, FlightPlanNotFoundError, BusinessError } from "@/services/errors";
+import { FlightPlanNotFoundError, BusinessError } from "@/services/errors";
 import type { Aircraft, FlightPlan } from "@prisma/client";
 import { FlightPlanStatus } from "@prisma/client";
 
@@ -36,42 +37,35 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan =>
     durationMin: 60,
     purpose: "操縦訓練",
     status: FlightPlanStatus.APPROVED,
-    dipsReceptionNumber: null,
+    dipsFlightPlanId: null,
     createdAt: new Date("2026-07-01"),
     updatedAt: new Date("2026-07-01"),
     ...overrides,
   }) as FlightPlan;
 
-const makeDipsAircraft = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo =>
-  ({
-    regSymbol: "JU1234567890",
-    serialNumber: "SN-1",
-    manufactureCategory: 1,
-    uaType: 3,
-    makerNameJa: "テストメーカー",
-    modelNameJa: "テスト機体",
-    makerNameEn: "Test Maker",
-    modelNameEn: "Test Model",
-    weightKg: 0.5,
-    maxTakeoffWeightKg: 0.9,
-    uaStatus: 1,
-    deregistrationReason: null,
-    remoteIdType: 1,
-    remoteIdBroadcastMethod: 1,
-    validPeriodStart: "2026-01-01T00:00:00+09:00",
-    validPeriodEnd: "2029-01-01T00:00:00+09:00",
-    ...overrides,
-  }) as DipsAircraftInfo;
+const userInput: DipsNotificationUserInput = {
+  flightPurpose: [15],
+  flightAirspace: [1],
+  assistantsNumber: 0,
+  departurePoint: "泉岳寺",
+  destinationPoint: "京急泉岳寺駅",
+  flightSpeed: 30,
+  flightAltitude: 50,
+  flyRoute: "{}",
+  riskMitigationOnsiteControl: true,
+};
 
 const mockApiClient = (): DipsApiClient =>
   ({
-    fetchAircraftList: vi.fn(),
     fetchPermissions: vi.fn(),
-    submitPermissionApplication: vi.fn(),
-    fetchFlightPlans: vi.fn(),
-    fetchNoFlyAreas: vi.fn(),
     notifyFlightPlan: vi.fn(),
   }) as unknown as DipsApiClient;
+
+const mockOidcClient = (): DipsOidcClient =>
+  ({
+    buildAuthorizationUrl: vi.fn(),
+    exchangeCodeAndStore: vi.fn(),
+  }) as unknown as DipsOidcClient;
 
 const mockAircraftService = (): AircraftService =>
   ({ findById: vi.fn() }) as unknown as AircraftService;
@@ -83,153 +77,125 @@ const context = { userId: "user-1", isAdmin: false };
 
 describe("DipsService", () => {
   let apiClient: DipsApiClient;
+  let oidcClient: DipsOidcClient;
   let aircraftService: AircraftService;
   let flightPlanService: FlightPlanService;
   let service: DipsService;
 
   beforeEach(() => {
     apiClient = mockApiClient();
+    oidcClient = mockOidcClient();
     aircraftService = mockAircraftService();
     flightPlanService = mockFlightPlanService();
-    service = new DipsService(apiClient, aircraftService, flightPlanService);
+    service = new DipsService(apiClient, oidcClient, aircraftService, flightPlanService);
   });
 
-  // ─── verifyAircraftRegistration ─────────────────────────────────────────────
+  // ─── 認可 ───────────────────────────────────────────────────────────────────
 
-  describe("verifyAircraftRegistration", () => {
-    it("test_verify_returns_registered_when_reg_symbol_matches_active", async () => {
-      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([makeDipsAircraft()]);
+  describe("buildAuthorizationUrl", () => {
+    it("test_buildAuthorizationUrl_delegates_to_oidc_client", () => {
+      vi.mocked(oidcClient.buildAuthorizationUrl).mockReturnValue("https://auth.example/login");
 
-      const result = await service.verifyAircraftRegistration("aircraft-1", context);
+      const url = service.buildAuthorizationUrl("fpl", "state-1");
 
-      expect(result.isRegistered).toBe(true);
+      expect(url).toBe("https://auth.example/login");
+      expect(oidcClient.buildAuthorizationUrl).toHaveBeenCalledWith("fpl", "state-1");
     });
+  });
 
-    it("test_verify_returns_matched_aircraft_info", async () => {
-      const dipsInfo = makeDipsAircraft();
-      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([dipsInfo]);
+  describe("completeAuthorization", () => {
+    it("test_completeAuthorization_exchanges_code_for_tokens", async () => {
+      vi.mocked(oidcClient.exchangeCodeAndStore).mockResolvedValue(undefined);
 
-      const result = await service.verifyAircraftRegistration("aircraft-1", context);
+      await service.completeAuthorization("user-1", "fpl", "auth-code");
 
-      expect(result.aircraftInfo).toEqual(dipsInfo);
-    });
-
-    it("test_verify_returns_not_registered_when_no_match", async () => {
-      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeDipsAircraft({ regSymbol: "JU0000000000" }),
-      ]);
-
-      const result = await service.verifyAircraftRegistration("aircraft-1", context);
-
-      expect(result).toEqual({ isRegistered: false, aircraftInfo: null });
-    });
-
-    it("test_verify_returns_not_registered_when_ua_status_inactive", async () => {
-      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([makeDipsAircraft({ uaStatus: 2 })]);
-
-      const result = await service.verifyAircraftRegistration("aircraft-1", context);
-
-      expect(result.isRegistered).toBe(false);
-    });
-
-    it("test_verify_throws_BusinessError_when_registration_number_missing", async () => {
-      vi.mocked(aircraftService.findById).mockResolvedValue(
-        makeAircraft({ registrationNumber: null })
-      );
-
-      await expect(service.verifyAircraftRegistration("aircraft-1", context)).rejects.toThrow(
-        BusinessError
-      );
-    });
-
-    it("test_verify_skips_api_call_when_registration_number_missing", async () => {
-      vi.mocked(aircraftService.findById).mockResolvedValue(
-        makeAircraft({ registrationNumber: null })
-      );
-
-      await service.verifyAircraftRegistration("aircraft-1", context).catch(() => {});
-
-      expect(apiClient.fetchAircraftList).not.toHaveBeenCalled();
-    });
-
-    it("test_verify_propagates_not_found_for_unowned_aircraft", async () => {
-      vi.mocked(aircraftService.findById).mockRejectedValue(
-        new AircraftNotFoundError("aircraft-1")
-      );
-
-      await expect(service.verifyAircraftRegistration("aircraft-1", context)).rejects.toThrow(
-        AircraftNotFoundError
-      );
+      expect(oidcClient.exchangeCodeAndStore).toHaveBeenCalledWith("user-1", "fpl", "auth-code");
     });
   });
 
   // ─── notifyFlightPlan ────────────────────────────────────────────────────────
 
   describe("notifyFlightPlan", () => {
-    it("test_notify_maps_plan_fields_to_payload", async () => {
+    it("test_notify_maps_plan_name_and_registration_symbol_to_payload", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
-        receptionNumber: "P250700001",
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
       });
 
-      await service.notifyFlightPlan("plan-1", context);
+      await service.notifyFlightPlan("plan-1", userInput, context);
 
-      expect(apiClient.notifyFlightPlan).toHaveBeenCalledWith({
-        flightStartDatetime: "2026-07-03T01:00:00.000Z",
-        flightEndDatetime: "2026-07-03T02:00:00.000Z",
-        flightPurpose: "操縦訓練",
-        flightLocation: "東京都港区",
-        regSymbol: "JU1234567890",
-      });
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect(payload.flightPlanInfo.name).toBe("訓練飛行");
+      expect(payload.flightPlanInfo.aircraftInfo[0].symbol).toBe("JU1234567890");
     });
 
-    it("test_notify_returns_reception_number", async () => {
+    it("test_notify_formats_start_time_in_jst", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
-        receptionNumber: "P250700001",
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
       });
 
-      const result = await service.notifyFlightPlan("plan-1", context);
+      await service.notifyFlightPlan("plan-1", userInput, context);
 
-      expect(result).toEqual({ receptionNumber: "P250700001" });
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect(payload.flightPlanInfo.startTime).toBe("20260703 1000");
     });
 
-    it("test_notify_records_reception_number_after_successful_notification", async () => {
+    it("test_notify_returns_result", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
-        receptionNumber: "P250700001",
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
       });
 
-      await service.notifyFlightPlan("plan-1", context);
+      const result = await service.notifyFlightPlan("plan-1", userInput, context);
+
+      expect(result.flightPlanId).toBe("FP-1");
+    });
+
+    it("test_notify_records_dips_flight_plan_id_after_success", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
 
       expect(flightPlanService.recordDipsNotification).toHaveBeenCalledWith(
         "plan-1",
-        "P250700001",
+        "FP-1",
         context
       );
     });
 
     it("test_notify_throws_BusinessError_when_already_notified", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(
-        makePlan({ dipsReceptionNumber: "P250700001" })
+        makePlan({ dipsFlightPlanId: "FP-existing" })
       );
 
-      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(BusinessError);
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_notify_skips_api_call_when_already_notified", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(
-        makePlan({ dipsReceptionNumber: "P250700001" })
+        makePlan({ dipsFlightPlanId: "FP-existing" })
       );
 
-      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(BusinessError);
+      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
 
@@ -239,7 +205,9 @@ describe("DipsService", () => {
         makeAircraft({ registrationNumber: null })
       );
 
-      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(BusinessError);
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
     });
 
     it("test_notify_skips_api_call_when_registration_number_missing", async () => {
@@ -248,7 +216,7 @@ describe("DipsService", () => {
         makeAircraft({ registrationNumber: null })
       );
 
-      await service.notifyFlightPlan("plan-1", context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
 
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
@@ -258,32 +226,23 @@ describe("DipsService", () => {
         new FlightPlanNotFoundError("plan-1")
       );
 
-      await expect(service.notifyFlightPlan("plan-1", context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
         FlightPlanNotFoundError
       );
     });
   });
 
-  // ─── パススルー ───────────────────────────────────────────────────────────────
+  // ─── fetchPermissions ────────────────────────────────────────────────────────
 
   describe("fetchPermissions", () => {
     it("test_fetchPermissions_delegates_to_api_client", async () => {
       const response = { permissions: [] };
       vi.mocked(apiClient.fetchPermissions).mockResolvedValue(response);
 
-      const result = await service.fetchPermissions();
+      const result = await service.fetchPermissions("user-1");
 
       expect(result).toEqual(response);
-    });
-  });
-
-  describe("fetchNoFlyAreas", () => {
-    it("test_fetchNoFlyAreas_delegates_to_api_client", async () => {
-      vi.mocked(apiClient.fetchNoFlyAreas).mockResolvedValue([{ areaName: "空港周辺" }]);
-
-      const result = await service.fetchNoFlyAreas();
-
-      expect(result).toEqual([{ areaName: "空港周辺" }]);
+      expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
     });
   });
 });

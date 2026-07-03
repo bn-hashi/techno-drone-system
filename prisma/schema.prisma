@@ -105,6 +105,7 @@ model User {
   aircrafts             Aircraft[]
   flightPlans           FlightPlan[]
   flightLogs            FlightLog[]
+  dipsTokens            DipsToken[]
 
   @@map("users")
 }
@@ -399,8 +400,8 @@ model FlightPlan {
   durationMin Int
   purpose     String
   status      FlightPlanStatus @default(DRAFT)
-  /// DIPS 2.0 飛行計画通報受付 API の受付番号。設定済みなら通報済みとみなし、再通報を防ぐ (冪等性保護)
-  dipsReceptionNumber String?
+  /// DIPS 2.0 飛行計画通報受付 API で採番された飛行計画 ID。設定済みなら通報済みとみなし、再通報を防ぐ (冪等性保護)
+  dipsFlightPlanId String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -411,6 +412,26 @@ model FlightPlan {
   @@index([userId, status])
   @@index([aircraftId])
   @@map("flight_plans")
+}
+
+/// DIPS 2.0 OIDC トークン (ユーザー × realm 単位)。
+/// アクセストークン/リフレッシュトークンは AES-256-GCM で暗号化して保存する (lib/dips/tokenCipher.ts)
+model DipsToken {
+  id                    String   @id @default(cuid())
+  userId                String
+  /// realm キー: "fpl" (drs-fpl) | "req" (drs-req)
+  realm                 String
+  encryptedAccessToken  String
+  encryptedRefreshToken String
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, realm])
+  @@map("dips_tokens")
 }
 
 /// 飛行日誌 (国交省様式1 相当の飛行記録)

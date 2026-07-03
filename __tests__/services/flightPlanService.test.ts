@@ -21,7 +21,7 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan => ({
   durationMin: 30,
   purpose: "点検飛行",
   status: FlightPlanStatus.DRAFT,
-  dipsReceptionNumber: null,
+  dipsFlightPlanId: null,
   createdAt: new Date("2026-07-01"),
   updatedAt: new Date("2026-07-01"),
   ...overrides,
@@ -352,7 +352,7 @@ describe("FlightPlanService", () => {
     });
 
     it("test_update_throws_BusinessError_when_plan_is_dips_notified", async () => {
-      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsReceptionNumber: "P250700001" }));
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsFlightPlanId: "P250700001" }));
 
       await expect(service.update("plan-1", { title: "x" }, context)).rejects.toThrow(
         BusinessError
@@ -360,7 +360,7 @@ describe("FlightPlanService", () => {
     });
 
     it("test_update_skips_repo_when_plan_is_dips_notified", async () => {
-      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsReceptionNumber: "P250700001" }));
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsFlightPlanId: "P250700001" }));
 
       await service.update("plan-1", { title: "x" }, context).catch(() => {});
 
@@ -381,7 +381,7 @@ describe("FlightPlanService", () => {
   describe("recordDipsNotification", () => {
     it("test_recordDipsNotification_calls_repo_when_not_yet_notified", async () => {
       const plan = makePlan();
-      const updated = makePlan({ dipsReceptionNumber: "P250700001" });
+      const updated = makePlan({ dipsFlightPlanId: "P250700001" });
       vi.mocked(repo.findById).mockResolvedValue(plan);
       vi.mocked(repo.recordDipsNotification).mockResolvedValue(updated);
 
@@ -394,7 +394,7 @@ describe("FlightPlanService", () => {
     });
 
     it("test_recordDipsNotification_throws_when_already_notified", async () => {
-      const plan = makePlan({ dipsReceptionNumber: "P250700001" });
+      const plan = makePlan({ dipsFlightPlanId: "P250700001" });
       vi.mocked(repo.findById).mockResolvedValue(plan);
 
       await expect(

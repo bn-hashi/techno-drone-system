@@ -38,7 +38,7 @@ export interface IFlightPlanRepository {
   create(data: CreateFlightPlanInput): Promise<FlightPlan>;
   update(id: string, data: UpdateFlightPlanInput): Promise<FlightPlan>;
   updateStatus(id: string, status: FlightPlanStatus): Promise<FlightPlan>;
-  recordDipsNotification(id: string, receptionNumber: string): Promise<FlightPlan>;
+  recordDipsNotification(id: string, dipsFlightPlanId: string): Promise<FlightPlan>;
 }
 
 export class FlightPlanRepository implements IFlightPlanRepository {
@@ -91,11 +91,11 @@ export class FlightPlanRepository implements IFlightPlanRepository {
     return prisma.flightPlan.update({ where: { id }, data: { status } });
   }
 
-  async recordDipsNotification(id: string, receptionNumber: string): Promise<FlightPlan> {
+  async recordDipsNotification(id: string, dipsFlightPlanId: string): Promise<FlightPlan> {
     const prisma = getPrisma();
     return prisma.flightPlan.update({
       where: { id },
-      data: { dipsReceptionNumber: receptionNumber },
+      data: { dipsFlightPlanId },
     });
   }
 }

@@ -47,3 +47,7 @@ docs/R08-DRS-0005*.xlsx
 
 # Playwright MCP セッション成果物・検証用スクリーンショット
 /.playwright-mcp/
+
+# 監査時の一時退避 (誤コミット防止)
+/.next.audit-bak/
+/aircraft-*.png

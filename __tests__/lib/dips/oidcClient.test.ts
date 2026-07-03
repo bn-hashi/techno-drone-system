@@ -1,152 +1,215 @@
-import { describe, it, expect, vi } from "vitest";
+// @vitest-environment node
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DipsOidcClient } from "@/lib/dips/oidcClient";
-import { DipsAuthError } from "@/lib/dips/errors";
+import { DipsAuthError, DipsAuthRequiredError } from "@/lib/dips/errors";
+import { encryptToken, decryptToken } from "@/lib/dips/tokenCipher";
 import type { DipsConfig } from "@/lib/dips/config";
+import type { IDipsTokenRepository } from "@/repositories/dipsTokenRepository";
+import type { DipsToken } from "@prisma/client";
+
+const KEY_HEX = "0123456789abcdef".repeat(4);
 
 const config: DipsConfig = {
-  baseUrl: "https://dips.example.test",
-  tokenUrl: "https://dips.example.test/token",
+  authBaseUrl: "https://auth.dips.example.test",
+  fprApiBaseUrl: "https://fpr-api.dips.example.test",
+  fpaApiBaseUrl: "https://fpa-api.dips.example.test",
   credentials: {
-    aircraft: { clientId: "utm-app-test", clientSecret: "utm-secret" },
-    permission: { clientId: "req-app-test", clientSecret: "req-secret" },
-    flightPlan: { clientId: "fpl-app-test", clientSecret: "fpl-secret" },
+    fpl: { clientId: "fpl-app-test", clientSecret: "fpl-secret" },
+    req: { clientId: "req-app-test", clientSecret: "req-secret" },
   },
-  applicantIds: {
-    permissionGet: "USR063011",
-    permissionApply: "USR063021",
-    flightPlanGet: "USR063031",
-    flightPlanNotify: "USR063041",
-  },
+  redirectUri: "https://app.example.test/redirect",
+  tokenEncryptionKey: KEY_HEX,
 };
 
-const tokenResponse = (token: string, expiresIn = 3600) =>
-  new Response(JSON.stringify({ access_token: token, expires_in: expiresIn }), { status: 200 });
+const tokenResponse = (
+  accessToken: string,
+  { expiresIn = 300, refreshToken = "refresh-1", refreshExpiresIn = 3600 } = {}
+) =>
+  new Response(
+    JSON.stringify({
+      access_token: accessToken,
+      expires_in: expiresIn,
+      refresh_token: refreshToken,
+      refresh_expires_in: refreshExpiresIn,
+    }),
+    { status: 200 }
+  );
+
+const makeTokenRecord = (overrides: Partial<DipsToken> = {}): DipsToken =>
+  ({
+    id: "token-1",
+    userId: "user-1",
+    realm: "fpl",
+    encryptedAccessToken: encryptToken("stored-access", KEY_HEX),
+    encryptedRefreshToken: encryptToken("stored-refresh", KEY_HEX),
+    accessTokenExpiresAt: new Date(Date.now() + 300_000),
+    refreshTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  }) as DipsToken;
 
 describe("DipsOidcClient", () => {
-  it("test_getAccessToken_posts_to_token_url", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+  let tokenRepo: IDipsTokenRepository;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
-    await client.getAccessToken("aircraft");
-
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://dips.example.test/token");
+  beforeEach(() => {
+    tokenRepo = {
+      findByUserAndRealm: vi.fn(),
+      upsert: vi.fn(),
+      deleteByUserAndRealm: vi.fn(),
+    };
+    fetchMock = vi.fn();
   });
 
-  it("test_getAccessToken_uses_POST_method", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+  const makeClient = () =>
+    new DipsOidcClient(config, tokenRepo, fetchMock as unknown as typeof fetch);
 
-    await client.getAccessToken("aircraft");
+  describe("buildAuthorizationUrl", () => {
+    it("test_buildAuthorizationUrl_uses_realm_auth_endpoint", () => {
+      const url = makeClient().buildAuthorizationUrl("fpl", "state-123");
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect(init.method).toBe("POST");
+      expect(url).toContain(
+        "https://auth.dips.example.test/auth/realms/drs-fpl/protocol/openid-connect/auth"
+      );
+    });
+
+    it("test_buildAuthorizationUrl_includes_required_parameters", () => {
+      const url = new URL(makeClient().buildAuthorizationUrl("req", "state-123"));
+
+      expect(url.searchParams.get("response_type")).toBe("code");
+      expect(url.searchParams.get("client_id")).toBe("req-app-test");
+      expect(url.searchParams.get("redirect_uri")).toBe("https://app.example.test/redirect");
+      expect(url.searchParams.get("scope")).toBe("openid offline_access");
+      expect(url.searchParams.get("state")).toBe("state-123");
+    });
   });
 
-  it("test_getAccessToken_includes_grant_type_in_request_body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+  describe("exchangeCodeAndStore", () => {
+    it("test_exchangeCode_posts_authorization_code_grant_to_realm_token_endpoint", async () => {
+      fetchMock.mockResolvedValue(tokenResponse("new-access"));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
 
-    await client.getAccessToken("aircraft");
+      await makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1");
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect(init.body).toContain("grant_type=client_credentials");
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        "https://auth.dips.example.test/auth/realms/drs-fpl/protocol/openid-connect/token"
+      );
+      expect(init.body).toContain("grant_type=authorization_code");
+      expect(init.body).toContain("code=auth-code-1");
+    });
+
+    it("test_exchangeCode_stores_encrypted_tokens", async () => {
+      fetchMock.mockResolvedValue(tokenResponse("new-access", { refreshToken: "new-refresh" }));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
+
+      await makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1");
+
+      const input = vi.mocked(tokenRepo.upsert).mock.calls[0][0];
+      expect(input.userId).toBe("user-1");
+      expect(input.realm).toBe("fpl");
+      expect(decryptToken(input.encryptedAccessToken, KEY_HEX)).toBe("new-access");
+      expect(decryptToken(input.encryptedRefreshToken, KEY_HEX)).toBe("new-refresh");
+    });
+
+    it("test_exchangeCode_throws_DipsAuthError_on_http_error", async () => {
+      fetchMock.mockResolvedValue(new Response("bad request", { status: 400 }));
+
+      await expect(makeClient().exchangeCodeAndStore("user-1", "fpl", "bad-code")).rejects.toThrow(
+        DipsAuthError
+      );
+    });
+
+    it("test_exchangeCode_throws_DipsAuthError_on_malformed_body", async () => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ foo: "bar" }), { status: 200 }));
+
+      await expect(
+        makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1")
+      ).rejects.toThrow(DipsAuthError);
+    });
   });
 
-  it("test_getAccessToken_includes_client_id_in_request_body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-1"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+  describe("getAccessToken", () => {
+    it("test_getAccessToken_throws_AuthRequired_when_no_token_record", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(null);
 
-    await client.getAccessToken("aircraft");
+      await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(
+        DipsAuthRequiredError
+      );
+    });
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect(init.body).toContain("client_id=utm-app-test");
-  });
+    it("test_getAccessToken_returns_decrypted_token_when_still_valid", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(makeTokenRecord());
 
-  it("test_getAccessToken_returns_access_token", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-abc"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+      const token = await makeClient().getAccessToken("user-1", "fpl");
 
-    const token = await client.getAccessToken("permission");
+      expect(token).toBe("stored-access");
+    });
 
-    expect(token).toBe("token-abc");
-  });
+    it("test_getAccessToken_skips_fetch_when_still_valid", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(makeTokenRecord());
 
-  it("test_getAccessToken_caches_token_within_expiry", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(tokenResponse("token-cached"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+      await makeClient().getAccessToken("user-1", "fpl");
 
-    await client.getAccessToken("flightPlan");
-    await client.getAccessToken("flightPlan");
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
+    it("test_getAccessToken_refreshes_when_access_token_expired", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockResolvedValue(tokenResponse("refreshed-access"));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
 
-  it("test_getAccessToken_uses_separate_tokens_per_group", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(tokenResponse("token-utm"))
-      .mockResolvedValueOnce(tokenResponse("token-req"));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+      const token = await makeClient().getAccessToken("user-1", "fpl");
 
-    await client.getAccessToken("aircraft");
-    await client.getAccessToken("permission");
+      expect(token).toBe("refreshed-access");
+      const [, init] = fetchMock.mock.calls[0];
+      expect(init.body).toContain("grant_type=refresh_token");
+    });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
+    it("test_getAccessToken_throws_AuthRequired_when_refresh_token_also_expired", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({
+          accessTokenExpiresAt: new Date(Date.now() - 1000),
+          refreshTokenExpiresAt: new Date(Date.now() - 1000),
+        })
+      );
 
-  it("test_getAccessToken_refetches_after_expiry", async () => {
-    vi.useFakeTimers();
-    try {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(tokenResponse("token-old", 120))
-        .mockResolvedValueOnce(tokenResponse("token-new", 120));
-      const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+      await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(
+        DipsAuthRequiredError
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
 
-      await client.getAccessToken("aircraft");
-      // 安全マージン (60秒) を考慮し、期限 120秒 - 60秒 = 60秒経過後は再取得される
-      vi.advanceTimersByTime(61_000);
-      const token = await client.getAccessToken("aircraft");
+    it("test_getAccessToken_throws_AuthRequired_when_refresh_rejected_as_invalid_grant", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockResolvedValue(new Response("invalid_grant", { status: 400 }));
 
-      expect(token).toBe("token-new");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+      await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(
+        DipsAuthRequiredError
+      );
+    });
 
-  it("test_getAccessToken_calls_fetch_twice_after_expiry", async () => {
-    vi.useFakeTimers();
-    try {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(tokenResponse("token-old", 120))
-        .mockResolvedValueOnce(tokenResponse("token-new", 120));
-      const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
+    it("test_getAccessToken_throws_DipsAuthError_when_refresh_fails_with_server_error", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockResolvedValue(new Response("server error", { status: 500 }));
 
-      await client.getAccessToken("aircraft");
-      vi.advanceTimersByTime(61_000);
-      await client.getAccessToken("aircraft");
+      await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(DipsAuthError);
+    });
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+    it("test_getAccessToken_wraps_network_failure_in_DipsAuthError", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockRejectedValue(new TypeError("fetch failed"));
 
-  it("test_getAccessToken_throws_DipsAuthError_on_http_error", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
-
-    await expect(client.getAccessToken("aircraft")).rejects.toThrow(DipsAuthError);
-  });
-
-  it("test_getAccessToken_throws_DipsAuthError_on_malformed_body", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response(JSON.stringify({ foo: "bar" }), { status: 200 }));
-    const client = new DipsOidcClient(config, fetchMock as unknown as typeof fetch);
-
-    await expect(client.getAccessToken("aircraft")).rejects.toThrow(DipsAuthError);
+      await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(DipsAuthError);
+    });
   });
 });
