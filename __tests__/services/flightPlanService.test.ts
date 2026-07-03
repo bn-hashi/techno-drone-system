@@ -6,6 +6,7 @@ import {
   FlightPlanNotFoundError,
   FlightPlanInvalidTransitionError,
   AircraftNotFoundError,
+  BusinessError,
 } from "@/services/errors";
 import type { FlightPlan, Aircraft } from "@prisma/client";
 import { FlightPlanStatus } from "@prisma/client";
@@ -288,6 +289,88 @@ describe("FlightPlanService", () => {
       vi.mocked(repo.findById).mockResolvedValue(null);
 
       await expect(service.getRisk("plan-1", { userId: "user-1", isAdmin: false })).rejects.toThrow(
+        FlightPlanNotFoundError
+      );
+    });
+  });
+
+  // ─── update ──────────────────────────────────────────────────────────────────
+
+  describe("update", () => {
+    const context = { userId: "user-1", isAdmin: false };
+
+    it("test_update_keeps_data_unchanged_when_plan_is_draft", async () => {
+      const plan = makePlan({ status: FlightPlanStatus.DRAFT });
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(repo.update).mockResolvedValue(plan);
+
+      await service.update("plan-1", { title: "更新後タイトル" }, context);
+
+      expect(repo.update).toHaveBeenCalledWith("plan-1", { title: "更新後タイトル" });
+    });
+
+    it("test_update_resets_status_to_draft_when_plan_is_approved", async () => {
+      const plan = makePlan({ status: FlightPlanStatus.APPROVED });
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(repo.update).mockResolvedValue(makePlan());
+
+      await service.update("plan-1", { title: "更新後タイトル" }, context);
+
+      expect(repo.update).toHaveBeenCalledWith("plan-1", {
+        title: "更新後タイトル",
+        status: FlightPlanStatus.DRAFT,
+      });
+    });
+
+    it("test_update_resets_status_to_draft_when_plan_is_rejected", async () => {
+      const plan = makePlan({ status: FlightPlanStatus.REJECTED });
+      vi.mocked(repo.findById).mockResolvedValue(plan);
+      vi.mocked(repo.update).mockResolvedValue(makePlan());
+
+      await service.update("plan-1", { location: "大阪府" }, context);
+
+      expect(repo.update).toHaveBeenCalledWith("plan-1", {
+        location: "大阪府",
+        status: FlightPlanStatus.DRAFT,
+      });
+    });
+
+    it("test_update_throws_BusinessError_when_plan_is_completed", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ status: FlightPlanStatus.COMPLETED }));
+
+      await expect(service.update("plan-1", { title: "x" }, context)).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_update_skips_repo_when_plan_is_completed", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ status: FlightPlanStatus.COMPLETED }));
+
+      await service.update("plan-1", { title: "x" }, context).catch(() => {});
+
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("test_update_throws_BusinessError_when_plan_is_dips_notified", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsReceptionNumber: "P250700001" }));
+
+      await expect(service.update("plan-1", { title: "x" }, context)).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_update_skips_repo_when_plan_is_dips_notified", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ dipsReceptionNumber: "P250700001" }));
+
+      await service.update("plan-1", { title: "x" }, context).catch(() => {});
+
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("test_update_throws_when_not_owner_and_not_admin", async () => {
+      vi.mocked(repo.findById).mockResolvedValue(makePlan({ userId: "other-user" }));
+
+      await expect(service.update("plan-1", { title: "x" }, context)).rejects.toThrow(
         FlightPlanNotFoundError
       );
     });

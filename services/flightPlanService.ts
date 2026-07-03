@@ -84,6 +84,12 @@ export class FlightPlanService {
     return this.repo.create(input);
   }
 
+  /**
+   * 飛行計画の内容を更新する。
+   * - 飛行完了 (COMPLETED) 済みは飛行記録として確定しているため編集不可
+   * - DIPS 通報済み (受付番号あり) は DIPS 側と内容が乖離するため編集不可
+   * - 承認済み・却下済みを編集した場合は DRAFT に戻し、再承認を必須とする
+   */
   async update(
     id: string,
     data: UpdateFlightPlanInput,
@@ -92,6 +98,15 @@ export class FlightPlanService {
     const plan = await this.repo.findById(id);
     if (plan === null || (!context.isAdmin && plan.userId !== context.userId)) {
       throw new FlightPlanNotFoundError(id);
+    }
+    if (plan.status === FlightPlanStatus.COMPLETED) {
+      throw new BusinessError("飛行完了済みの計画は編集できません");
+    }
+    if (plan.dipsReceptionNumber) {
+      throw new BusinessError("DIPS通報済みの計画は編集できません");
+    }
+    if (plan.status !== FlightPlanStatus.DRAFT) {
+      return this.repo.update(id, { ...data, status: FlightPlanStatus.DRAFT });
     }
     return this.repo.update(id, data);
   }

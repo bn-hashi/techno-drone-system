@@ -332,7 +332,7 @@ test.describe("Admin invite API", () => {
     expect(response.status()).toBe(401);
   });
 
-  test("returns 404 when student ID does not exist", async ({ request, browser }) => {
+  test("returns 404 when student ID does not exist", async ({ browser }) => {
     // The admin storage state file may be stale (session expired between test runs).
     // Re-authenticate via the NextAuth API directly to get a fresh session.
     const adminContext = await browser.newContext();
@@ -344,7 +344,6 @@ test.describe("Admin invite API", () => {
       await adminContext.close();
       return;
     }
-    const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
 
     // Step 2: Authenticate with the admin credentials from the storage state
     // Storage state JSON holds email/password in the origins[].localStorage if
