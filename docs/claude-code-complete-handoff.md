@@ -138,7 +138,7 @@ Claude Designには、画面デザインをClaude Codeへ共有する機能が�
 ユーザーはMacで操作するため、以前の手順はMac用コマンドへ修正しました。Claude Code側のリポジトリはMac上にあり、報告では以下のようなパスが出ています。
 
 ```text
-/Users/kenji/Desktop/Github_Mac/techno-drone-system
+~/Desktop/Github_Mac/techno-drone-system
 ```
 
 Claude Codeに渡すコマンドは、Windows前提ではなくMac上のshellで動く前提にしてください。ただし、この資料自体はOS依存コマンドを最小限にしています。

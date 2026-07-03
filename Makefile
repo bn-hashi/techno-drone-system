@@ -3,9 +3,8 @@
 dev:
 	npm run dev
 
-# NODE_ENV が development のままだと prerender が壊れるため必ず production を明示する
 build:
-	NODE_ENV=production npm run build
+	npm run build
 
 start:
 	npm run start
