@@ -34,28 +34,35 @@ describe("getDipsConfig", () => {
   it("test_getDipsConfig_returns_base_urls", () => {
     const config = getDipsConfig(FULL_ENV);
 
-    expect(config.authBaseUrl).toBe("https://auth.dips.example.test");
-    expect(config.fprApiBaseUrl).toBe("https://fpr-api.dips.example.test");
-    expect(config.fpaApiBaseUrl).toBe("https://fpa-api.dips.example.test");
+    expect({
+      authBaseUrl: config.authBaseUrl,
+      fprApiBaseUrl: config.fprApiBaseUrl,
+      fpaApiBaseUrl: config.fpaApiBaseUrl,
+    }).toEqual({
+      authBaseUrl: "https://auth.dips.example.test",
+      fprApiBaseUrl: "https://fpr-api.dips.example.test",
+      fpaApiBaseUrl: "https://fpa-api.dips.example.test",
+    });
   });
 
   it("test_getDipsConfig_returns_realm_credentials", () => {
     const config = getDipsConfig(FULL_ENV);
 
-    expect(config.credentials.fpl).toEqual({
-      clientId: "fpl-app-test",
-      clientSecret: "fpl-secret",
-    });
-    expect(config.credentials.req).toEqual({
-      clientId: "req-app-test",
-      clientSecret: "req-secret",
+    expect(config.credentials).toEqual({
+      fpl: { clientId: "fpl-app-test", clientSecret: "fpl-secret" },
+      req: { clientId: "req-app-test", clientSecret: "req-secret" },
     });
   });
 
-  it("test_getDipsConfig_returns_redirect_uri_and_encryption_key", () => {
+  it("test_getDipsConfig_returns_redirect_uri", () => {
     const config = getDipsConfig(FULL_ENV);
 
     expect(config.redirectUri).toBe("https://techno-drone-system.example.test/redirect");
+  });
+
+  it("test_getDipsConfig_returns_encryption_key", () => {
+    const config = getDipsConfig(FULL_ENV);
+
     expect(config.tokenEncryptionKey).toBe("a".repeat(64));
   });
 

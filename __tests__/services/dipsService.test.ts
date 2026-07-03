@@ -93,12 +93,19 @@ describe("DipsService", () => {
   // ─── 認可 ───────────────────────────────────────────────────────────────────
 
   describe("buildAuthorizationUrl", () => {
-    it("test_buildAuthorizationUrl_delegates_to_oidc_client", () => {
+    it("test_buildAuthorizationUrl_returns_oidc_client_url", () => {
       vi.mocked(oidcClient.buildAuthorizationUrl).mockReturnValue("https://auth.example/login");
 
       const url = service.buildAuthorizationUrl("fpl", "state-1");
 
       expect(url).toBe("https://auth.example/login");
+    });
+
+    it("test_buildAuthorizationUrl_passes_realm_and_state_to_oidc_client", () => {
+      vi.mocked(oidcClient.buildAuthorizationUrl).mockReturnValue("https://auth.example/login");
+
+      service.buildAuthorizationUrl("fpl", "state-1");
+
       expect(oidcClient.buildAuthorizationUrl).toHaveBeenCalledWith("fpl", "state-1");
     });
   });
@@ -116,7 +123,7 @@ describe("DipsService", () => {
   // ─── notifyFlightPlan ────────────────────────────────────────────────────────
 
   describe("notifyFlightPlan", () => {
-    it("test_notify_maps_plan_name_and_registration_symbol_to_payload", async () => {
+    it("test_notify_maps_plan_name_to_payload", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
@@ -129,7 +136,39 @@ describe("DipsService", () => {
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.name).toBe("訓練飛行");
+    });
+
+    it("test_notify_maps_registration_symbol_to_payload", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
+
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.aircraftInfo[0].symbol).toBe("JU1234567890");
+    });
+
+    it("test_notify_clamps_flight_minutes_to_five_minute_units", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan({ durationMin: 7 }));
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ maxFlightTimeMin: 22 }));
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
+
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect({
+        plannedMaxTime: payload.flightPlanInfo.plannedMaxTime,
+        plannedFlightTime: payload.flightPlanInfo.plannedFlightTime,
+      }).toEqual({ plannedMaxTime: 25, plannedFlightTime: 10 });
     });
 
     it("test_notify_formats_start_time_in_jst", async () => {

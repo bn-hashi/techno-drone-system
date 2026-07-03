@@ -6,7 +6,7 @@ import type {
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
 } from "@/lib/dips/types";
-import { formatDipsStartTime } from "@/lib/dips/notificationMapper";
+import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
 import { BusinessError } from "@/services/errors";
@@ -74,8 +74,8 @@ export class DipsService {
         departurePoint: userInput.departurePoint,
         destinationPoint: userInput.destinationPoint,
         startTime: formatDipsStartTime(plan.plannedAt),
-        plannedMaxTime: aircraft.maxFlightTimeMin,
-        plannedFlightTime: plan.durationMin,
+        plannedMaxTime: clampToDipsFlightMinutes(aircraft.maxFlightTimeMin),
+        plannedFlightTime: clampToDipsFlightMinutes(plan.durationMin),
         flightSpeed: userInput.flightSpeed,
         flightAltitude: userInput.flightAltitude,
         flyRoute: userInput.flyRoute,

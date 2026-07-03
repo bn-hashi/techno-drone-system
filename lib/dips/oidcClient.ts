@@ -3,6 +3,7 @@ import type { DipsConfig, DipsRealm } from "@/lib/dips/config";
 import { DipsAuthError, DipsAuthRequiredError } from "@/lib/dips/errors";
 import { encryptToken, decryptToken } from "@/lib/dips/tokenCipher";
 import type { IDipsTokenRepository } from "@/repositories/dipsTokenRepository";
+import type { DipsToken } from "@prisma/client";
 
 /**
  * DIPS 2.0 の OIDC トークン管理 (Authorization Code Flow)
@@ -20,6 +21,14 @@ const EXPIRY_SAFETY_MARGIN_SECONDS = 60;
 /** トークンエンドポイントの応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
 const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
 
+/**
+ * 進行中のリフレッシュ (userId:realm 単位)。
+ * refresh token rotation 有効時、同じ refresh_token を並行使用すると後発が invalid_grant に
+ * なるため、プロセス内では単一のリフレッシュに相乗りさせる。インスタンスはリクエスト毎に
+ * 生成されるためモジュールレベルで共有する。
+ */
+const inFlightRefreshes = new Map<string, Promise<string>>();
+
 interface TokenResponseBody {
   access_token?: unknown;
   expires_in?: unknown;
@@ -27,11 +36,12 @@ interface TokenResponseBody {
   refresh_expires_in?: unknown;
 }
 
-interface ValidTokenResponse {
+interface TokenGrantResult {
   accessToken: string;
   expiresInSeconds: number;
-  refreshToken: string;
-  refreshExpiresInSeconds: number;
+  /** Keycloak は rotation 無効時、refresh 応答で省略することがある */
+  refreshToken?: string;
+  refreshExpiresInSeconds?: number;
 }
 
 export class DipsOidcClient {
@@ -63,7 +73,15 @@ export class DipsOidcClient {
       client_id: clientId,
       client_secret: clientSecret,
     });
-    await this.storeTokens(userId, realm, tokens);
+    if (tokens.refreshToken === undefined || tokens.refreshExpiresInSeconds === undefined) {
+      throw new DipsAuthError(`DIPSトークンレスポンスの形式が不正です (realm: ${realm})`);
+    }
+    await this.storeTokens(userId, realm, {
+      accessToken: tokens.accessToken,
+      expiresInSeconds: tokens.expiresInSeconds,
+      encryptedRefreshToken: encryptToken(tokens.refreshToken, this.config.tokenEncryptionKey),
+      refreshTokenExpiresAt: new Date(Date.now() + tokens.refreshExpiresInSeconds * 1000),
+    });
   }
 
   /**
@@ -76,8 +94,7 @@ export class DipsOidcClient {
       throw new DipsAuthRequiredError(realm);
     }
 
-    const marginMs = EXPIRY_SAFETY_MARGIN_SECONDS * 1000;
-    if (Date.now() < record.accessTokenExpiresAt.getTime() - marginMs) {
+    if (this.isAccessTokenUsable(record)) {
       return decryptToken(record.encryptedAccessToken, this.config.tokenEncryptionKey);
     }
 
@@ -85,20 +102,70 @@ export class DipsOidcClient {
       throw new DipsAuthRequiredError(realm);
     }
 
+    // 同一ユーザー×realm の並行リフレッシュは1本に相乗りさせる (rotation での invalid_grant 回避)
+    const key = `${userId}:${realm}`;
+    const existing = inFlightRefreshes.get(key);
+    if (existing) {
+      return existing;
+    }
+    const refreshPromise = this.refreshAndStore(userId, realm, record).finally(() => {
+      inFlightRefreshes.delete(key);
+    });
+    inFlightRefreshes.set(key, refreshPromise);
+    return refreshPromise;
+  }
+
+  private isAccessTokenUsable(record: DipsToken): boolean {
+    const marginMs = EXPIRY_SAFETY_MARGIN_SECONDS * 1000;
+    return Date.now() < record.accessTokenExpiresAt.getTime() - marginMs;
+  }
+
+  private async refreshAndStore(
+    userId: string,
+    realm: DipsRealm,
+    record: DipsToken
+  ): Promise<string> {
     const refreshToken = decryptToken(record.encryptedRefreshToken, this.config.tokenEncryptionKey);
     const { clientId, clientSecret } = this.config.credentials[realm];
-    const tokens = await this.requestToken(
-      realm,
-      {
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-      },
-      // リフレッシュトークンが DIPS 側で無効化されている場合は再ログインが必要
-      () => new DipsAuthRequiredError(realm)
-    );
-    await this.storeTokens(userId, realm, tokens);
+
+    let tokens: TokenGrantResult;
+    try {
+      tokens = await this.requestToken(
+        realm,
+        {
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        },
+        // リフレッシュトークンが DIPS 側で無効化されている場合は再ログインが必要
+        () => new DipsAuthRequiredError(realm)
+      );
+    } catch (error) {
+      if (error instanceof DipsAuthRequiredError) {
+        // 複数プロセス構成では別プロセスが先にリフレッシュして rotation 済みの可能性がある。
+        // DB を再読込し、有効なアクセストークンが保存されていればそれを使う。
+        const latest = await this.tokenRepo.findByUserAndRealm(userId, realm);
+        if (latest && this.isAccessTokenUsable(latest)) {
+          return decryptToken(latest.encryptedAccessToken, this.config.tokenEncryptionKey);
+        }
+      }
+      throw error;
+    }
+
+    await this.storeTokens(userId, realm, {
+      accessToken: tokens.accessToken,
+      expiresInSeconds: tokens.expiresInSeconds,
+      // rotation 無効時は refresh 応答に refresh_token が含まれないため既存値を維持する
+      encryptedRefreshToken:
+        tokens.refreshToken !== undefined
+          ? encryptToken(tokens.refreshToken, this.config.tokenEncryptionKey)
+          : record.encryptedRefreshToken,
+      refreshTokenExpiresAt:
+        tokens.refreshExpiresInSeconds !== undefined
+          ? new Date(Date.now() + tokens.refreshExpiresInSeconds * 1000)
+          : record.refreshTokenExpiresAt,
+    });
     return tokens.accessToken;
   }
 
@@ -111,7 +178,7 @@ export class DipsOidcClient {
     realm: DipsRealm,
     params: Record<string, string>,
     invalidGrantErrorFactory?: () => Error
-  ): Promise<ValidTokenResponse> {
+  ): Promise<TokenGrantResult> {
     let response: Response;
     try {
       response = await this.fetchFn(this.endpointUrl(realm, "token"), {
@@ -136,37 +203,36 @@ export class DipsOidcClient {
     }
 
     const body = (await response.json().catch(() => null)) as TokenResponseBody | null;
-    if (
-      !body ||
-      typeof body.access_token !== "string" ||
-      typeof body.expires_in !== "number" ||
-      typeof body.refresh_token !== "string" ||
-      typeof body.refresh_expires_in !== "number"
-    ) {
+    if (!body || typeof body.access_token !== "string" || typeof body.expires_in !== "number") {
       throw new DipsAuthError(`DIPSトークンレスポンスの形式が不正です (realm: ${realm})`);
     }
 
     return {
       accessToken: body.access_token,
       expiresInSeconds: body.expires_in,
-      refreshToken: body.refresh_token,
-      refreshExpiresInSeconds: body.refresh_expires_in,
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+      refreshExpiresInSeconds:
+        typeof body.refresh_expires_in === "number" ? body.refresh_expires_in : undefined,
     };
   }
 
   private async storeTokens(
     userId: string,
     realm: DipsRealm,
-    tokens: ValidTokenResponse
+    tokens: {
+      accessToken: string;
+      expiresInSeconds: number;
+      encryptedRefreshToken: string;
+      refreshTokenExpiresAt: Date;
+    }
   ): Promise<void> {
-    const now = Date.now();
     await this.tokenRepo.upsert({
       userId,
       realm,
       encryptedAccessToken: encryptToken(tokens.accessToken, this.config.tokenEncryptionKey),
-      encryptedRefreshToken: encryptToken(tokens.refreshToken, this.config.tokenEncryptionKey),
-      accessTokenExpiresAt: new Date(now + tokens.expiresInSeconds * 1000),
-      refreshTokenExpiresAt: new Date(now + tokens.refreshExpiresInSeconds * 1000),
+      encryptedRefreshToken: tokens.encryptedRefreshToken,
+      accessTokenExpiresAt: new Date(Date.now() + tokens.expiresInSeconds * 1000),
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
     });
   }
 }

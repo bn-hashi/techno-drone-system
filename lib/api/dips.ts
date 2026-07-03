@@ -42,23 +42,21 @@ export async function notifyFlightPlanToDips(
     body: JSON.stringify(input),
   });
 
-  if (res.status === 401) {
-    const body = (await res.json().catch(() => null)) as {
-      authRequired?: boolean;
-      realm?: string;
-    } | null;
-    if (body?.authRequired) {
-      throw new DipsAuthRequiredClientError(body.realm ?? "fpl");
-    }
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & {
+        result?: DipsNotificationResult;
+      })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "fpl");
   }
 
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok || !body?.result) {
     throw new Error(body?.error ?? "DIPS通報に失敗しました");
   }
 
-  const data = (await res.json()) as { result: DipsNotificationResult };
-  return data.result;
+  return body.result;
 }
 
 /** DIPS ログイン (認可コードフロー) を開始する URL */

@@ -93,13 +93,21 @@ describe("DipsApiClient", () => {
 
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────
 
-  it("test_notifyFlightPlan_requests_fpr_register_url_with_post", async () => {
+  it("test_notifyFlightPlan_requests_fpr_register_url", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("https://fpr-api.dips.example.test/api/flight-plan/register");
+  });
+
+  it("test_notifyFlightPlan_uses_post_method", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+
+    await makeClient().notifyFlightPlan("user-1", samplePayload);
+
+    const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe("POST");
   });
 

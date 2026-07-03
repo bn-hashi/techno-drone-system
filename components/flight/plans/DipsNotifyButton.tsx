@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { notifyFlightPlanToDips, dipsLoginUrl, DipsAuthRequiredClientError } from "@/lib/api/dips";
 import type { DipsNotificationInput } from "@/lib/api/dips";
 import { DIPS_FLIGHT_PURPOSE_OPTIONS } from "@/lib/constants/dipsFlightPurpose";
+import { buildCircleFlyRoute } from "@/lib/dips/notificationMapper";
 
 interface DipsNotifyButtonProps {
   planId: string;
@@ -40,18 +41,60 @@ const INITIAL_FORM: FormState = {
   riskMitigationOnsiteControl: true,
 };
 
-// FPRガイドライン 2.3.8 の Circle 型 flyRoute (GeoJSON) を組み立てる
-function buildCircleFlyRoute(longitude: number, latitude: number, radiusMeters: number): string {
-  return JSON.stringify({
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        properties: { radius: radiusMeters },
-        geometry: { type: "Circle", center: [longitude, latitude] },
-      },
-    ],
-  });
+/** 数値入力欄をパースし、空欄・非数値・範囲外なら null を返す */
+function parseNumberInRange(raw: string, min: number, max: number): number | null {
+  if (raw.trim() === "") return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) return null;
+  return value;
+}
+
+/** 入力フォームを検証して API 入力へ変換する。不正があればエラーメッセージを返す */
+function validateAndBuildInput(
+  form: FormState
+): { ok: true; input: DipsNotificationInput } | { ok: false; message: string } {
+  if (form.flightPurpose.length === 0) {
+    return { ok: false, message: "飛行目的を1つ以上選択してください" };
+  }
+  const flightAirspace = form.flightAirspace
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (flightAirspace.length === 0) {
+    return { ok: false, message: "飛行空域種別を入力してください" };
+  }
+  if (!form.departurePoint.trim() || !form.destinationPoint.trim()) {
+    return { ok: false, message: "出発地・目的地を入力してください" };
+  }
+  const assistantsNumber = parseNumberInRange(form.assistantsNumber, 0, 999);
+  const flightSpeed = parseNumberInRange(form.flightSpeed, 1, 999);
+  const flightAltitude = parseNumberInRange(form.flightAltitude, 1, 999);
+  if (assistantsNumber === null || flightSpeed === null || flightAltitude === null) {
+    return {
+      ok: false,
+      message: "補助者人数・速度 (1〜999)・高度 (1〜999) を正しく入力してください",
+    };
+  }
+  const longitude = parseNumberInRange(form.centerLongitude, -180, 180);
+  const latitude = parseNumberInRange(form.centerLatitude, -90, 90);
+  const radiusMeters = parseNumberInRange(form.radiusMeters, 1, 1_000_000);
+  if (longitude === null || latitude === null || radiusMeters === null) {
+    return { ok: false, message: "飛行範囲 (経度・緯度・半径) を正しく入力してください" };
+  }
+  return {
+    ok: true,
+    input: {
+      flightPurpose: form.flightPurpose,
+      flightAirspace,
+      assistantsNumber,
+      departurePoint: form.departurePoint.trim(),
+      destinationPoint: form.destinationPoint.trim(),
+      flightSpeed,
+      flightAltitude,
+      flyRoute: buildCircleFlyRoute(longitude, latitude, radiusMeters),
+      riskMitigationOnsiteControl: form.riskMitigationOnsiteControl,
+    },
+  };
 }
 
 export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonProps) {
@@ -60,6 +103,16 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Escape キーでダイアログを閉じる (アクセシビリティ対応)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
   if (dipsFlightPlanId) {
     return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
@@ -77,33 +130,15 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
   const handleSubmit = async () => {
     setError(null);
 
-    if (form.flightPurpose.length === 0) {
-      setError("飛行目的を1つ以上選択してください");
+    const validated = validateAndBuildInput(form);
+    if (!validated.ok) {
+      setError(validated.message);
       return;
     }
 
-    const input: DipsNotificationInput = {
-      flightPurpose: form.flightPurpose,
-      flightAirspace: form.flightAirspace
-        .split(",")
-        .map((s) => Number(s.trim()))
-        .filter((n) => Number.isInteger(n)),
-      assistantsNumber: Number(form.assistantsNumber),
-      departurePoint: form.departurePoint.trim(),
-      destinationPoint: form.destinationPoint.trim(),
-      flightSpeed: Number(form.flightSpeed),
-      flightAltitude: Number(form.flightAltitude),
-      flyRoute: buildCircleFlyRoute(
-        Number(form.centerLongitude),
-        Number(form.centerLatitude),
-        Number(form.radiusMeters)
-      ),
-      riskMitigationOnsiteControl: form.riskMitigationOnsiteControl,
-    };
-
     setIsSubmitting(true);
     try {
-      await notifyFlightPlanToDips(planId, input);
+      await notifyFlightPlanToDips(planId, validated.input);
       setIsOpen(false);
       router.refresh();
     } catch (err) {
@@ -129,8 +164,15 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
 
       {isOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-card bg-white p-6">
-            <h2 className="mb-4 text-lg font-bold text-heading">DIPS飛行計画通報</h2>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dips-notify-dialog-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-card bg-white p-6"
+          >
+            <h2 id="dips-notify-dialog-title" className="mb-4 text-lg font-bold text-heading">
+              DIPS飛行計画通報
+            </h2>
             <p className="mb-4 text-xs text-muted">
               飛行計画の名称・日時・機体はこの計画から自動送信されます。以下は追加で必要な項目です。
             </p>

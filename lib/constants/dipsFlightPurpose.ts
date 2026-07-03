@@ -1,7 +1,12 @@
 /**
  * DIPS 飛行目的コード (FPRガイドライン v1.9 2.3.8)
  */
-export const DIPS_FLIGHT_PURPOSE_OPTIONS: ReadonlyArray<{ code: number; label: string }> = [
+import type { DipsFlightPurposeCode } from "@/lib/dips/types";
+
+export const DIPS_FLIGHT_PURPOSE_OPTIONS: ReadonlyArray<{
+  code: DipsFlightPurposeCode;
+  label: string;
+}> = [
   { code: 1, label: "空撮" },
   { code: 2, label: "報道取材" },
   { code: 3, label: "警備" },

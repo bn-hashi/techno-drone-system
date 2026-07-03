@@ -20,7 +20,7 @@ describe("DipsTokenRepository", () => {
 
   const upsertInput = {
     userId: "user-1",
-    realm: "fpl",
+    realm: "fpl" as const,
     encryptedAccessToken: "enc-access",
     encryptedRefreshToken: "enc-refresh",
     accessTokenExpiresAt: new Date("2026-07-03T10:05:00Z"),
@@ -44,25 +44,40 @@ describe("DipsTokenRepository", () => {
     });
   });
 
-  it("test_upsert_creates_and_updates_with_token_fields", async () => {
+  it("test_upsert_targets_composite_unique_key", async () => {
     mockUpsert.mockResolvedValue({ id: "token-1", ...upsertInput });
 
     await repository.upsert(upsertInput);
 
     const arg = mockUpsert.mock.calls[0][0];
     expect(arg.where).toEqual({ userId_realm: { userId: "user-1", realm: "fpl" } });
-    expect(arg.create.encryptedAccessToken).toBe("enc-access");
-    expect(arg.update.encryptedRefreshToken).toBe("enc-refresh");
   });
 
-  it("test_upsert_does_not_put_userId_in_update_payload", async () => {
+  it("test_upsert_create_payload_contains_token_fields", async () => {
     mockUpsert.mockResolvedValue({ id: "token-1", ...upsertInput });
 
     await repository.upsert(upsertInput);
 
     const arg = mockUpsert.mock.calls[0][0];
-    expect(arg.update.userId).toBeUndefined();
-    expect(arg.update.realm).toBeUndefined();
+    expect(arg.create.encryptedAccessToken).toBe("enc-access");
+  });
+
+  it("test_upsert_update_payload_contains_token_fields", async () => {
+    mockUpsert.mockResolvedValue({ id: "token-1", ...upsertInput });
+
+    await repository.upsert(upsertInput);
+
+    const arg = mockUpsert.mock.calls[0][0];
+    expect(arg.update.encryptedRefreshToken).toBe("enc-refresh");
+  });
+
+  it("test_upsert_does_not_put_key_fields_in_update_payload", async () => {
+    mockUpsert.mockResolvedValue({ id: "token-1", ...upsertInput });
+
+    await repository.upsert(upsertInput);
+
+    const arg = mockUpsert.mock.calls[0][0];
+    expect(Object.keys(arg.update)).toEqual(expect.not.arrayContaining(["userId", "realm"]));
   });
 
   it("test_deleteByUserAndRealm_deletes_matching_token", async () => {

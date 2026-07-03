@@ -77,27 +77,40 @@ describe("DipsOidcClient", () => {
     it("test_buildAuthorizationUrl_includes_required_parameters", () => {
       const url = new URL(makeClient().buildAuthorizationUrl("req", "state-123"));
 
-      expect(url.searchParams.get("response_type")).toBe("code");
-      expect(url.searchParams.get("client_id")).toBe("req-app-test");
-      expect(url.searchParams.get("redirect_uri")).toBe("https://app.example.test/redirect");
-      expect(url.searchParams.get("scope")).toBe("openid offline_access");
-      expect(url.searchParams.get("state")).toBe("state-123");
+      expect(Object.fromEntries(url.searchParams)).toMatchObject({
+        response_type: "code",
+        client_id: "req-app-test",
+        redirect_uri: "https://app.example.test/redirect",
+        scope: "openid offline_access",
+        state: "state-123",
+      });
     });
   });
 
   describe("exchangeCodeAndStore", () => {
-    it("test_exchangeCode_posts_authorization_code_grant_to_realm_token_endpoint", async () => {
+    it("test_exchangeCode_posts_to_realm_token_endpoint", async () => {
       fetchMock.mockResolvedValue(tokenResponse("new-access"));
       vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
 
       await makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1");
 
-      const [url, init] = fetchMock.mock.calls[0];
+      const [url] = fetchMock.mock.calls[0];
       expect(url).toBe(
         "https://auth.dips.example.test/auth/realms/drs-fpl/protocol/openid-connect/token"
       );
-      expect(init.body).toContain("grant_type=authorization_code");
-      expect(init.body).toContain("code=auth-code-1");
+    });
+
+    it("test_exchangeCode_sends_authorization_code_grant_params", async () => {
+      fetchMock.mockResolvedValue(tokenResponse("new-access"));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
+
+      await makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1");
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(Object.fromEntries(new URLSearchParams(init.body))).toMatchObject({
+        grant_type: "authorization_code",
+        code: "auth-code-1",
+      });
     });
 
     it("test_exchangeCode_stores_encrypted_tokens", async () => {
@@ -107,10 +120,17 @@ describe("DipsOidcClient", () => {
       await makeClient().exchangeCodeAndStore("user-1", "fpl", "auth-code-1");
 
       const input = vi.mocked(tokenRepo.upsert).mock.calls[0][0];
-      expect(input.userId).toBe("user-1");
-      expect(input.realm).toBe("fpl");
-      expect(decryptToken(input.encryptedAccessToken, KEY_HEX)).toBe("new-access");
-      expect(decryptToken(input.encryptedRefreshToken, KEY_HEX)).toBe("new-refresh");
+      expect({
+        userId: input.userId,
+        realm: input.realm,
+        accessToken: decryptToken(input.encryptedAccessToken, KEY_HEX),
+        refreshToken: decryptToken(input.encryptedRefreshToken, KEY_HEX),
+      }).toEqual({
+        userId: "user-1",
+        realm: "fpl",
+        accessToken: "new-access",
+        refreshToken: "new-refresh",
+      });
     });
 
     it("test_exchangeCode_throws_DipsAuthError_on_http_error", async () => {
@@ -165,8 +185,68 @@ describe("DipsOidcClient", () => {
       const token = await makeClient().getAccessToken("user-1", "fpl");
 
       expect(token).toBe("refreshed-access");
+    });
+
+    it("test_getAccessToken_uses_refresh_token_grant_on_refresh", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockResolvedValue(tokenResponse("refreshed-access"));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
+
+      await makeClient().getAccessToken("user-1", "fpl");
+
       const [, init] = fetchMock.mock.calls[0];
       expect(init.body).toContain("grant_type=refresh_token");
+    });
+
+    it("test_getAccessToken_keeps_existing_refresh_token_when_response_omits_it", async () => {
+      const record = makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) });
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(record);
+      // Keycloak は rotation 無効時、refresh 応答から refresh_token を省略することがある
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ access_token: "refreshed-access", expires_in: 300 }), {
+          status: 200,
+        })
+      );
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(record);
+
+      await makeClient().getAccessToken("user-1", "fpl");
+
+      const input = vi.mocked(tokenRepo.upsert).mock.calls[0][0];
+      expect(input.encryptedRefreshToken).toBe(record.encryptedRefreshToken);
+    });
+
+    it("test_getAccessToken_deduplicates_concurrent_refreshes", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) })
+      );
+      fetchMock.mockResolvedValue(tokenResponse("refreshed-access"));
+      vi.mocked(tokenRepo.upsert).mockResolvedValue(makeTokenRecord());
+      const client = makeClient();
+
+      await Promise.all([
+        client.getAccessToken("user-1", "fpl"),
+        client.getAccessToken("user-1", "fpl"),
+      ]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("test_getAccessToken_falls_back_to_db_token_when_another_process_refreshed", async () => {
+      const staleRecord = makeTokenRecord({ accessTokenExpiresAt: new Date(Date.now() - 1000) });
+      const freshRecord = makeTokenRecord({
+        encryptedAccessToken: encryptToken("other-process-access", KEY_HEX),
+      });
+      vi.mocked(tokenRepo.findByUserAndRealm)
+        .mockResolvedValueOnce(staleRecord)
+        .mockResolvedValueOnce(freshRecord);
+      // 別プロセスが先にリフレッシュ済み → rotation により invalid_grant が返る
+      fetchMock.mockResolvedValue(new Response("invalid_grant", { status: 400 }));
+
+      const token = await makeClient().getAccessToken("user-1", "fpl");
+
+      expect(token).toBe("other-process-access");
     });
 
     it("test_getAccessToken_throws_AuthRequired_when_refresh_token_also_expired", async () => {
@@ -180,6 +260,20 @@ describe("DipsOidcClient", () => {
       await expect(makeClient().getAccessToken("user-1", "fpl")).rejects.toThrow(
         DipsAuthRequiredError
       );
+    });
+
+    it("test_getAccessToken_skips_fetch_when_refresh_token_also_expired", async () => {
+      vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(
+        makeTokenRecord({
+          accessTokenExpiresAt: new Date(Date.now() - 1000),
+          refreshTokenExpiresAt: new Date(Date.now() - 1000),
+        })
+      );
+
+      await makeClient()
+        .getAccessToken("user-1", "fpl")
+        .catch(() => {});
+
       expect(fetchMock).not.toHaveBeenCalled();
     });
 

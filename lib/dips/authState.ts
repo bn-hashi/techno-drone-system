@@ -7,7 +7,10 @@ import { randomBytes } from "crypto";
  * コールバック時に照合し、リクエストの正当性を検証する。
  */
 
-export type DipsAuthStateRealm = "fpl" | "req";
+import type { DipsRealm } from "@/lib/dips/config";
+
+/** DipsRealm の別名 (state 用途)。定義は lib/dips/config.ts に一元化 */
+export type DipsAuthStateRealm = DipsRealm;
 
 const SEPARATOR = ".";
 
