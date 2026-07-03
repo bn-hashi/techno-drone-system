@@ -102,7 +102,7 @@ export class FlightPlanService {
     if (plan.status === FlightPlanStatus.COMPLETED) {
       throw new BusinessError("飛行完了済みの計画は編集できません");
     }
-    if (plan.dipsReceptionNumber) {
+    if (plan.dipsFlightPlanId) {
       throw new BusinessError("DIPS通報済みの計画は編集できません");
     }
     if (plan.status !== FlightPlanStatus.DRAFT) {
@@ -147,14 +147,14 @@ export class FlightPlanService {
    */
   async recordDipsNotification(
     id: string,
-    receptionNumber: string,
+    dipsFlightPlanId: string,
     context: AccessContext
   ): Promise<FlightPlan> {
     const plan = await this.findById(id, context);
-    if (plan.dipsReceptionNumber) {
+    if (plan.dipsFlightPlanId) {
       throw new BusinessError("この飛行計画は既にDIPSへ通報済みです");
     }
-    return this.repo.recordDipsNotification(id, receptionNumber);
+    return this.repo.recordDipsNotification(id, dipsFlightPlanId);
   }
 
   async getRisk(id: string, context: AccessContext): Promise<RiskInfo> {

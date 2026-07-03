@@ -1,21 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { isDipsEnabled, getDipsConfig } from "@/lib/dips/config";
+import { isDipsEnabled, getDipsConfig, DIPS_REALM_NAMES } from "@/lib/dips/config";
 import { DipsConfigError } from "@/lib/dips/errors";
 
 const FULL_ENV: Record<string, string> = {
   DIPS_ENABLED: "true",
-  DIPS_API_BASE_URL: "https://dips.example.test",
-  DIPS_TOKEN_URL: "https://dips.example.test/token",
-  DIPS_UTM_CLIENT_ID: "utm-app-test",
-  DIPS_UTM_CLIENT_SECRET: "utm-secret",
-  DIPS_REQ_CLIENT_ID: "req-app-test",
-  DIPS_REQ_CLIENT_SECRET: "req-secret",
+  DIPS_AUTH_BASE_URL: "https://auth.dips.example.test",
+  DIPS_FPR_API_BASE_URL: "https://fpr-api.dips.example.test",
+  DIPS_FPA_API_BASE_URL: "https://fpa-api.dips.example.test",
   DIPS_FPL_CLIENT_ID: "fpl-app-test",
   DIPS_FPL_CLIENT_SECRET: "fpl-secret",
-  DIPS_APPLICANT_ID_PERMISSION_GET: "USR063011",
-  DIPS_APPLICANT_ID_PERMISSION_APPLY: "USR063021",
-  DIPS_APPLICANT_ID_FLIGHT_PLAN_GET: "USR063031",
-  DIPS_APPLICANT_ID_FLIGHT_PLAN_NOTIFY: "USR063041",
+  DIPS_REQ_CLIENT_ID: "req-app-test",
+  DIPS_REQ_CLIENT_SECRET: "req-secret",
+  DIPS_REDIRECT_URI: "https://techno-drone-system.example.test/redirect",
+  // AES-256-GCM 用 32byte (64桁hex) のテスト鍵
+  DIPS_TOKEN_ENCRYPTION_KEY: "a".repeat(64),
 };
 
 describe("isDipsEnabled", () => {
@@ -33,24 +31,39 @@ describe("isDipsEnabled", () => {
 });
 
 describe("getDipsConfig", () => {
-  it("test_getDipsConfig_returns_grouped_credentials", () => {
+  it("test_getDipsConfig_returns_base_urls", () => {
     const config = getDipsConfig(FULL_ENV);
 
-    expect(config.credentials.aircraft).toEqual({
-      clientId: "utm-app-test",
-      clientSecret: "utm-secret",
+    expect({
+      authBaseUrl: config.authBaseUrl,
+      fprApiBaseUrl: config.fprApiBaseUrl,
+      fpaApiBaseUrl: config.fpaApiBaseUrl,
+    }).toEqual({
+      authBaseUrl: "https://auth.dips.example.test",
+      fprApiBaseUrl: "https://fpr-api.dips.example.test",
+      fpaApiBaseUrl: "https://fpa-api.dips.example.test",
     });
   });
 
-  it("test_getDipsConfig_returns_applicant_ids", () => {
+  it("test_getDipsConfig_returns_realm_credentials", () => {
     const config = getDipsConfig(FULL_ENV);
 
-    expect(config.applicantIds).toEqual({
-      permissionGet: "USR063011",
-      permissionApply: "USR063021",
-      flightPlanGet: "USR063031",
-      flightPlanNotify: "USR063041",
+    expect(config.credentials).toEqual({
+      fpl: { clientId: "fpl-app-test", clientSecret: "fpl-secret" },
+      req: { clientId: "req-app-test", clientSecret: "req-secret" },
     });
+  });
+
+  it("test_getDipsConfig_returns_redirect_uri", () => {
+    const config = getDipsConfig(FULL_ENV);
+
+    expect(config.redirectUri).toBe("https://techno-drone-system.example.test/redirect");
+  });
+
+  it("test_getDipsConfig_returns_encryption_key", () => {
+    const config = getDipsConfig(FULL_ENV);
+
+    expect(config.tokenEncryptionKey).toBe("a".repeat(64));
   });
 
   it("test_getDipsConfig_throws_when_required_key_missing", () => {
@@ -62,8 +75,20 @@ describe("getDipsConfig", () => {
 
   it("test_getDipsConfig_error_message_lists_missing_keys", () => {
     const env = { ...FULL_ENV };
-    delete env.DIPS_TOKEN_URL;
+    delete env.DIPS_AUTH_BASE_URL;
 
-    expect(() => getDipsConfig(env)).toThrow(/DIPS_TOKEN_URL/);
+    expect(() => getDipsConfig(env)).toThrow(/DIPS_AUTH_BASE_URL/);
+  });
+
+  it("test_getDipsConfig_throws_when_encryption_key_is_not_64_hex_chars", () => {
+    const env = { ...FULL_ENV, DIPS_TOKEN_ENCRYPTION_KEY: "tooshort" };
+
+    expect(() => getDipsConfig(env)).toThrow(DipsConfigError);
+  });
+});
+
+describe("DIPS_REALM_NAMES", () => {
+  it("test_realm_names_map_to_keycloak_realms", () => {
+    expect(DIPS_REALM_NAMES).toEqual({ fpl: "drs-fpl", req: "drs-req" });
   });
 });

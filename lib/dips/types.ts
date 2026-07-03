@@ -64,6 +64,8 @@ export interface DipsPermissionsResponse {
 }
 
 // ─── 機体情報一覧取得 API のコード値定義 (別紙1 準拠) ────────────────────────────
+// ⚠️ utm-app 系 API のガイドラインは未入手のため、以下の型は現在未使用。
+// 機体照合機能の実装時 (ガイドライン入手後) に正式仕様と突合して使用する。
 
 /** 製造区分: 1=メーカーの機体/改造した機体, 2=自作した機体 */
 export type DipsManufactureCategory = 1 | 2;
@@ -86,33 +88,103 @@ export type DipsRemoteIdBroadcastMethod = 0 | 1 | 2 | 3;
 /** 所有者区分: 1=個人, 2=法人 */
 export type DipsOwnerCategory = 1 | 2;
 
-// ─── 飛行計画通報受付 API (暫定: ガイドライン突合前) ────────────────────────────
+// ─── 飛行計画通報受付 API (FPRガイドライン v1.9 2.3.8 準拠) ─────────────────────
 
 /**
- * 飛行計画通報のリクエストペイロード (暫定)
- *
- * ⚠️ フィールド名・形式は「DIPS2.0 API 接続システム向けガイドライン」の
- * 正式仕様と突合して確定させること (設定通知書にはリクエスト仕様の記載なし)
+ * 飛行目的コード (FPRガイドライン 2.3.8)
+ * 1:空撮 2:報道取材 3:警備 4:農林水産業 5:測量 6:環境調査 7:設備メンテナンス
+ * 8:インフラ点検・保守 9:資材管理 10:輸送・宅配 11:自然観測 12:事故・災害対応等
+ * 13:その他1(業務) 14:趣味 15:研究開発 16:その他2(業務以外)
  */
-export interface DipsFlightPlanNotificationPayload {
-  /** 申請者ID (飛行計画通報受付用) */
-  applicantId: string;
-  /** 飛行開始日時 (ISO 8601) */
-  flightStartDatetime: string;
-  /** 飛行終了日時 (ISO 8601) */
-  flightEndDatetime: string;
-  /** 飛行目的 */
-  flightPurpose: string;
-  /** 飛行場所 */
-  flightLocation: string;
-  /** 機体の登録記号 (12桁) */
-  regSymbol: string;
+export type DipsFlightPurposeCode =
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16;
+
+/** 飛行空域種別コード (FPRガイドライン 2.3.8) */
+export type DipsFlightAirspaceCode = number;
+
+/**
+ * 飛行計画通報でユーザーがダイアログ入力する項目 (FlightPlan/Aircraft から導出できない項目)。
+ *
+ * Q1=(a): 通報ボタン押下時のダイアログで都度入力する。
+ */
+export interface DipsNotificationUserInput {
+  /** 飛行目的 (複数可) */
+  flightPurpose: DipsFlightPurposeCode[];
+  /** 飛行空域種別 (複数可) */
+  flightAirspace: DipsFlightAirspaceCode[];
+  /** 補助者の人数 (無しは 0) */
+  assistantsNumber: number;
+  /** 出発地の地名・固有名称 */
+  departurePoint: string;
+  /** 目的地の地名・固有名称 */
+  destinationPoint: string;
+  /** 当該飛行で多用/最大の速度 (km/h, 1〜999) */
+  flightSpeed: number;
+  /** 当該飛行で多用/最大の高度 (AGL メートル, 1〜999) */
+  flightAltitude: number;
+  /** 飛行範囲を表す GeoJSON 文字列 (Circle/Polygon) */
+  flyRoute: string;
+  /** 立入管理措置を講じる場合 true */
+  riskMitigationOnsiteControl: boolean;
 }
 
-/** 飛行計画通報の受付結果 (暫定) */
+/**
+ * 飛行計画通報受付 API のリクエストボディ (FPRガイドライン 2.3.8)。
+ * ネストの flightPlanInfo に通報項目を格納する。startTime は "yyyyMMdd hhmm" 形式。
+ */
+export interface DipsFlightPlanNotificationPayload {
+  flightPlanInfo: {
+    /** 更新時のみ。新規は空文字 */
+    flightPlanId: string;
+    /** 飛行計画名称 (最大30文字) */
+    name: string;
+    flightPurpose: DipsFlightPurposeCode[];
+    flightAirspace: DipsFlightAirspaceCode[];
+    assistantsNumber: number;
+    departurePoint: string;
+    destinationPoint: string;
+    /** "yyyyMMdd hhmm" (半角スペース区切り) */
+    startTime: string;
+    /** 航続可能時間 (分, 5単位 5〜1440) */
+    plannedMaxTime: number;
+    /** 所要時間 (分, 5単位 5〜1440) */
+    plannedFlightTime: number;
+    flightSpeed: number;
+    flightAltitude: number;
+    /** GeoJSON 文字列 */
+    flyRoute: string;
+    /** "1"=講じる, "0"=講じない */
+    riskMitigationOnsiteControl: string;
+    aircraftInfo: Array<{
+      /** 登録記号 (12桁) */
+      symbol: string;
+    }>;
+  };
+}
+
+/** 飛行計画通報の受付結果 (FPRガイドライン 2.3.8 レスポンス) */
 export interface DipsFlightPlanNotificationResult {
-  /** 受付番号 */
-  receptionNumber: string;
+  /** 採番された飛行計画 ID (DB の dipsFlightPlanId に保存) */
+  flightPlanId: string;
+  /** 登録結果 (失敗時は理由) */
+  flightPlanRegistrationResult: string;
+  /** 受付日時 "yyyy/MM/dd hh:mm" */
+  flightPlanRegistrationDatetime: string;
 }
 
 /**

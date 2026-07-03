@@ -14,6 +14,22 @@ export class DipsConfigError extends Error {
   }
 }
 
+/** DIPS へのユーザーログイン (認可コードフロー) が必要。UI はログイン誘導を表示する */
+export class DipsAuthRequiredError extends Error {
+  constructor(realm: string) {
+    super(`DIPSへのログインが必要です (realm: ${realm})`);
+    this.name = "DipsAuthRequiredError";
+  }
+}
+
+/** ガイドライン未入手のため未対応の API を呼び出した */
+export class DipsUnsupportedApiError extends Error {
+  constructor(apiName: string) {
+    super(`${apiName} はガイドライン未入手のため未対応です`);
+    this.name = "DipsUnsupportedApiError";
+  }
+}
+
 /** OIDC トークン取得に失敗した (HTTPエラー応答、またはタイムアウト・接続失敗などネットワークエラー) */
 export class DipsAuthError extends Error {
   constructor(
