@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
-import { DuplicateEmailError, BusinessError } from "@/services/errors";
+import { DuplicateEmailError } from "@/services/errors";
 
 // NextAuth のセッションモック
 vi.mock("next-auth", () => ({

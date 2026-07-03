@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 
   // 管理者アカウント
   const passwordHash = await bcrypt.hash(adminPassword, 12);
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: SEED_ADMIN.email },
     update: {},
     create: {

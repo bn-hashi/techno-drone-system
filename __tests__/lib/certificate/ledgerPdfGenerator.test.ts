@@ -18,7 +18,8 @@ describe("ReactPdfLedgerGenerator", () => {
       issuedAt: new Date("2026-01-01T00:00:00Z"),
       expiresAt: new Date("2027-01-01T00:00:00Z"),
     });
-  }, 30000);
+    // カバレッジ計測時は計装オーバーヘッドで60秒超かかるため余裕を持たせる
+  }, 120_000);
 
   it("test_generate_with_valid_input_returns_buffer", () => {
     expect(Buffer.isBuffer(buffer)).toBe(true);

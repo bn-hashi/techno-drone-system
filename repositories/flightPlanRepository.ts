@@ -17,6 +17,8 @@ export interface UpdateFlightPlanInput {
   plannedAt?: Date;
   durationMin?: number;
   purpose?: string;
+  /** 承認済み・却下済みの計画を編集した際に Service 層が DRAFT へ戻すために使う */
+  status?: FlightPlanStatus;
 }
 
 export interface PaginationParams {

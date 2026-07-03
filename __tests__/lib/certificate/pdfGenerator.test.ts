@@ -23,7 +23,8 @@ describe("ReactPdfCertificateGenerator", () => {
       schoolName: "テクノドローンスクール",
       trainingOfficeCode: "OFFICE01",
     });
-  }, 30000);
+    // カバレッジ計測時は計装オーバーヘッドで60秒超かかるため余裕を持たせる
+  }, 120_000);
 
   it("test_generate_with_valid_input_returns_buffer", () => {
     expect(Buffer.isBuffer(buffer)).toBe(true);

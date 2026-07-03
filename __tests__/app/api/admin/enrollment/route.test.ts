@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UserRole } from "@/types/prisma";
-import { BusinessError, DuplicateEnrollmentError, UserNotFoundError } from "@/services/errors";
+import { DuplicateEnrollmentError } from "@/services/errors";
 
 vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
