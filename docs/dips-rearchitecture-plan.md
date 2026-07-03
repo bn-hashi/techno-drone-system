@@ -92,15 +92,23 @@
 
 ## 実装フェーズ
 
-- [ ] **Phase A**: config再設計 (realm別クレデンシャル・認証/API別ベースURL・暗号化鍵) + endpoints正式パス化
-- [ ] **Phase B**: Authorization Code Flow — `DipsToken` モデル (userId×realm、暗号化保存) + マイグレーション、
+- [x] **Phase A**: config再設計 (realm別クレデンシャル・認証/API別ベースURL・暗号化鍵) + endpoints正式パス化
+- [x] **Phase B**: Authorization Code Flow — `DipsToken` モデル (userId×realm、暗号化保存) + マイグレーション、
       `lib/dips/tokenCipher.ts` (AES-256-GCM)、oidcClient書き換え (認可URL生成/コード交換/自動リフレッシュ)、
       `app/api/dips/auth/start/route.ts` + `app/redirect/route.ts` (state検証)
-- [ ] **Phase C**: types正式スキーマ化 + dipsApiClient改修 (ユーザー単位トークン、POST系取得API対応)
-- [ ] **Phase D**: `dipsReceptionNumber`→`dipsFlightPlanId` リネームmigration、DipsService通報マッピング改修
-- [ ] **Phase E**: UI — 飛行計画詳細に「DIPSへ通報」ボタン + 追加入力ダイアログ (Q1=(a))、DIPS未認証時はログイン誘導
+- [x] **Phase C**: types正式スキーマ化 + dipsApiClient改修 (ユーザー単位トークン、POST系取得API対応)
+- [x] **Phase D**: `dipsReceptionNumber`→`dipsFlightPlanId` リネームmigration、DipsService通報マッピング改修
+- [x] **Phase E**: UI — 飛行計画詳細に「DIPSへ通報」ボタン + 追加入力ダイアログ (Q1=(a))、DIPS未認証時はログイン誘導
 - [ ] **Phase F** (サーバー上): 検証環境疎通 → 動作確認完了報告 → 本番API申請。デプロイ・起動方式の整備が前提
       (2026-07-03時点で Lightsail に node プロセスなし)
+
+### 未対応 (別フェーズ)
+
+- 機体照合 (utm-app系): ガイドライン未入手。入手後に `DipsApiClient.fetchAircraftList` /
+  `DipsService.verifyAircraftRegistration` / 機体詳細ページの照合UIを再実装
+- 飛行禁止エリア情報取得 → `getRiskStub` の実データ化 (Phase F 疎通後)
+- 許可・承認申請受付 (permissionRegister) の UI
+- 通報ダイアログの飛行空域種別: 現状カンマ区切りテキスト。ガイドラインのコード表で選択式に改善余地
 
 ## 環境変数 (新設計)
 

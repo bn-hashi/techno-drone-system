@@ -4,7 +4,7 @@ import { getDipsService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { DipsDisabledError } from "@/lib/dips/errors";
 import { decodeAuthState } from "@/lib/dips/authState";
-import { STATE_COOKIE_NAME } from "@/app/api/dips/auth/start/route";
+import { DIPS_STATE_COOKIE_NAME } from "@/lib/dips/authCookie";
 import { logger } from "@/lib/logger";
 
 /** 認可完了後に戻す飛行計画一覧ページ */
@@ -26,8 +26,8 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const decoded = decodeAuthState(state);
-  const savedNonce = cookies().get(STATE_COOKIE_NAME)?.value;
-  cookies().delete(STATE_COOKIE_NAME);
+  const savedNonce = cookies().get(DIPS_STATE_COOKIE_NAME)?.value;
+  cookies().delete(DIPS_STATE_COOKIE_NAME);
   if (!decoded || !savedNonce || decoded.nonce !== savedNonce) {
     logger.error("DIPS認可コールバックのstate検証に失敗しました", new Error("state mismatch"), {
       route: "GET /redirect",

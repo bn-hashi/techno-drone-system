@@ -6,9 +6,14 @@ import { FlightPlanNotFoundError } from "@/services/errors";
 import { calcFallDistance } from "@/lib/utils/fallDistance";
 import { getRiskStub } from "@/lib/stubs/weatherStub";
 import { STUB_ALTITUDE_METERS } from "@/lib/constants/flightPlan";
-import { FLIGHT_PLAN_STATUS_LABELS, FLIGHT_PLAN_STATUS_STYLE } from "@/lib/constants/flightPlanStatusLabels";
+import {
+  FLIGHT_PLAN_STATUS_LABELS,
+  FLIGHT_PLAN_STATUS_STYLE,
+} from "@/lib/constants/flightPlanStatusLabels";
 import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
 import { StatusUpdateButton } from "@/components/flight/plans/StatusUpdateButton";
+import { DipsNotifyButton } from "@/components/flight/plans/DipsNotifyButton";
+import { isDipsEnabled } from "@/lib/dips/config";
 import type { FlightPlanStatus } from "@prisma/client";
 
 interface FlightPlanDetailPageProps {
@@ -70,7 +75,9 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">飛行予定日時</dt>
-            <dd className="text-sm text-gray-900">{formatFlightDateTime(new Date(plan.plannedAt))}</dd>
+            <dd className="text-sm text-gray-900">
+              {formatFlightDateTime(new Date(plan.plannedAt))}
+            </dd>
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">飛行時間</dt>
@@ -169,6 +176,12 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
           />
         )}
       </div>
+
+      {isDipsEnabled() && isOwnPlan && status === "APPROVED" && (
+        <div className="mt-4 border-t border-line-soft pt-4">
+          <DipsNotifyButton planId={plan.id} dipsFlightPlanId={plan.dipsFlightPlanId} />
+        </div>
+      )}
     </div>
   );
 }

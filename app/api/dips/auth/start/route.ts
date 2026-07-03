@@ -5,12 +5,8 @@ import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { DipsDisabledError } from "@/lib/dips/errors";
 import { generateNonce, encodeAuthState } from "@/lib/dips/authState";
 import type { DipsAuthStateRealm } from "@/lib/dips/authState";
+import { DIPS_STATE_COOKIE_NAME, DIPS_STATE_COOKIE_MAX_AGE } from "@/lib/dips/authCookie";
 import { logger } from "@/lib/logger";
-
-/** state 照合用 nonce を保持する cookie 名 */
-const STATE_COOKIE_NAME = "dips_auth_state";
-/** nonce cookie の有効期間 (秒)。認可フロー完了までの短時間で十分 */
-const STATE_COOKIE_MAX_AGE = 600;
 
 /**
  * DIPS ログイン (認可コードフロー) を開始する。
@@ -29,12 +25,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     const state = encodeAuthState(realm, nonce);
     const authorizationUrl = service.buildAuthorizationUrl(realm, state);
 
-    cookies().set(STATE_COOKIE_NAME, nonce, {
+    cookies().set(DIPS_STATE_COOKIE_NAME, nonce, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
       path: "/",
-      maxAge: STATE_COOKIE_MAX_AGE,
+      maxAge: DIPS_STATE_COOKIE_MAX_AGE,
     });
 
     return NextResponse.redirect(authorizationUrl);
@@ -48,5 +44,3 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }
-
-export { STATE_COOKIE_NAME };
