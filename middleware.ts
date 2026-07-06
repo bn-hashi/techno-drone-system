@@ -33,7 +33,9 @@ export async function middleware(request: NextRequest) {
   const redirect = determineRedirect(pathname, tokenPayload);
 
   if (redirect === "/login") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    // request.url reflects the app's own bind address (localhost:3000) behind a
+    // reverse proxy under `next start`, so build the redirect from APP_BASE_URL instead.
+    return NextResponse.redirect(new URL("/login", process.env.APP_BASE_URL));
   }
 
   return NextResponse.next();

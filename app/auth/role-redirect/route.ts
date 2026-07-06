@@ -11,7 +11,16 @@ import { UserRole } from "@/types/prisma";
  * Uses getToken() instead of getServerSession() because App Router Route Handlers
  * require the raw request to read cookies, which getServerSession() cannot access
  * reliably without the req/res pair from the Pages Router.
+ *
+ * Redirect targets are built from APP_BASE_URL rather than request.url: under
+ * `next start` behind a reverse proxy, request.url reflects the app's own bind
+ * address (e.g. http://localhost:3000) regardless of the Host header the proxy
+ * forwarded, so using it here would send users back to the internal address.
  */
+function absoluteUrl(path: string): URL {
+  return new URL(path, process.env.APP_BASE_URL);
+}
+
 export async function GET(request: NextRequest) {
   const token = await getToken({
     req: request,
@@ -19,21 +28,21 @@ export async function GET(request: NextRequest) {
   });
 
   if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(absoluteUrl("/login"));
   }
 
   if (token.role === UserRole.ADMIN) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    return NextResponse.redirect(absoluteUrl("/admin"));
   }
 
   if (token.role === UserRole.STUDENT) {
-    return NextResponse.redirect(new URL("/student", request.url));
+    return NextResponse.redirect(absoluteUrl("/student"));
   }
 
   if (token.role === UserRole.PILOT) {
-    return NextResponse.redirect(new URL("/flight/aircraft", request.url));
+    return NextResponse.redirect(absoluteUrl("/flight/aircraft"));
   }
 
   // Unknown role — fail closed
-  return NextResponse.redirect(new URL("/login", request.url));
+  return NextResponse.redirect(absoluteUrl("/login"));
 }
