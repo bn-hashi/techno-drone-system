@@ -44,6 +44,12 @@ export const TEST_USERS = {
     role: "ADMIN" as const,
     name: "E2E Admin User",
   },
+  pilot: {
+    email: "e2e-pilot@techno-drone.test",
+    password: requireEnvVar("E2E_PILOT_PASSWORD"),
+    role: "PILOT" as const,
+    name: "E2E Pilot User",
+  },
   pendingUser: {
     email: "e2e-pending@techno-drone.test",
     password: requireEnvVar("E2E_PENDING_PASSWORD"),
@@ -61,4 +67,5 @@ export const TEST_USERS = {
 export const STORAGE_STATE = {
   student: "e2e/fixtures/.auth/student.json",
   admin: "e2e/fixtures/.auth/admin.json",
+  pilot: "e2e/fixtures/.auth/pilot.json",
 } as const;

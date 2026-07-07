@@ -51,6 +51,11 @@ export default defineConfig({
       testDir: "./e2e/fixtures",
       testMatch: /admin\.setup\.ts/,
     },
+    {
+      name: "setup-pilot",
+      testDir: "./e2e/fixtures",
+      testMatch: /pilot\.setup\.ts/,
+    },
     // --- Main test suite (requires authenticated sessions) ---
     {
       name: "chromium",
@@ -59,7 +64,7 @@ export default defineConfig({
       },
       // Exclude invitation-flow tests: they manage their own auth state
       testIgnore: /invitation-flow\.spec\.ts/,
-      dependencies: ["setup-student", "setup-admin"],
+      dependencies: ["setup-student", "setup-admin", "setup-pilot"],
     },
     // --- Invitation / registration flow (no pre-auth session required) ---
     // Runs independently without depending on setup-admin/setup-student.
