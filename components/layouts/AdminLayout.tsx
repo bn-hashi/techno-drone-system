@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SidebarLayout } from "@/components/layouts/SidebarLayout";
 import type { NavGroup } from "@/components/layouts/SidebarNav";
+import { FLIGHT_ROUTES } from "@/lib/flightRoutes";
 
 // デザイン「登録講習機関 管理システム」のナビグループ構成に合わせて
 // 既存ルートのみをグループ化する (未実装機能はナビに載せない)
@@ -32,8 +33,8 @@ const NAV_GROUPS: readonly NavGroup[] = [
     title: "飛行管理",
     items: [
       { href: "/admin/flight-logs", label: "飛行日誌（全操縦者）" },
-      { href: "/flight/aircraft", label: "機体管理" },
-      { href: "/flight/plans", label: "飛行計画" },
+      FLIGHT_ROUTES.aircraft,
+      FLIGHT_ROUTES.plans,
     ],
   },
 ] as const;

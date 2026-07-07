@@ -1,15 +1,12 @@
 import type { ReactNode } from "react";
 import { SidebarLayout } from "@/components/layouts/SidebarLayout";
 import type { NavGroup } from "@/components/layouts/SidebarNav";
+import { FLIGHT_ROUTES } from "@/lib/flightRoutes";
 
 const PILOT_NAV_GROUPS: readonly NavGroup[] = [
   {
     title: "飛行管理",
-    items: [
-      { href: "/flight/aircraft", label: "機体管理" },
-      { href: "/flight/plans", label: "飛行計画" },
-      { href: "/flight/logs", label: "飛行日誌" },
-    ],
+    items: [FLIGHT_ROUTES.aircraft, FLIGHT_ROUTES.plans, FLIGHT_ROUTES.logs],
   },
 ] as const;
 
