@@ -30,7 +30,11 @@ const NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     title: "飛行管理",
-    items: [{ href: "/admin/flight-logs", label: "飛行日誌" }],
+    items: [
+      { href: "/admin/flight-logs", label: "飛行日誌（全操縦者）" },
+      { href: "/flight/aircraft", label: "機体管理" },
+      { href: "/flight/plans", label: "飛行計画" },
+    ],
   },
 ] as const;
 
