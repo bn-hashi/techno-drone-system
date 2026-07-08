@@ -68,7 +68,7 @@ async function seedE2EUsers(): Promise<void> {
       passwordHash: studentPasswordHash,
     },
   });
-  console.log(`  Created/updated STUDENT: ${TEST_USERS.student.email}`);
+  console.log("  Created/updated STUDENT test user");
 
   // ADMIN user — status ACTIVE so login is allowed
   const adminPasswordHash = await bcrypt.hash(TEST_USERS.admin.password, BCRYPT_ROUNDS);
@@ -88,7 +88,27 @@ async function seedE2EUsers(): Promise<void> {
       passwordHash: adminPasswordHash,
     },
   });
-  console.log(`  Created/updated ADMIN: ${TEST_USERS.admin.email}`);
+  console.log("  Created/updated ADMIN test user");
+
+  // PILOT user — status ACTIVE so login is allowed
+  const pilotPasswordHash = await bcrypt.hash(TEST_USERS.pilot.password, BCRYPT_ROUNDS);
+  await prisma.user.upsert({
+    where: { email: TEST_USERS.pilot.email },
+    update: {
+      passwordHash: pilotPasswordHash,
+      status: "ACTIVE",
+      name: TEST_USERS.pilot.name,
+      role: TEST_USERS.pilot.role,
+    },
+    create: {
+      email: TEST_USERS.pilot.email,
+      name: TEST_USERS.pilot.name,
+      role: "PILOT",
+      status: "ACTIVE",
+      passwordHash: pilotPasswordHash,
+    },
+  });
+  console.log("  Created/updated PILOT test user");
 
   // PENDING user — status PENDING_REGISTRATION so login is rejected
   const pendingPasswordHash = await bcrypt.hash(TEST_USERS.pendingUser.password, BCRYPT_ROUNDS);
