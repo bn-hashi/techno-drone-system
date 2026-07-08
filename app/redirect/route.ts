@@ -6,7 +6,7 @@ import { DipsDisabledError } from "@/lib/dips/errors";
 import { decodeAuthState } from "@/lib/dips/authState";
 import { DIPS_STATE_COOKIE_NAME } from "@/lib/dips/authCookie";
 import { logger } from "@/lib/logger";
-import { isAppBaseUrlConfigured, APP_BASE_URL_MISSING_ERROR } from "@/lib/appBaseUrl";
+import { appBaseUrlGuard } from "@/lib/appBaseUrl";
 
 /** 認可完了後に戻す飛行計画一覧ページ */
 const RETURN_PATH = "/flight/plans";
@@ -27,9 +27,8 @@ function returnUrl(query: string): URL {
 export async function GET(request: Request): Promise<NextResponse> {
   // APP_BASE_URL 未設定のまま returnUrl() を呼ぶと Invalid URL で例外化するため、
   // 成功・失敗どちらの分岐に入る前にここで明示的に 500 を返す。
-  if (!isAppBaseUrlConfigured()) {
-    return NextResponse.json({ error: APP_BASE_URL_MISSING_ERROR }, { status: 500 });
-  }
+  const guardResponse = appBaseUrlGuard();
+  if (guardResponse) return guardResponse;
 
   const auth = await requireFlightAccess();
   if (!auth.ok) return auth.response;

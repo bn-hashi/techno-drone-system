@@ -1,7 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { UserRole } from "@/types/prisma";
-import { isAppBaseUrlConfigured, APP_BASE_URL_MISSING_ERROR } from "@/lib/appBaseUrl";
+import { appBaseUrlGuard } from "@/lib/appBaseUrl";
 
 /**
  * Role-based redirect after successful login.
@@ -23,11 +23,8 @@ function absoluteUrl(path: string): URL {
 }
 
 export async function GET(request: NextRequest) {
-  // APP_BASE_URL 未設定のまま absoluteUrl() を呼ぶと Invalid URL で例外化するため、
-  // ここで明示的に 500 を返す (app/api/admin/students/[id]/invite/route.ts と同様)。
-  if (!isAppBaseUrlConfigured()) {
-    return NextResponse.json({ error: APP_BASE_URL_MISSING_ERROR }, { status: 500 });
-  }
+  const guardResponse = appBaseUrlGuard();
+  if (guardResponse) return guardResponse;
 
   const token = await getToken({
     req: request,
