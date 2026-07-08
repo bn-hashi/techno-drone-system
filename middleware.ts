@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { determineRedirect } from "@/lib/middlewareHelpers";
 import type { TokenPayload } from "@/lib/middlewareHelpers";
 import { isValidUserRole, isValidUserStatus } from "@/lib/authHelpers";
+import { appBaseUrlGuard } from "@/lib/appBaseUrl";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -33,7 +34,13 @@ export async function middleware(request: NextRequest) {
   const redirect = determineRedirect(pathname, tokenPayload);
 
   if (redirect === "/login") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    // request.url reflects the app's own bind address (localhost:3000) behind a
+    // reverse proxy under `next start`, so build the redirect from APP_BASE_URL instead.
+    // APP_BASE_URL 未設定/不正のまま new URL() を呼ぶと Invalid URL で例外化するため、
+    // ここで明示的に 500 を返す。
+    const guardResponse = appBaseUrlGuard();
+    if (guardResponse) return guardResponse;
+    return NextResponse.redirect(new URL("/login", process.env.APP_BASE_URL));
   }
 
   return NextResponse.next();
