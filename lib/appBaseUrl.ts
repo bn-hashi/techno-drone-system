@@ -21,7 +21,7 @@ export function isAppBaseUrlConfigured(): boolean {
   }
 }
 
-export const APP_BASE_URL_MISSING_ERROR = "サーバー設定エラー: APP_BASE_URL が未設定です";
+export const APP_BASE_URL_MISSING_ERROR = "サーバー設定エラー: APP_BASE_URL が未設定、または不正な値です";
 
 /**
  * APP_BASE_URL が未設定/不正な場合に 500 レスポンスを返す共通ガード。
