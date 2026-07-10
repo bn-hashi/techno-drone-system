@@ -108,7 +108,8 @@ export default defineConfig({
       DATABASE_URL: DATABASE_URL_FOR_E2E,
       NEXTAUTH_URL: "http://localhost:3000",
       // role-redirect等の絶対URL構築ガード(lib/appBaseUrl.ts)が要求する必須変数。
-      // .env.localのAPP_BASE_URLを優先し、未設定時はローカルE2E既定値を使用。
+      // .env.test.local（またはシェル環境変数）のAPP_BASE_URLを優先し、
+      // 未設定時はローカルE2E既定値を使用。
       APP_BASE_URL: process.env.APP_BASE_URL ?? BASE_URL,
       // .env.local の NEXTAUTH_SECRET を優先し、未設定時はローカル E2E 専用値を使用
       NEXTAUTH_SECRET:

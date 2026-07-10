@@ -32,14 +32,18 @@ export default async function globalSetup(): Promise<void> {
   // .env.test.local takes priority (loaded first; dotenv does not override
   // already-set vars), then .env.local fills in anything test config omits.
   config({ path: path.resolve(process.cwd(), ".env.test.local") });
+  // .env.local's DATABASE_URL is typically the development database. Capture
+  // whatever .env.test.local already resolved *before* loading .env.local, so
+  // a dev-DB value there can never leak into the E2E worker's DATABASE_URL —
+  // it must always match what playwright.config.ts resolves for webServer.
+  const e2eDatabaseUrl = process.env.DATABASE_URL;
   config({ path: path.resolve(process.cwd(), ".env.local") });
 
   // Dedicated E2E database must never fall back to the development database.
   // Falls back to a per-OS-user database name so each developer's local
   // Postgres role (e.g. `kenji`) is used instead of the dev-server `ubuntu` role.
-  if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = `postgresql://${os.userInfo().username}@localhost/drone_school_test`;
-  }
+  process.env.DATABASE_URL =
+    e2eDatabaseUrl ?? `postgresql://${os.userInfo().username}@localhost/drone_school_test`;
 
   // Ensure INVITE_TOKEN_SECRET is available for test helpers that generate
   // invite tokens in-process.  If .env.local does not define it use the E2E
