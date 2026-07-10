@@ -59,6 +59,9 @@ async function seedE2EUsers(): Promise<void> {
       status: "ACTIVE",
       name: TEST_USERS.student.name,
       role: TEST_USERS.student.role,
+      // courseType がないと /student ダッシュボードが「コース未割当」を表示して
+      // 進捗バーを描画しない (app/student/page.tsx) ため、E2E student には必須。
+      courseType: "BEGINNER",
     },
     create: {
       email: TEST_USERS.student.email,
@@ -66,6 +69,7 @@ async function seedE2EUsers(): Promise<void> {
       role: "STUDENT",
       status: "ACTIVE",
       passwordHash: studentPasswordHash,
+      courseType: "BEGINNER",
     },
   });
   console.log("  Created/updated STUDENT test user");
