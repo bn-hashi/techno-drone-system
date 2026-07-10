@@ -82,14 +82,18 @@ test.describe("飛行管理: ADMINサイドバー導線 (Phase 1 回帰防止)",
   test.use({ storageState: STORAGE_STATE.admin });
 
   test("test_admin_can_reach_flight_pages_via_sidebar", async ({ page }) => {
+    // 「機体管理」「飛行計画」リンクは /flight/* の別レイアウト(FlightLayout)へ
+    // 遷移するため、AdminLayoutのサイドバー(このリンク群を含む)自体が消える。
+    // 3リンクとも /admin から独立して到達できることを確認するため、都度 /admin に戻る。
     await page.goto("/admin");
-
     await page.getByRole("link", { name: "機体管理" }).click();
     await expect(page).toHaveURL(/\/flight\/aircraft/);
 
+    await page.goto("/admin");
     await page.getByRole("link", { name: "飛行計画" }).click();
     await expect(page).toHaveURL(/\/flight\/plans/);
 
+    await page.goto("/admin");
     await page.getByRole("link", { name: "飛行日誌（全操縦者）" }).click();
     await expect(page).toHaveURL(/\/admin\/flight-logs/);
   });
