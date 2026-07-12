@@ -53,7 +53,7 @@ export default defineConfig({
     video: "retain-on-failure",
     // ローカルの dev server はルート初回アクセス時にオンデマンドコンパイルが
     // 走り数秒〜十数秒かかることがあるため、CI より長めの猶予を持たせる。
-    actionTimeout: 15_000,
+    actionTimeout: 20_000,
     navigationTimeout: 30_000,
   },
   projects: [

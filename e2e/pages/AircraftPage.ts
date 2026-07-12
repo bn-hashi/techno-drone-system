@@ -42,6 +42,8 @@ export class AircraftPage {
       await this.page.getByLabel("登録記号（国土交通省）").fill(data.registrationNumber);
     }
     await this.page.getByRole("button", { name: "登録する" }).click();
-    await expect(this.page).toHaveURL(/\/flight\/aircraft\/[^/]+$/);
+    // "new" 自体も [^/]+ にマッチしてしまうため、遷移完了前の /flight/aircraft/new に
+    // 対して false positive で expect が通ってしまう。negative lookahead で除外する。
+    await expect(this.page).toHaveURL(/\/flight\/aircraft\/(?!new$)[^/]+$/);
   }
 }
