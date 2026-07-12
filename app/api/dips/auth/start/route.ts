@@ -51,6 +51,10 @@ export async function GET(request: Request): Promise<NextResponse> {
         path: "/",
         maxAge: DIPS_STATE_COOKIE_MAX_AGE,
       });
+    } else {
+      // 過去の認可フローで保存した戻り先が残っていると、今回のコールバックで
+      // 古いページへ誘導されてしまうため明示的に削除する
+      cookies().delete(DIPS_RETURN_COOKIE_NAME);
     }
 
     return NextResponse.redirect(authorizationUrl);

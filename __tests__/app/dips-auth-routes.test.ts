@@ -71,14 +71,21 @@ beforeEach(() => {
 });
 
 describe("GET /api/dips/auth/start (returnPath cookie)", () => {
+  it("test_start_redirects_to_authorization_url", async () => {
+    const req = new Request("http://localhost/api/dips/auth/start?realm=fpl");
+
+    const response = await startGet(req);
+
+    expect(response.status).toBe(307);
+  });
+
   it("test_start_with_safe_return_path_saves_return_cookie", async () => {
     const req = new Request(
       "http://localhost/api/dips/auth/start?realm=fpl&returnPath=%2Fflight%2Fplans%2Fabc123"
     );
 
-    const response = await startGet(req);
+    await startGet(req);
 
-    expect(response.status).toBe(307);
     expect(setCookieSpy).toHaveBeenCalledWith(
       DIPS_RETURN_COOKIE_NAME,
       "/flight/plans/abc123",
@@ -110,6 +117,21 @@ describe("GET /api/dips/auth/start (returnPath cookie)", () => {
 
   it("test_start_without_return_path_does_not_save_cookie", async () => {
     const req = new Request("http://localhost/api/dips/auth/start?realm=fpl");
+
+    await startGet(req);
+
+    expect(cookieStore.has(DIPS_RETURN_COOKIE_NAME)).toBe(false);
+  });
+
+  it("test_start_with_invalid_return_path_deletes_stale_return_cookie", async () => {
+    // 過去の認可フローで保存された戻り先が残っていても、今回の returnPath が
+    // 無効なら削除され、古いページへ誘導されないこと
+    cookieStore.set(DIPS_RETURN_COOKIE_NAME, "/flight/plans/old-path");
+    const req = new Request(
+      `http://localhost/api/dips/auth/start?realm=fpl&returnPath=${encodeURIComponent(
+        "https://evil.example.com/x"
+      )}`
+    );
 
     await startGet(req);
 

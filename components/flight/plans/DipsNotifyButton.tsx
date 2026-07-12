@@ -236,7 +236,11 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
   };
 
   const bannerElement = banner && (
-    <p className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}>
+    <p
+      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
+      role={banner.type === "success" ? "status" : "alert"}
+      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
+    >
       {banner.message}
     </p>
   );
