@@ -5,7 +5,7 @@ import type {
   IEnrollmentApplicationRepository,
 } from "@/repositories/enrollmentApplicationRepository";
 import type { IUserRepository } from "@/repositories/userRepository";
-import { saveUploadedFile } from "@/lib/upload";
+import { MAX_FILE_SIZE_BYTES, saveUploadedFile } from "@/lib/upload";
 import {
   BusinessError,
   DuplicateEnrollmentError,
@@ -86,6 +86,14 @@ export class EnrollmentService {
     const zeroByteEntry = fileEntries.find(({ file }) => file.size === 0);
     if (zeroByteEntry !== undefined) {
       throw new BusinessError(`${zeroByteEntry.field} に0バイトのファイルが含まれています`);
+    }
+
+    // ファイルサイズ超過も、0バイトチェックと同様に enrollment 存在確認より前に検証する。
+    // 存在確認を先に行うと、対象レコードのない呼び出し元には常に 404 が返り、
+    // 入力そのものが不正(サイズ超過)であることを呼び出し元が判別できなくなるため。
+    const oversizedEntry = fileEntries.find(({ file }) => file.size > MAX_FILE_SIZE_BYTES);
+    if (oversizedEntry !== undefined) {
+      throw new BusinessError("ファイルサイズが上限を超えています");
     }
 
     const application = await this.enrollmentRepo.findByUserId(userId);

@@ -15,6 +15,7 @@
  */
 
 import { config } from "dotenv";
+import os from "os";
 import path from "path";
 import fs from "fs";
 import { generateInviteToken } from "../../lib/token";
@@ -28,8 +29,21 @@ const E2E_FALLBACK_INVITE_TOKEN_SECRET = "e2e-invite-token-secret-for-playwright
 const PROBE_RESULT_PATH = path.resolve(process.cwd(), "e2e/test-results/.server-probe.json");
 
 export default async function globalSetup(): Promise<void> {
-  // Merge .env.local into process.env (does not override already-set vars)
+  // .env.test.local takes priority (loaded first; dotenv does not override
+  // already-set vars), then .env.local fills in anything test config omits.
+  config({ path: path.resolve(process.cwd(), ".env.test.local") });
+  // .env.local's DATABASE_URL is typically the development database. Capture
+  // whatever .env.test.local already resolved *before* loading .env.local, so
+  // a dev-DB value there can never leak into the E2E worker's DATABASE_URL —
+  // it must always match what playwright.config.ts resolves for webServer.
+  const e2eDatabaseUrl = process.env.DATABASE_URL;
   config({ path: path.resolve(process.cwd(), ".env.local") });
+
+  // Dedicated E2E database must never fall back to the development database.
+  // Falls back to a per-OS-user database name so each developer's local
+  // Postgres role (e.g. `kenji`) is used instead of the dev-server `ubuntu` role.
+  process.env.DATABASE_URL =
+    e2eDatabaseUrl ?? `postgresql://${os.userInfo().username}@localhost/drone_school_test`;
 
   // Ensure INVITE_TOKEN_SECRET is available for test helpers that generate
   // invite tokens in-process.  If .env.local does not define it use the E2E
@@ -44,6 +58,17 @@ export default async function globalSetup(): Promise<void> {
   // A 400 "token invalid" response means the server has a DIFFERENT secret.
   // A 400 "user not found" / "ステータス" response means the secret matches.
   const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+
+  // Next.js dev server compiles each route on first request, which can take
+  // well over the default actionTimeout. Warm up /api/auth/csrf here (used
+  // by every setup-*.ts authentication fixture) so the first real test does
+  // not eat that compile cost inside its own timeout budget.
+  try {
+    await fetch(`${BASE_URL}/api/auth/csrf`);
+  } catch {
+    // Server not yet running — webServer config will start it
+  }
+
   const probeToken = generateInviteToken("probe-user-id");
 
   let serverSecretMismatch = false;

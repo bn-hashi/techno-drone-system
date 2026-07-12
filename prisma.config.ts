@@ -12,7 +12,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   // Prisma 7 では seed コマンドは package.json の "prisma" 欄ではなくここに書く
   migrations: {
-    seed: `npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts`,
+    seed: `node_modules/.bin/ts-node prisma/seed.ts`,
   },
   datasource: {
     url: process.env.DATABASE_URL ?? "postgresql://ubuntu@localhost/drone_school",

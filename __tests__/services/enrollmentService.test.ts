@@ -12,6 +12,7 @@ import {
 
 vi.mock("@/lib/upload", () => ({
   saveUploadedFile: vi.fn(),
+  MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
 }));
 
 vi.mock("@/lib/fsAdapter", () => ({
@@ -269,6 +270,21 @@ describe("EnrollmentService", () => {
 
       // Act & Assert
       await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
+    });
+
+    // 上限超過ファイルは、0バイトファイルと同様に enrollment 存在確認より前に
+    // BusinessError として弾かれるべき (存在しない enrollment に対して常に 404
+    // が返り、入力自体の不正が呼び出し元に伝わらなくなることを防ぐ)
+    it("test_uploadDocuments_oversized_file_throws_before_enrollment_lookup", async () => {
+      // Arrange
+      const oversizedFile = new File(["content"], "big.jpg", { type: "image/jpeg" });
+      Object.defineProperty(oversizedFile, "size", { value: 10 * 1024 * 1024 + 1 });
+      const fileEntries = [{ field: "idDocument" as const, file: oversizedFile }];
+      mockEnrollmentRepo.findByUserId.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.uploadDocuments("user-1", fileEntries)).rejects.toThrow(BusinessError);
+      expect(mockEnrollmentRepo.findByUserId).not.toHaveBeenCalled();
     });
 
     // Issue #13: ファイル保存途中で失敗した場合はエラーを re-throw する
