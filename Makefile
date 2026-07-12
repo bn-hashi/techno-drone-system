@@ -1,4 +1,4 @@
-.PHONY: dev build start test test-watch test-coverage lint format migrate seed verify e2e e2e-seed e2e-report
+.PHONY: dev build start test test-watch test-slow test-coverage lint format migrate seed verify e2e e2e-seed e2e-report
 
 dev:
 	npm run dev
@@ -14,6 +14,9 @@ test:
 
 test-watch:
 	npm run test:watch
+
+test-slow:
+	npm run test:slow
 
 test-coverage:
 	npm run test:coverage

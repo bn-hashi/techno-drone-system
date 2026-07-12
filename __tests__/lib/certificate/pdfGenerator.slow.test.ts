@@ -33,4 +33,16 @@ describe("ReactPdfCertificateGenerator", () => {
   it("test_generate_with_valid_input_returns_pdf_header", () => {
     expect(buffer.subarray(0, 5).toString()).toBe("%PDF-");
   });
+
+  it("test_generate_with_valid_input_ends_with_eof_marker", () => {
+    // 末尾に %%EOF が無い PDF はレンダリング途中で切れている
+    expect(buffer.subarray(-1024).toString("latin1")).toContain("%%EOF");
+  });
+
+  it("test_generate_with_valid_input_embeds_japanese_font", () => {
+    // NotoSansJP を埋め込むため、フォントなしの空 PDF (数KB) より
+    // 十分大きいことを下限として検証する
+    const MIN_FONT_EMBEDDED_PDF_BYTES = 20_000;
+    expect(buffer.length).toBeGreaterThan(MIN_FONT_EMBEDDED_PDF_BYTES);
+  });
 });

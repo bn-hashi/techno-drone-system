@@ -9,6 +9,7 @@
     "lint": "next lint && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:slow": "vitest run --config vitest.slow.config.ts",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
