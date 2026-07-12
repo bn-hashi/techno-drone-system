@@ -153,7 +153,9 @@ export function FlightPlanForm({ aircrafts, initialData }: FlightPlanFormProps) 
           type="datetime-local"
           value={form.plannedAt}
           onChange={handleChange}
-          min={getJstNowAsDatetimeLocal()}
+          // 編集時は過去日時の既存計画でも他項目を修正・保存できるよう min を外す
+          // (サーバー側も更新時の過去日時を許容する仕様)
+          min={isEdit ? undefined : getJstNowAsDatetimeLocal()}
           required
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
