@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 import { BusinessError, DuplicateEmailError } from "@/services/errors";
+import { logger } from "@/lib/logger";
 
 const VALID_STATUSES = new Set<string>(Object.values(UserStatus));
 const VALID_COURSE_TYPES = new Set<string>(Object.values(CourseType));
@@ -30,7 +31,10 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const users = await getUserManagementService().listUsers(filter);
     return NextResponse.json({ users }, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("受講者一覧の取得で予期しないエラーが発生しました", error, {
+      route: "GET /api/admin/users",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

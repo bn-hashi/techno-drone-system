@@ -1,21 +1,20 @@
-// クライアントサイド用ロガー抽象
+// サーバー/クライアント共用のロガー抽象
 // プロジェクト規約により console.* の直接使用を避ける
-// 開発時は console、将来は Sentry 等のリモートロガーに差し替え可能
-const isDev = process.env.NODE_ENV !== "production";
+// 将来 Sentry 等のリモートロガーへ差し替える場合もこの抽象を経由する
+const isTest = process.env.NODE_ENV === "test";
 
 interface ErrorContext {
   [key: string]: unknown;
 }
 
 function emitError(message: string, error?: unknown, context?: ErrorContext): void {
-  if (isDev) {
-    // 開発時のみ console を使用（本番ではノイズを避け、別のシンクへ転送する想定）
+  // エラーは環境を問わず stderr へ出力する。本番 (next start + pm2) では
+  // pm2 の error ログが唯一の障害調査手段のため、無音化してはならない。
+  // テスト実行時のみ抑制し、エラー系テストの出力を汚さない。
+  if (isTest) return;
 
-    console.error(message, { error, context });
-    return;
-  }
-  // TODO: 本番ロガー（Sentry / Datadog 等）に接続する。
-  // 接続前は無音にして PII やノイズが流れないようにする。
+  console.error(message, { error, context });
+  // TODO: 本番ロガー（Sentry / Datadog 等）への転送を追加する。
 }
 
 export const logger = {
