@@ -117,6 +117,11 @@ export default defineConfig({
       // テストワーカーの global-setup.ts と同じフォールバック値を使用することで
       // サーバーとテストワーカーが同一のシークレットでトークンを生成・検証できる
       INVITE_TOKEN_SECRET: INVITE_TOKEN_SECRET_FOR_E2E,
+      // 修了証明書 PDF の出力先。既定値の /home/ubuntu/uploads/ はローカル Mac や
+      // CI ランナーに存在しないため、gitignore 済みの test-results 配下へ出力する
+      CERTIFICATE_OUTPUT_DIR:
+        process.env.CERTIFICATE_OUTPUT_DIR ??
+        path.resolve(process.cwd(), "e2e/test-results/certificates"),
     },
   },
 });
