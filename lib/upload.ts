@@ -4,8 +4,10 @@ import { resolve } from "node:path";
 import { BusinessError } from "@/services/errors";
 import { fileTypeFromBuffer } from "file-type";
 
-// ファイルアップロード先のベースディレクトリ
-export const UPLOAD_BASE_DIR = "/home/ubuntu/uploads/";
+// ファイルアップロード先のベースディレクトリ。
+// 環境変数 UPLOAD_BASE_DIR で上書き可能 (未設定時は本番サーバーの既定パス)。
+// ローカル開発・CI では書き込み可能なパスを指定してアップロード系を動かせる。
+export const UPLOAD_BASE_DIR = process.env.UPLOAD_BASE_DIR ?? "/home/ubuntu/uploads/";
 
 // アップロード可能な最大ファイルサイズ (10MB)
 // 航空法の本人確認資料は高解像度スキャンが必要なため 10MB に設定

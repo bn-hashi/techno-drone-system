@@ -41,6 +41,8 @@ make dev       # http://localhost:3000
 
 必要な環境変数は `.env.local`（gitignore 対象）で管理する。主なもの: `DATABASE_URL` / `NEXTAUTH_SECRET` / `NEXTAUTH_URL` / `APP_BASE_URL` / `INVITE_TOKEN_SECRET` / `RESEND_API_KEY` / `SEED_ADMIN_PASSWORD`。
 
+ファイル保存先は任意で上書きできる（未設定時は本番既定パス `/home/ubuntu/uploads/...`）。ローカル開発で本人確認資料アップロードや証明書 PDF 生成を動かす場合は書き込み可能なパスを指定する: `UPLOAD_BASE_DIR`（本人確認資料）/ `CERTIFICATE_OUTPUT_DIR`（修了証明書 PDF）。
+
 ## よく使うコマンド
 
 | コマンド | 内容 |
