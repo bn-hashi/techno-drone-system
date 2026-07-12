@@ -57,6 +57,15 @@ export const TEST_USERS = {
     name: "E2E Pending User",
     // status: PENDING_REGISTRATION — login should be rejected
   },
+  // 修了確認試験〜証明書発行 E2E 専用。標準 student と分離することで、
+  // 進捗クリーンアップ (student-progress 用) と受験適格化 (試験用) が両立する。
+  // パスワードは標準 student と同じ環境変数を再利用する。
+  examStudent: {
+    email: "e2e-exam-student@techno-drone.test",
+    password: requireEnvVar("E2E_STUDENT_PASSWORD"),
+    role: "STUDENT" as const,
+    name: "E2E Exam Student",
+  },
 };
 
 /**
