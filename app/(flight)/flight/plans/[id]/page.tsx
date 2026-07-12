@@ -47,6 +47,8 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
 
   const status = plan.status as FlightPlanStatus;
   const isOwnPlan = plan.userId === userId;
+  // services/flightPlanService.ts の update() と同じ編集不可条件
+  const isEditable = (isAdmin || isOwnPlan) && status !== "COMPLETED" && !plan.dipsFlightPlanId;
 
   return (
     <div className="p-6 max-w-2xl">
@@ -60,11 +62,21 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
           </Link>
           <h1 className="text-xl font-semibold text-gray-900">{plan.title}</h1>
         </div>
-        <span
-          className={`mt-1 px-2 py-0.5 rounded text-xs font-medium ${FLIGHT_PLAN_STATUS_STYLE[status]}`}
-        >
-          {FLIGHT_PLAN_STATUS_LABELS[status]}
-        </span>
+        <div className="flex items-center gap-3">
+          {isEditable && (
+            <Link
+              href={`/flight/plans/${plan.id}/edit`}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              編集
+            </Link>
+          )}
+          <span
+            className={`mt-1 px-2 py-0.5 rounded text-xs font-medium ${FLIGHT_PLAN_STATUS_STYLE[status]}`}
+          >
+            {FLIGHT_PLAN_STATUS_LABELS[status]}
+          </span>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">

@@ -40,6 +40,14 @@ export interface FlightPlanFormData {
   purpose: string;
 }
 
+export interface FlightPlanUpdateData {
+  title: string;
+  location: string;
+  plannedAt: string;
+  durationMin: number;
+  purpose: string;
+}
+
 export interface PaginatedFlightPlanDto {
   plans: FlightPlanDto[];
   total: number;
@@ -110,6 +118,20 @@ export async function createFlightPlan(input: FlightPlanFormData): Promise<Fligh
   if (!res.ok) await throwOnError(res, "飛行計画の作成に失敗しました");
   const data = await parseJsonBody(res, "飛行計画の作成に失敗しました");
   return parsePlanDto((data as { plan: unknown }).plan, "飛行計画の作成に失敗しました");
+}
+
+export async function updateFlightPlan(
+  id: string,
+  input: FlightPlanUpdateData
+): Promise<FlightPlanDto> {
+  const res = await fetch(`/api/flight/plans/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwOnError(res, "飛行計画の更新に失敗しました");
+  const data = await parseJsonBody(res, "飛行計画の更新に失敗しました");
+  return parsePlanDto((data as { plan: unknown }).plan, "飛行計画の更新に失敗しました");
 }
 
 export async function updateFlightPlanStatus(

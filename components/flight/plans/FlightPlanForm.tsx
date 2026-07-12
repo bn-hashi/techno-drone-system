@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createFlightPlan } from "@/lib/api/flightPlan";
-import { toJstIso, getJstNowAsDatetimeLocal } from "@/lib/utils/jstDatetime";
+import { createFlightPlan, updateFlightPlan } from "@/lib/api/flightPlan";
+import type { FlightPlanDto } from "@/lib/api/flightPlan";
+import { toJstIso, toJstDatetimeLocal, getJstNowAsDatetimeLocal } from "@/lib/utils/jstDatetime";
 
 interface AircraftOption {
   id: string;
@@ -13,6 +14,8 @@ interface AircraftOption {
 
 interface FlightPlanFormProps {
   aircrafts: AircraftOption[];
+  /** 指定時は編集モード。使用機体は更新APIが受け付けないため変更不可として扱う */
+  initialData?: FlightPlanDto;
 }
 
 interface FormState {
@@ -24,15 +27,17 @@ interface FormState {
   purpose: string;
 }
 
-export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
+export function FlightPlanForm({ aircrafts, initialData }: FlightPlanFormProps) {
   const router = useRouter();
+  const isEdit = initialData !== undefined;
+
   const [form, setForm] = useState<FormState>({
-    aircraftId: aircrafts[0]?.id ?? "",
-    title: "",
-    location: "",
-    plannedAt: "",
-    durationMin: "",
-    purpose: "",
+    aircraftId: initialData?.aircraftId ?? aircrafts[0]?.id ?? "",
+    title: initialData?.title ?? "",
+    location: initialData?.location ?? "",
+    plannedAt: initialData ? toJstDatetimeLocal(initialData.plannedAt) : "",
+    durationMin: String(initialData?.durationMin ?? ""),
+    purpose: initialData?.purpose ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,17 +54,31 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      const plan = await createFlightPlan({
-        aircraftId: form.aircraftId,
-        title: form.title,
-        location: form.location,
-        plannedAt: toJstIso(form.plannedAt),
-        durationMin: Number(form.durationMin),
-        purpose: form.purpose,
-      });
-      router.push(`/flight/plans/${plan.id}`);
+      if (isEdit && initialData) {
+        const plan = await updateFlightPlan(initialData.id, {
+          title: form.title,
+          location: form.location,
+          plannedAt: toJstIso(form.plannedAt),
+          durationMin: Number(form.durationMin),
+          purpose: form.purpose,
+        });
+        router.push(`/flight/plans/${plan.id}`);
+      } else {
+        const plan = await createFlightPlan({
+          aircraftId: form.aircraftId,
+          title: form.title,
+          location: form.location,
+          plannedAt: toJstIso(form.plannedAt),
+          durationMin: Number(form.durationMin),
+          purpose: form.purpose,
+        });
+        router.push(`/flight/plans/${plan.id}`);
+      }
+      router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "作成に失敗しました");
+      setError(
+        err instanceof Error ? err.message : isEdit ? "更新に失敗しました" : "作成に失敗しました"
+      );
       setIsSubmitting(false);
     }
   };
@@ -82,7 +101,8 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
           value={form.aircraftId}
           onChange={handleChange}
           required
-          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={isEdit}
+          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
         >
           {aircrafts.map((a) => (
             <option key={a.id} value={a.id}>
@@ -90,6 +110,7 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
             </option>
           ))}
         </select>
+        {isEdit && <p className="mt-1 text-xs text-gray-500">使用機体は編集できません</p>}
       </div>
 
       <div>
@@ -175,7 +196,7 @@ export function FlightPlanForm({ aircrafts }: FlightPlanFormProps) {
           disabled={isSubmitting}
           className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSubmitting ? "作成中..." : "飛行計画を作成"}
+          {isSubmitting ? "保存中..." : isEdit ? "更新する" : "飛行計画を作成"}
         </button>
         <button
           type="button"
