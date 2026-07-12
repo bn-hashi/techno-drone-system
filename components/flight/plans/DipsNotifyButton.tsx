@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { notifyFlightPlanToDips, dipsLoginUrl, DipsAuthRequiredClientError } from "@/lib/api/dips";
 import type { DipsNotificationInput } from "@/lib/api/dips";
 import { DIPS_FLIGHT_PURPOSE_OPTIONS } from "@/lib/constants/dipsFlightPurpose";
@@ -40,6 +40,45 @@ const INITIAL_FORM: FormState = {
   radiusMeters: "",
   riskMitigationOnsiteControl: true,
 };
+
+/** DIPS ログイン遷移でページを離れる間、フォーム入力を退避する sessionStorage キー */
+const PENDING_NOTIFY_STORAGE_KEY = "dips:pendingNotifyForm";
+
+interface PendingNotifyState {
+  planId: string;
+  form: FormState;
+}
+
+interface BannerState {
+  type: "success" | "error";
+  message: string;
+}
+
+/** 退避済みフォームを読み出す。この計画のものでない・壊れている場合は null */
+function loadPendingNotifyForm(planId: string): FormState | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_NOTIFY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingNotifyState> | null;
+    if (parsed?.planId !== planId || typeof parsed.form !== "object" || parsed.form === null) {
+      return null;
+    }
+    // 将来 FormState の項目が変わっても壊れないよう、既定値にマージする
+    return { ...INITIAL_FORM, ...parsed.form };
+  } catch {
+    return null;
+  }
+}
+
+/** フォーム入力を退避する。sessionStorage が使えない環境では何もしない */
+function savePendingNotifyForm(planId: string, form: FormState): void {
+  try {
+    const state: PendingNotifyState = { planId, form };
+    window.sessionStorage.setItem(PENDING_NOTIFY_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // プライベートモード等で保存できない場合、復元なしでログインへ進む
+  }
+}
 
 /** 数値入力欄をパースし、空欄・非数値・範囲外なら null を返す */
 function parseNumberInRange(raw: string, min: number, max: number): number | null {
@@ -99,10 +138,13 @@ function validateAndBuildInput(
 
 export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [banner, setBanner] = useState<BannerState | null>(null);
 
   // Escape キーでダイアログを閉じる (アクセシビリティ対応)
   useEffect(() => {
@@ -113,6 +155,45 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
+
+  // DIPS 認可フローから戻ってきたとき (?dips=...) に退避済みフォームを復元する。
+  // 復元後に router.replace でクエリを除去するため、この effect は2回目の実行で
+  // 早期リターンし、無限ループにはならない。
+  useEffect(() => {
+    const dipsResult = searchParams.get("dips");
+    if (!dipsResult) return;
+
+    const savedForm = loadPendingNotifyForm(planId);
+    window.sessionStorage.removeItem(PENDING_NOTIFY_STORAGE_KEY);
+
+    if (dipsResult === "linked") {
+      if (savedForm) {
+        // 二重送信を避けるため自動再送信はせず、明示的な再クリックを促す
+        setForm(savedForm);
+        setIsOpen(true);
+        setBanner({
+          type: "success",
+          message:
+            "DIPS連携が完了しました。入力内容を復元しています。内容を確認のうえ、再度「通報する」を押してください。",
+        });
+      } else {
+        setBanner({ type: "success", message: "DIPS連携が完了しました。" });
+      }
+    } else {
+      // 失敗時も入力は復元し、再入力の手間を減らす (モーダルは自動で開かない)
+      if (savedForm) setForm(savedForm);
+      setBanner({
+        type: "error",
+        message:
+          dipsResult === "state_error"
+            ? "DIPS連携の検証に失敗しました。もう一度お試しください。"
+            : "DIPS連携に失敗しました。もう一度お試しください。",
+      });
+    }
+
+    // リロード時の再処理と URL の汚れを防ぐため dips クエリを取り除く
+    router.replace(pathname, { scroll: false });
+  }, [searchParams, planId, pathname, router]);
 
   if (dipsFlightPlanId) {
     return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
@@ -143,8 +224,10 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
       router.refresh();
     } catch (err) {
       if (err instanceof DipsAuthRequiredClientError) {
-        // トークン未取得・失効: DIPS ログイン画面へ誘導
-        window.location.href = dipsLoginUrl(err.realm);
+        // トークン未取得・失効: フォーム入力を退避し、連携後にこのページへ
+        // 戻れるよう returnPath を添えて DIPS ログイン画面へ誘導する
+        savePendingNotifyForm(planId, form);
+        window.location.href = dipsLoginUrl(err.realm, window.location.pathname);
         return;
       }
       setError(err instanceof Error ? err.message : "DIPS通報に失敗しました");
@@ -152,8 +235,19 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     }
   };
 
+  const bannerElement = banner && (
+    <p
+      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
+      role={banner.type === "success" ? "status" : "alert"}
+      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
+    >
+      {banner.message}
+    </p>
+  );
+
   return (
     <div>
+      {!isOpen && bannerElement}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
@@ -177,6 +271,7 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
               飛行計画の名称・日時・機体はこの計画から自動送信されます。以下は追加で必要な項目です。
             </p>
 
+            {bannerElement}
             {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
             <div className="space-y-4 text-sm">

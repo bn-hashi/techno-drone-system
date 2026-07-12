@@ -59,7 +59,15 @@ export async function notifyFlightPlanToDips(
   return body.result;
 }
 
-/** DIPS ログイン (認可コードフロー) を開始する URL */
-export function dipsLoginUrl(realm: string): string {
-  return `/api/dips/auth/start?realm=${encodeURIComponent(realm)}`;
+/**
+ * DIPS ログイン (認可コードフロー) を開始する URL。
+ * returnPath (アプリ内パス) を渡すと、認可完了後にそのページへ戻る。
+ * サーバー側で検証されるため、不正なパスは既定の一覧ページ扱いになる。
+ */
+export function dipsLoginUrl(realm: string, returnPath?: string): string {
+  const params = new URLSearchParams({ realm });
+  if (returnPath) {
+    params.set("returnPath", returnPath);
+  }
+  return `/api/dips/auth/start?${params.toString()}`;
 }
