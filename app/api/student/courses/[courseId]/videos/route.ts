@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getProgressService, getCourseAccessService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   _request: Request,
@@ -36,7 +37,10 @@ export async function GET(
       params.courseId
     );
     return NextResponse.json({ videos }, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("コース動画一覧の取得で予期しないエラーが発生しました", error, {
+      route: "GET /api/student/courses/[courseId]/videos",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

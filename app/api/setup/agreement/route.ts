@@ -3,6 +3,7 @@ import { verifyInviteToken } from "@/lib/token";
 import { getSetupService } from "@/lib/serviceFactory";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { extractIpAddress } from "@/lib/ipAddress";
+import { logger } from "@/lib/logger";
 
 /**
  * 受講規約同意エンドポイント
@@ -34,7 +35,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     await getSetupService().agreeToTerms(payload.userId, ipAddress);
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("規約同意の処理で予期しないエラーが発生しました", error, {
+      route: "POST /api/setup/agreement",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

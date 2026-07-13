@@ -6,6 +6,7 @@ import { getAircraftService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { hasFlightAccess } from "@/lib/auth/flightPermissions";
 import { AircraftDuplicateSerialError, BusinessError } from "@/services/errors";
+import { logger } from "@/lib/logger";
 
 const CreateAircraftSchema = z.object({
   name: z.string().min(1),
@@ -38,7 +39,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       activeOnly,
     });
     return NextResponse.json({ aircrafts }, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("機体一覧の取得で予期しないエラーが発生しました", error, {
+      route: "GET /api/flight/aircraft",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }
