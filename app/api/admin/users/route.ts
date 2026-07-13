@@ -76,7 +76,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    // 予期しない内部エラーは詳細を露出しない
+    // 予期しない内部エラーは詳細を露出しないが、原因追跡のためログには残す
+    logger.error("受講者の作成で予期しないエラーが発生しました", err, {
+      route: "POST /api/admin/users",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

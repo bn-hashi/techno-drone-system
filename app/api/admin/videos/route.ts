@@ -85,6 +85,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (err instanceof BusinessError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
+    logger.error("動画の作成で予期しないエラーが発生しました", err, {
+      route: "POST /api/admin/videos",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }
