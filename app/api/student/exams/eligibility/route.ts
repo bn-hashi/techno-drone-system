@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getExamService, getUserManagementService } from "@/lib/serviceFactory";
 import { UserRole, UserStatus } from "@/types/prisma";
+import { logger } from "@/lib/logger";
 
 export async function GET(): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -25,7 +26,10 @@ export async function GET(): Promise<NextResponse> {
     }
     const eligibility = await getExamService().checkEligibility(session.user.id, user.courseType);
     return NextResponse.json(eligibility, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("受験資格の判定で予期しないエラーが発生しました", error, {
+      route: "GET /api/student/exams/eligibility",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

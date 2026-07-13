@@ -18,7 +18,8 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcryptjs";
 import { TEST_USERS } from "./test-users";
-import { E2E_COURSE, E2E_VIDEOS } from "./test-content";
+import { E2E_COURSE, E2E_VIDEOS, E2E_EXAM_COURSE, E2E_EXAM_VIDEOS } from "./test-content";
+import { resetExamStudentState } from "./exam-state";
 
 // Load .env.local then .env.test.local (test-local takes precedence)
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -59,6 +60,9 @@ async function seedE2EUsers(): Promise<void> {
       status: "ACTIVE",
       name: TEST_USERS.student.name,
       role: TEST_USERS.student.role,
+      // courseType がないと /student ダッシュボードが「コース未割当」を表示して
+      // 進捗バーを描画しない (app/student/page.tsx) ため、E2E student には必須。
+      courseType: "BEGINNER",
     },
     create: {
       email: TEST_USERS.student.email,
@@ -66,9 +70,10 @@ async function seedE2EUsers(): Promise<void> {
       role: "STUDENT",
       status: "ACTIVE",
       passwordHash: studentPasswordHash,
+      courseType: "BEGINNER",
     },
   });
-  console.log(`  Created/updated STUDENT: ${TEST_USERS.student.email}`);
+  console.log("  Created/updated STUDENT test user");
 
   // ADMIN user — status ACTIVE so login is allowed
   const adminPasswordHash = await bcrypt.hash(TEST_USERS.admin.password, BCRYPT_ROUNDS);
@@ -88,7 +93,49 @@ async function seedE2EUsers(): Promise<void> {
       passwordHash: adminPasswordHash,
     },
   });
-  console.log(`  Created/updated ADMIN: ${TEST_USERS.admin.email}`);
+  console.log("  Created/updated ADMIN test user");
+
+  // PILOT user — status ACTIVE so login is allowed
+  const pilotPasswordHash = await bcrypt.hash(TEST_USERS.pilot.password, BCRYPT_ROUNDS);
+  await prisma.user.upsert({
+    where: { email: TEST_USERS.pilot.email },
+    update: {
+      passwordHash: pilotPasswordHash,
+      status: "ACTIVE",
+      name: TEST_USERS.pilot.name,
+      role: TEST_USERS.pilot.role,
+    },
+    create: {
+      email: TEST_USERS.pilot.email,
+      name: TEST_USERS.pilot.name,
+      role: "PILOT",
+      status: "ACTIVE",
+      passwordHash: pilotPasswordHash,
+    },
+  });
+  console.log("  Created/updated PILOT test user");
+
+  // EXAM STUDENT user — 試験〜証明書 E2E 専用 (標準 student と分離)
+  await prisma.user.upsert({
+    where: { email: TEST_USERS.examStudent.email },
+    update: {
+      passwordHash: studentPasswordHash,
+      // 前回実行で CERTIFIED 等に遷移していても ACTIVE へ戻す (再実行可能性)
+      status: "ACTIVE",
+      name: TEST_USERS.examStudent.name,
+      role: TEST_USERS.examStudent.role,
+      courseType: "BEGINNER",
+    },
+    create: {
+      email: TEST_USERS.examStudent.email,
+      name: TEST_USERS.examStudent.name,
+      role: "STUDENT",
+      status: "ACTIVE",
+      passwordHash: studentPasswordHash,
+      courseType: "BEGINNER",
+    },
+  });
+  console.log("  Created/updated EXAM STUDENT test user");
 
   // PENDING user — status PENDING_REGISTRATION so login is rejected
   const pendingPasswordHash = await bcrypt.hash(TEST_USERS.pendingUser.password, BCRYPT_ROUNDS);
@@ -170,9 +217,73 @@ async function seedE2EContent(): Promise<void> {
   console.log("E2E content seeding complete.");
 }
 
+/**
+ * 試験〜証明書 E2E の前提状態を作る。
+ * - 専用コース + 全4科目の動画を upsert
+ * - 試験・判定・証明書・視聴ログの残骸を削除 (再実行可能性)
+ * - 全科目の必要視聴分数をちょうど満たす視聴ログを挿入 (受験適格化)
+ */
+async function seedExamReadiness(): Promise<void> {
+  console.log("Seeding exam-readiness content for EXAM STUDENT...");
+
+  const examStudent = await prisma.user.findUnique({
+    where: { email: TEST_USERS.examStudent.email },
+  });
+  if (!examStudent) {
+    throw new Error("EXAM STUDENT must be seeded before exam readiness");
+  }
+
+  const subjects = await prisma.subject.findMany();
+  const subjectByCode = new Map(subjects.map((s) => [s.code, s]));
+
+  await prisma.course.upsert({
+    where: { id: E2E_EXAM_COURSE.id },
+    update: { name: E2E_EXAM_COURSE.name, type: E2E_EXAM_COURSE.type },
+    create: { id: E2E_EXAM_COURSE.id, name: E2E_EXAM_COURSE.name, type: E2E_EXAM_COURSE.type },
+  });
+
+  for (let index = 0; index < E2E_EXAM_VIDEOS.length; index++) {
+    const video = E2E_EXAM_VIDEOS[index];
+    const subject = subjectByCode.get(video.subjectCode);
+    if (!subject) {
+      throw new Error(
+        `Subject ${video.subjectCode} not found. Run \`make seed\` (production seed) first.`
+      );
+    }
+    const durationSeconds = video.requiredMinutes * 60;
+    await prisma.video.upsert({
+      where: { id: video.id },
+      update: {
+        title: video.title,
+        sortOrder: index,
+        duration: durationSeconds,
+        isPublished: true,
+        subjectId: subject.id,
+        courseId: E2E_EXAM_COURSE.id,
+      },
+      create: {
+        id: video.id,
+        title: video.title,
+        sortOrder: index,
+        duration: durationSeconds,
+        isPublished: true,
+        filePath: `e2e/${video.id}.mp4`,
+        subjectId: subject.id,
+        courseId: E2E_EXAM_COURSE.id,
+      },
+    });
+  }
+
+  // 試験・判定・証明書の残骸削除と受験適格化 (spec のリトライ時と同一ロジック)
+  await resetExamStudentState(prisma);
+
+  console.log("Exam-readiness seeding complete.");
+}
+
 async function main(): Promise<void> {
   await seedE2EUsers();
   await seedE2EContent();
+  await seedExamReadiness();
 }
 
 main()

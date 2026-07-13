@@ -37,6 +37,16 @@ import { AircraftRepository } from "@/repositories/aircraftRepository";
 import { AircraftService } from "@/services/aircraftService";
 import { DashboardRepository } from "@/repositories/dashboardRepository";
 import { DashboardService } from "@/services/dashboardService";
+import { FlightPlanRepository } from "@/repositories/flightPlanRepository";
+import { FlightPlanService } from "@/services/flightPlanService";
+import { FlightLogRepository } from "@/repositories/flightLogRepository";
+import { FlightLogService } from "@/services/flightLogService";
+import { isDipsEnabled, getDipsConfig } from "@/lib/dips/config";
+import { DipsOidcClient } from "@/lib/dips/oidcClient";
+import { DipsApiClient } from "@/lib/dips/dipsApiClient";
+import { DipsDisabledError } from "@/lib/dips/errors";
+import { DipsService } from "@/services/dipsService";
+import { DipsTokenRepository } from "@/repositories/dipsTokenRepository";
 
 // Service インスタンスの生成を一元管理する
 // ページ・API ルートはこのファクトリ経由で Service を取得する
@@ -162,4 +172,40 @@ export function getAircraftService(): AircraftService {
 /** 管理ダッシュボード統計 Service のインスタンスを返す */
 export function getDashboardService(): DashboardService {
   return new DashboardService(new DashboardRepository());
+}
+
+/** 飛行計画 Service のインスタンスを返す */
+export function getFlightPlanService(): FlightPlanService {
+  return new FlightPlanService(new FlightPlanRepository(), getAircraftService());
+}
+
+/** 飛行日誌 Service のインスタンスを返す */
+export function getFlightLogService(): FlightLogService {
+  return new FlightLogService(
+    new FlightLogRepository(),
+    getAircraftService(),
+    getFlightPlanService()
+  );
+}
+
+/**
+ * DIPS 連携 Service のインスタンスを返す
+ *
+ * DIPS_ENABLED !== "true" の場合は DipsDisabledError を投げる (呼び出し元で 503 に変換)。
+ * トークンはユーザー × realm 単位で DB に暗号化保存するため、OIDC クライアントの
+ * 状態はリクエストをまたいで持たない (毎回生成してよい)。
+ * 検証環境は IP 制限があるためローカル開発では無効のまま運用する。
+ */
+export function getDipsService(): DipsService {
+  if (!isDipsEnabled()) {
+    throw new DipsDisabledError();
+  }
+  const config = getDipsConfig();
+  const oidcClient = new DipsOidcClient(config, new DipsTokenRepository());
+  return new DipsService(
+    new DipsApiClient(config, oidcClient),
+    oidcClient,
+    getAircraftService(),
+    getFlightPlanService()
+  );
 }

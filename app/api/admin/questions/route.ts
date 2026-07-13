@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getQuestionService } from "@/lib/serviceFactory";
 import { UserRole } from "@/types/prisma";
 import { BusinessError } from "@/services/errors";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
@@ -23,7 +24,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       subjectId ? { subjectId } : undefined
     );
     return NextResponse.json({ questions }, { status: 200 });
-  } catch {
+  } catch (error) {
+    logger.error("問題一覧の取得で予期しないエラーが発生しました", error, {
+      route: "GET /api/admin/questions",
+    });
     return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

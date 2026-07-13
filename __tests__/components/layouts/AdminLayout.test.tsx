@@ -8,6 +8,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin",
+}));
+
 vi.mock("@/components/auth/LogoutButton", () => ({
   LogoutButton: () => <button>ログアウト</button>,
 }));

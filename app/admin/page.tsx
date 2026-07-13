@@ -7,24 +7,36 @@ import { UserRole } from "@/types/prisma";
 
 export const dynamic = "force-dynamic";
 
-interface StatCardProps {
+interface AlertTileProps {
   label: string;
   value: number;
+  sub?: string;
   href?: string;
+  /** 値が1件以上あるときに強調する色 (要対応系) */
   urgent?: boolean;
 }
 
-function StatCard({ label, value, href, urgent = false }: StatCardProps) {
-  const valueClass = urgent && value > 0 ? "text-red-600" : "text-gray-900";
+function AlertTile({ label, value, sub, href, urgent = false }: AlertTileProps) {
+  const isUrgent = urgent && value > 0;
+  const valueColor = isUrgent ? "text-danger" : "text-heading";
+  const dotColor = isUrgent ? "bg-danger" : "bg-accent";
   const content = (
-    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold ${valueClass}`}>{value}</p>
+    <div className="rounded-card border border-line bg-white p-4 px-[18px] shadow-card transition-shadow hover:shadow-card-hover">
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+        <span className="text-[12.5px] text-muted">{label}</span>
+      </div>
+      <div className="mt-2.5 flex items-baseline gap-1.5">
+        <span className={`text-[32px] font-bold leading-none tracking-tight ${valueColor}`}>
+          {value}
+        </span>
+        {sub && <span className="text-xs text-faint">{sub}</span>}
+      </div>
     </div>
   );
   if (href) {
     return (
-      <Link href={href} className="block hover:opacity-80 transition-opacity">
+      <Link href={href} className="block">
         {content}
       </Link>
     );
@@ -43,68 +55,81 @@ export default async function AdminDashboardPage() {
 
   const totalStudents = Object.values(studentsByStatus).reduce((sum, n) => sum + n, 0);
 
+  const statusRows = [
+    { label: "仮登録", value: studentsByStatus.pendingRegistration },
+    { label: "本登録待ち", value: studentsByStatus.pendingActivation },
+    { label: "受講中", value: studentsByStatus.active },
+    { label: "試験合格", value: studentsByStatus.examPassed },
+    { label: "受講成立", value: studentsByStatus.completed },
+    { label: "修了証発行済", value: studentsByStatus.certified },
+    { label: "DIPS連携済", value: studentsByStatus.dipsLinked },
+  ];
+
+  const quickLinks = [
+    { label: "受講者管理", href: "/admin/users" },
+    { label: "コース管理", href: "/admin/courses" },
+    { label: "成績・修了判定", href: "/admin/judgments" },
+    { label: "飛行日誌", href: "/admin/flight-logs" },
+  ];
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-8 text-2xl font-semibold text-gray-900">管理者ダッシュボード</h1>
+    <div>
+      {/* 要対応アラートタイル (デザイン案A アラート型) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AlertTile
+          label="未受理の入学申請"
+          value={pendingApplications}
+          sub="件"
+          href="/admin/applications"
+          urgent
+        />
+        <AlertTile
+          label="未解消の不正フラグ"
+          value={unresolvedFraudFlags}
+          sub="件"
+          href="/admin/fraud-flags"
+          urgent
+        />
+        <AlertTile label="未回答の質問" value={unansweredQAs} sub="件" href="/admin/qa" urgent />
+        <AlertTile label="受講者数" value={totalStudents} sub="名" href="/admin/users" />
+      </div>
 
-      {/* 要対応 */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">要対応</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard
-            label="未受理の入学申請"
-            value={pendingApplications}
-            href="/admin/enrollment-applications"
-            urgent
-          />
-          <StatCard
-            label="未解消の不正フラグ"
-            value={unresolvedFraudFlags}
-            href="/admin/fraud-flags"
-            urgent
-          />
-          <StatCard label="未回答の質問" value={unansweredQAs} href="/admin/qa" urgent />
-        </div>
-      </section>
-
-      {/* 受講生ステータス */}
-      <section>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">
-          受講生（合計: {totalStudents}名）
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label="仮登録" value={studentsByStatus.pendingRegistration} />
-          <StatCard label="本登録待ち" value={studentsByStatus.pendingActivation} />
-          <StatCard label="受講中" value={studentsByStatus.active} />
-          <StatCard label="試験合格" value={studentsByStatus.examPassed} />
-          <StatCard label="受講成立" value={studentsByStatus.completed} />
-          <StatCard label="修了証発行済" value={studentsByStatus.certified} />
-          <StatCard label="DIPS連携済" value={studentsByStatus.dipsLinked} />
-        </div>
-      </section>
-
-      {/* クイックリンク */}
-      <section className="mt-8">
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">
-          クイックリンク
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          {[
-            { label: "ユーザー管理", href: "/admin/users" },
-            { label: "機体管理", href: "/admin/aircraft" },
-            { label: "コース管理", href: "/admin/courses" },
-            { label: "成績・修了判定", href: "/admin/judgments" },
-          ].map(({ label, href }) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+      <div className="mt-[18px] grid grid-cols-1 gap-[18px] lg:grid-cols-[1.5fr_1fr]">
+        {/* 受講生ステータス内訳 */}
+        <section className="rounded-card border border-line bg-white p-5 shadow-card">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[15px] font-bold text-heading">受講生ステータス</h2>
+            <span className="text-xs text-faint">合計 {totalStudents} 名</span>
+          </div>
+          {statusRows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center gap-3.5 border-t border-line-soft py-3"
             >
-              {label}
-            </Link>
+              <span className="flex-1 text-sm text-heading">{row.label}</span>
+              <span className="rounded-full bg-line-soft px-2.5 py-0.5 text-xs text-[#475467]">
+                {row.value} 名
+              </span>
+            </div>
           ))}
-        </div>
-      </section>
+        </section>
+
+        {/* クイックリンク */}
+        <section className="rounded-card border border-line bg-white p-5 shadow-card">
+          <h2 className="mb-3.5 text-[15px] font-bold text-heading">クイックリンク</h2>
+          <div className="flex flex-col gap-2">
+            {quickLinks.map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="rounded-[9px] border border-line bg-white px-4 py-2.5 text-sm text-[#475467] hover:bg-surface"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

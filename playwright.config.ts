@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { config as loadEnv } from "dotenv";
+import os from "os";
+import path from "path";
 
 /**
  * Playwright E2E configuration
@@ -9,6 +12,10 @@ import { defineConfig, devices } from "@playwright/test";
  * - Authenticated storage state files are stored under e2e/fixtures/
  */
 
+// .env.test.local (gitignored, developer-managed) can override DATABASE_URL
+// and other test-only secrets before we read process.env below.
+loadEnv({ path: path.resolve(process.cwd(), ".env.test.local") });
+
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 
 // E2E-only fallback for INVITE_TOKEN_SECRET.
@@ -17,13 +24,22 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const INVITE_TOKEN_SECRET_FOR_E2E =
   process.env.INVITE_TOKEN_SECRET ?? "e2e-invite-token-secret-for-playwright-minimum-32chars";
 
+// The dedicated E2E database must never point at the development database.
+// Falls back to a per-OS-user database name so each developer's local Postgres
+// role (e.g. `kenji`) is used instead of the hardcoded `ubuntu` dev-server role.
+const DATABASE_URL_FOR_E2E =
+  process.env.DATABASE_URL ?? `postgresql://${os.userInfo().username}@localhost/drone_school_test`;
+
 export default defineConfig({
   testDir: "./e2e/specs",
   outputDir: "./e2e/test-results",
   globalSetup: "./e2e/fixtures/global-setup.ts",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // ローカルの dev server はオンデマンドコンパイルにより初回アクセスが遅く、
+  // フルスイート実行時に断続的なタイムアウトが発生しうる。テスト/実装の不具合
+  // ではなく dev server 固有の一時的な遅延のため、ローカルでも1回リトライする。
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: [
     ["html", { outputFolder: "e2e/playwright-report", open: "never" }],
@@ -35,8 +51,9 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-    // Wait for the network to be idle before asserting
-    actionTimeout: 10_000,
+    // ローカルの dev server はルート初回アクセス時にオンデマンドコンパイルが
+    // 走り数秒〜十数秒かかることがあるため、CI より長めの猶予を持たせる。
+    actionTimeout: 20_000,
     navigationTimeout: 30_000,
   },
   projects: [
@@ -51,6 +68,11 @@ export default defineConfig({
       testDir: "./e2e/fixtures",
       testMatch: /admin\.setup\.ts/,
     },
+    {
+      name: "setup-pilot",
+      testDir: "./e2e/fixtures",
+      testMatch: /pilot\.setup\.ts/,
+    },
     // --- Main test suite (requires authenticated sessions) ---
     {
       name: "chromium",
@@ -59,7 +81,7 @@ export default defineConfig({
       },
       // Exclude invitation-flow tests: they manage their own auth state
       testIgnore: /invitation-flow\.spec\.ts/,
-      dependencies: ["setup-student", "setup-admin"],
+      dependencies: ["setup-student", "setup-admin", "setup-pilot"],
     },
     // --- Invitation / registration flow (no pre-auth session required) ---
     // Runs independently without depending on setup-admin/setup-student.
@@ -83,14 +105,23 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120_000,
     env: {
-      DATABASE_URL: "postgresql://ubuntu@localhost/drone_school",
+      DATABASE_URL: DATABASE_URL_FOR_E2E,
       NEXTAUTH_URL: "http://localhost:3000",
+      // role-redirect等の絶対URL構築ガード(lib/appBaseUrl.ts)が要求する必須変数。
+      // .env.test.local（またはシェル環境変数）のAPP_BASE_URLを優先し、
+      // 未設定時はローカルE2E既定値を使用。
+      APP_BASE_URL: process.env.APP_BASE_URL ?? BASE_URL,
       // .env.local の NEXTAUTH_SECRET を優先し、未設定時はローカル E2E 専用値を使用
       NEXTAUTH_SECRET:
         process.env.NEXTAUTH_SECRET ?? "e2e-test-secret-for-playwright-minimum-32chars",
       // テストワーカーの global-setup.ts と同じフォールバック値を使用することで
       // サーバーとテストワーカーが同一のシークレットでトークンを生成・検証できる
       INVITE_TOKEN_SECRET: INVITE_TOKEN_SECRET_FOR_E2E,
+      // 修了証明書 PDF の出力先。既定値の /home/ubuntu/uploads/ はローカル Mac や
+      // CI ランナーに存在しないため、gitignore 済みの test-results 配下へ出力する
+      CERTIFICATE_OUTPUT_DIR:
+        process.env.CERTIFICATE_OUTPUT_DIR ??
+        path.resolve(process.cwd(), "e2e/test-results/certificates"),
     },
   },
 });

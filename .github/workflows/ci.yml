@@ -1,0 +1,145 @@
+# CI パイプライン
+#
+# - PR (dev/main 向け) と dev への push で lint / 単体テスト / ビルドを検証する
+# - E2E (Playwright) は実行時間が長いため dev への push 時のみ実行する
+# - 低速統合テスト (*.slow.test.*) は単体テストと分離した専用ジョブで実行する
+#
+# 注意: このワークフロー内のパスワード・シークレット風の値はすべて
+# CI 専用の使い捨てダミー値 (ジョブ終了と同時に破棄されるコンテナ DB 用) であり、
+# 本番環境とは一切共有しない。
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+
+  unit-test:
+    name: Unit Tests (with coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # 単体テストは DB をモックするため実接続しないが、
+      # モジュール読み込み時の未定義エラーを防ぐためダミー値を設定する
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_unit_dummy
+      NEXTAUTH_SECRET: ci-unit-test-dummy-secret-minimum-32-chars
+      APP_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:coverage
+
+  slow-test:
+    name: Slow Integration Tests (PDF rendering)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:slow
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # next build はページデータ収集時に env を参照しうるためダミー値を渡す
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_build_dummy
+      NEXTAUTH_SECRET: ci-build-dummy-secret-minimum-32-characters
+      APP_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
+
+  e2e:
+    name: E2E Tests (Playwright)
+    # 実行時間が長いため dev への push 時のみ。PR では lint/unit/build のみ必須とする
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drone_school_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # e2e:seed は DB 名に _test を含むことを要求する (fail-closed ガード)
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drone_school_test
+      APP_BASE_URL: http://localhost:3000
+      # 以下はすべて CI 専用ダミー認証情報 (使い捨てコンテナ DB のみで有効)
+      SEED_ADMIN_PASSWORD: CiSeedAdmin1234!
+      E2E_STUDENT_PASSWORD: CiE2eStudent1234!
+      E2E_ADMIN_PASSWORD: CiE2eAdmin1234!
+      E2E_PILOT_PASSWORD: CiE2ePilot1234!
+      E2E_PENDING_PASSWORD: CiE2ePending1234!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: Run migrations
+        run: npx prisma migrate deploy
+      - name: Seed base data (subjects, course, questions)
+        run: npx prisma db seed
+      - name: Seed E2E users and content
+        run: npm run e2e:seed
+        env:
+          NODE_ENV: test
+      - name: Run Playwright tests
+        run: npx playwright test
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7

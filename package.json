@@ -9,6 +9,7 @@
     "lint": "next lint && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:slow": "vitest run --config vitest.slow.config.ts",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -16,10 +17,10 @@
     "e2e:headed": "playwright test --headed",
     "e2e:debug": "playwright test --debug",
     "e2e:report": "playwright show-report e2e/playwright-report",
-    "e2e:seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' e2e/fixtures/seed-e2e-users.ts"
+    "e2e:seed": "node_modules/.bin/ts-node e2e/fixtures/seed-e2e-users.ts"
   },
   "prisma": {
-    "seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
+    "seed": "node_modules/.bin/ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-jp": "^5.2.9",
@@ -48,6 +49,7 @@
     "@types/react-dom": "^18",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.1.1",
+    "dotenv": "^17.4.2",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "jsdom": "^26.1.0",
@@ -55,6 +57,8 @@
     "prettier": "^3.5.3",
     "prisma": "^7.7.0",
     "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5",
     "vitest": "^3.1.1"
   }

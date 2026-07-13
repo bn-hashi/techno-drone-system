@@ -44,12 +44,27 @@ export const TEST_USERS = {
     role: "ADMIN" as const,
     name: "E2E Admin User",
   },
+  pilot: {
+    email: "e2e-pilot@techno-drone.test",
+    password: requireEnvVar("E2E_PILOT_PASSWORD"),
+    role: "PILOT" as const,
+    name: "E2E Pilot User",
+  },
   pendingUser: {
     email: "e2e-pending@techno-drone.test",
     password: requireEnvVar("E2E_PENDING_PASSWORD"),
     role: "STUDENT" as const,
     name: "E2E Pending User",
     // status: PENDING_REGISTRATION — login should be rejected
+  },
+  // 修了確認試験〜証明書発行 E2E 専用。標準 student と分離することで、
+  // 進捗クリーンアップ (student-progress 用) と受験適格化 (試験用) が両立する。
+  // パスワードは標準 student と同じ環境変数を再利用する。
+  examStudent: {
+    email: "e2e-exam-student@techno-drone.test",
+    password: requireEnvVar("E2E_STUDENT_PASSWORD"),
+    role: "STUDENT" as const,
+    name: "E2E Exam Student",
   },
 };
 
@@ -61,4 +76,5 @@ export const TEST_USERS = {
 export const STORAGE_STATE = {
   student: "e2e/fixtures/.auth/student.json",
   admin: "e2e/fixtures/.auth/admin.json",
+  pilot: "e2e/fixtures/.auth/pilot.json",
 } as const;

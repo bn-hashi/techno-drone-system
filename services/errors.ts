@@ -116,3 +116,27 @@ export class AircraftDuplicateSerialError extends BusinessError {
     this.name = "AircraftDuplicateSerialError";
   }
 }
+
+/** 飛行計画が見つからない (404 Not Found 相当) */
+export class FlightPlanNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された飛行計画が見つかりません");
+    this.name = "FlightPlanNotFoundError";
+  }
+}
+
+/** 無効なステータス遷移: 飛行計画 (400 Bad Request 相当) */
+export class FlightPlanInvalidTransitionError extends BusinessError {
+  constructor(from: string, to: string) {
+    super(`この飛行計画のステータスを ${from} から ${to} に変更できません`);
+    this.name = "FlightPlanInvalidTransitionError";
+  }
+}
+
+/** 飛行日誌が見つからない (404 Not Found 相当) */
+export class FlightLogNotFoundError extends NotFoundError {
+  constructor(_id: string) {
+    super("指定された飛行日誌が見つかりません");
+    this.name = "FlightLogNotFoundError";
+  }
+}
