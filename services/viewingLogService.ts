@@ -6,7 +6,7 @@ import type {
 import type { IVideoRepository } from "@/repositories/videoRepository";
 import type { ISubjectProgressRepository } from "@/repositories/subjectProgressRepository";
 import type { ICourseAccessService } from "@/services/courseAccessService";
-import { getPrisma } from "@/lib/db";
+import { runTransaction } from "@/lib/db";
 import { BusinessError, VideoNotFoundError } from "@/services/errors";
 import { VIEWING_LOG_BUFFER_SECONDS, MAX_PLAYBACK_RATE } from "@/lib/constants";
 
@@ -77,7 +77,7 @@ export class ViewingLogService {
 
     // ViewingLog の保存と SubjectProgress の更新を 1 トランザクションで実行し、
     // どちらか一方だけが永続化される不整合状態を防ぐ。
-    return getPrisma().$transaction(async (tx) => {
+    return runTransaction(async (tx) => {
       const log = await this.logRepo.create(input, tx);
       const totalSeconds = await this.logRepo.sumWatchedSecondsByUserSubject(
         input.userId,

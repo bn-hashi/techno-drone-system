@@ -9,11 +9,9 @@ vi.mock("@/services/emailService", () => ({
   sendJudgmentRejectedEmail: vi.fn(),
 }));
 
-// db.ts も mock しないと examService 系の $transaction を内部利用する可能性
+// db.ts も mock しないと examService 系の runTransaction を内部利用する可能性
 vi.mock("@/lib/db", () => ({
-  getPrisma: () => ({
-    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({} as never)),
-  }),
+  runTransaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({} as never)),
 }));
 
 import * as emailServiceModule from "@/services/emailService";

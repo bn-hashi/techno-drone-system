@@ -1,11 +1,11 @@
-import type { Exam, ExamAnswer, Question, Prisma } from "@prisma/client";
+import type { Exam, ExamAnswer, Question, Prisma, PrismaClient } from "@prisma/client";
 import type { IExamRepository, ExamWithUser } from "@/repositories/examRepository";
 import type { IExamAnswerRepository } from "@/repositories/examAnswerRepository";
 import type { IQuestionRepository } from "@/repositories/questionRepository";
 import type { ISubjectRepository } from "@/repositories/subjectRepository";
 import type { SubjectProgressView } from "@/services/progressService";
 import type { SafeUser } from "@/services/userManagementService";
-import { getPrisma } from "@/lib/db";
+import { runTransaction } from "@/lib/db";
 import { BusinessError, NotFoundError } from "@/services/errors";
 import { CourseType, ExamStatus, UserStatus } from "@/types/prisma";
 import {
@@ -19,7 +19,7 @@ export interface ProgressServiceLike {
   getProgressByUser(userId: string, courseType: CourseType): Promise<SubjectProgressView[]>;
 }
 
-type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
+type PrismaLike = Prisma.TransactionClient | PrismaClient;
 
 /** ExamService が依存する UserManagementService の最小契約 */
 export interface UserManagementServiceLike {
@@ -197,7 +197,7 @@ export class ExamService {
     const shouldTransition =
       passed && userBeforeTx !== null && userBeforeTx.status === UserStatus.ACTIVE;
 
-    const updated = await getPrisma().$transaction(async (tx) => {
+    const updated = await runTransaction(async (tx) => {
       const u = await this.examRepo.update(
         examId,
         { score, passed, status: nextStatus, endedAt: now },

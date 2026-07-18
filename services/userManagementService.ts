@@ -1,10 +1,9 @@
 import bcrypt from "bcryptjs";
-import { User, Prisma } from "@prisma/client";
+import { User, Prisma, PrismaClient } from "@prisma/client";
 import { UserRole, UserStatus, CourseType } from "@/types/prisma";
 import type { IUserRepository } from "@/repositories/userRepository";
-import { getPrisma } from "@/lib/db";
 
-type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
+type PrismaLike = Prisma.TransactionClient | PrismaClient;
 import { isValidTransition } from "@/lib/constants/statusTransitions";
 import {
   BusinessError,

@@ -1,4 +1,4 @@
-import type { CompletionCertificate, Prisma } from "@prisma/client";
+import type { CompletionCertificate, Prisma, PrismaClient } from "@prisma/client";
 import { Prisma as PrismaNS } from "@prisma/client";
 import type {
   ICompletionCertificateRepository,
@@ -6,7 +6,7 @@ import type {
 } from "@/repositories/completionCertificateRepository";
 import type { IEnrollmentApplicationRepository } from "@/repositories/enrollmentApplicationRepository";
 import type { SafeUser } from "@/services/userManagementService";
-import { getPrisma } from "@/lib/db";
+import { runTransaction } from "@/lib/db";
 import { sendCertificateIssuedEmail } from "@/services/emailService";
 import { BusinessError } from "@/services/errors";
 import { UserStatus } from "@/types/prisma";
@@ -20,7 +20,7 @@ import {
   DEFAULT_EXAMINER_NAME,
 } from "@/lib/constants";
 
-type PrismaLike = Prisma.TransactionClient | ReturnType<typeof getPrisma>;
+type PrismaLike = Prisma.TransactionClient | PrismaClient;
 
 /** CertificateService が依存する UserManagementService の最小契約 */
 export interface UserManagementServiceLikeForCertificate {
@@ -118,7 +118,7 @@ export class CertificateService {
     let certificate: CompletionCertificate;
     let certificateNumber: string;
     try {
-      certificate = await getPrisma().$transaction(async (tx) => {
+      certificate = await runTransaction(async (tx) => {
         const existing = await this.certRepo.findByUser(userId, tx);
         if (existing !== null) {
           throw new BusinessError("この受講者には既に修了証明書が発行されています");

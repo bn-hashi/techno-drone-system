@@ -51,3 +51,6 @@ docs/R08-DRS-0005*.xlsx
 # 監査時の一時退避 (誤コミット防止)
 /.next.audit-bak/
 /aircraft-*.png
+
+# オーケストレーター配車ワークスペース (依頼書・報告書は個人ローカル運用)
+/_orchestrator/
