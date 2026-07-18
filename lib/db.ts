@@ -5,7 +5,7 @@
  * 参照: https://www.prisma.io/docs/guides/other/troubleshooting-orm/help-articles/nextjs-prisma-client-dev-practices
  */
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
@@ -32,4 +32,14 @@ export function getPrisma(): PrismaClient {
     globalForPrisma.prisma = createPrismaClient();
   }
   return globalForPrisma.prisma;
+}
+
+/**
+ * Service 層が Prisma を直接 import せずにトランザクション境界を張れるようにするラッパー。
+ * クエリ自体は tx を受け取る repository 経由で実行する。
+ */
+export function runTransaction<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return getPrisma().$transaction(fn);
 }

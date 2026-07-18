@@ -6,7 +6,7 @@ import type {
   UpdateQuestionInput,
 } from "@/repositories/questionRepository";
 import type { ISubjectRepository } from "@/repositories/subjectRepository";
-import { getPrisma } from "@/lib/db";
+import { runTransaction } from "@/lib/db";
 import { BusinessError, QuestionNotFoundError } from "@/services/errors";
 import { parseCsv, CsvParseError } from "@/lib/csvParser";
 
@@ -162,7 +162,7 @@ export class QuestionService {
     // 重複スキップと挿入を 1 トランザクションで実行（all-or-nothing）
     let imported = 0;
     let skipped = 0;
-    await getPrisma().$transaction(async (tx) => {
+    await runTransaction(async (tx) => {
       for (const input of inputs) {
         const existing = await this.questionRepo.findBySubjectAndBody(
           input.subjectId,

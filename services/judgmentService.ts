@@ -6,7 +6,7 @@ import type {
 import type { IFraudFlagRepository } from "@/repositories/fraudFlagRepository";
 import type { SubjectProgressView } from "@/services/progressService";
 import type { SafeUser } from "@/services/userManagementService";
-import { getPrisma } from "@/lib/db";
+import { runTransaction } from "@/lib/db";
 import { sendJudgmentRejectedEmail } from "@/services/emailService";
 import { BusinessError } from "@/services/errors";
 import { CourseType, JudgmentResult, UserStatus } from "@/types/prisma";
@@ -91,7 +91,7 @@ export class JudgmentService {
     //   判定記録もロールバックされる (Issue #23 の教訓)
     // - tx 内の updateStatus は findById(tx) で最新 status を読むため、
     //   read-modify-write の race window は閉じている
-    const record = await getPrisma().$transaction(async (tx) => {
+    const record = await runTransaction(async (tx) => {
       const input: CreateJudgmentRecordInput = {
         userId,
         result: JudgmentResult.ACCEPTED,
