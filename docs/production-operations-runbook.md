@@ -303,7 +303,7 @@ pm2 conf pm2-logrotate
 
 ---
 
-## 既知の残課題（2026-07-14 時点）
+## 既知の残課題（2026-07-18 時点）
 
 - ~~**本番 DB に E2E テストデータが混入している**~~ → **2026-07-18 削除完了**。
   `flight_inspections` 12件・`flight_logs` 1件・`flight_plans` 1件・`aircrafts` 1件を
