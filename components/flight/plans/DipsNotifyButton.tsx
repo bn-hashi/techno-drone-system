@@ -156,7 +156,11 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // DIPS 認可フローから戻ってきたとき (?dips=...) に退避済みフォームを復元する。
+  // DIPS 認可フローから戻ってきたとき (?dips=...) に退避済みフォームを復元し、
+  // 連携成功時はそのまま自動で通報を再送信する。
+  // sessionStorage の削除をこの effect の先頭 (自動送信の開始前) で行うことで、
+  // 同一クエリに対して effect が複数回実行されても savedForm が null になり、
+  // 二重送信を防止できる (加えて isSubmitting 中はボタン自体も無効化する)。
   // 復元後に router.replace でクエリを除去するため、この effect は2回目の実行で
   // 早期リターンし、無限ループにはならない。
   useEffect(() => {
@@ -168,14 +172,13 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
 
     if (dipsResult === "linked") {
       if (savedForm) {
-        // 二重送信を避けるため自動再送信はせず、明示的な再クリックを促す
         setForm(savedForm);
         setIsOpen(true);
         setBanner({
           type: "success",
-          message:
-            "DIPS連携が完了しました。入力内容を復元しています。内容を確認のうえ、再度「通報する」を押してください。",
+          message: "DIPS連携が完了しました。入力内容を復元し、通報を自動で再送信しています...",
         });
+        void resubmitAfterDipsLink(savedForm);
       } else {
         setBanner({ type: "success", message: "DIPS連携が完了しました。" });
       }
@@ -193,7 +196,43 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
 
     // リロード時の再処理と URL の汚れを防ぐため dips クエリを取り除く
     router.replace(pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resubmitAfterDipsLink は planId/router に対して安定
   }, [searchParams, planId, pathname, router]);
+
+  /**
+   * OAuth 復帰後、退避していたフォーム内容で通報を自動再送信する。
+   * 復元データが不正な場合や再送信が失敗した場合は、ループさせず
+   * 手動での再送信 (「通報する」ボタン) を促すバナーに切り替える。
+   */
+  async function resubmitAfterDipsLink(savedForm: FormState): Promise<void> {
+    const validated = validateAndBuildInput(savedForm);
+    if (!validated.ok) {
+      setBanner({
+        type: "error",
+        message: `DIPS連携が完了しましたが、復元した入力内容に不備があります (${validated.message})。内容を確認のうえ、再度「通報する」を押してください。`,
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await notifyFlightPlanToDips(planId, validated.input);
+      setIsOpen(false);
+      setBanner({ type: "success", message: "DIPS連携が完了し、飛行計画の通報を自動で送信しました。" });
+      router.refresh();
+    } catch (err) {
+      // 自動再送信が失敗した場合は、DipsAuthRequiredClientError であっても
+      // 再度ログイン画面へは遷移させず (無限ループ防止)、手動操作を促す
+      const detail = err instanceof Error ? err.message : "不明なエラー";
+      setBanner({
+        type: "error",
+        message: `DIPS連携が完了しましたが、通報の自動再送信に失敗しました (${detail})。内容を確認のうえ、再度「通報する」を押してください。`,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   if (dipsFlightPlanId) {
     return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
