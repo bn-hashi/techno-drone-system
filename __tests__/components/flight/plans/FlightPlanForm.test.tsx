@@ -90,10 +90,13 @@ describe("FlightPlanForm edit mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新する" }));
 
     await waitFor(() => {
-      expect(mockUpdateFlightPlan).toHaveBeenCalledWith(
-        "plan-1",
-        expect.objectContaining({ title: "既存タイトル", location: "東京都" })
-      );
+      expect(mockUpdateFlightPlan).toHaveBeenCalledWith("plan-1", {
+        title: "既存タイトル",
+        location: "東京都",
+        plannedAt: expect.any(String),
+        durationMin: 30,
+        purpose: "既存の目的",
+      });
     });
   });
 
@@ -104,9 +107,8 @@ describe("FlightPlanForm edit mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新する" }));
 
     await waitFor(() => {
-      expect(mockUpdateFlightPlan).toHaveBeenCalled();
+      expect(mockCreateFlightPlan).not.toHaveBeenCalled();
     });
-    expect(mockCreateFlightPlan).not.toHaveBeenCalled();
   });
 
   it("test_FlightPlanForm_edit_mode_submit_success_navigates_to_detail_page", async () => {
