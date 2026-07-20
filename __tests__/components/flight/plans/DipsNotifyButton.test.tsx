@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { DipsNotifyButton } from "@/components/flight/plans/DipsNotifyButton";
+import type { DipsNotificationResult } from "@/lib/api/dips";
 
 // router.refresh / replace の呼び出しを検証するため useRouter 等をモックする
 const mockRefresh = vi.fn();
@@ -27,6 +28,12 @@ vi.mock("@/lib/api/dips", async () => {
 });
 
 const PENDING_NOTIFY_STORAGE_KEY = "dips:pendingNotifyForm";
+
+const SAMPLE_RESULT: DipsNotificationResult = {
+  flightPlanId: "dips-123",
+  flightPlanRegistrationResult: "OK",
+  flightPlanRegistrationDatetime: "2026-07-19 10:00",
+};
 
 /** 復元対象のフォーム内容 (妥当な入力) を sessionStorage に退避する */
 function savePendingFormToSessionStorage(planId: string): void {
@@ -67,53 +74,74 @@ describe("DipsNotifyButton", () => {
     mockSearchParamsInstance = new URLSearchParams(value);
   }
 
-  it("test_DipsNotifyButton_oauth_return_linked_with_saved_form_auto_resubmits_and_records_result", async () => {
+  /**
+   * 退避フォームありで OAuth 連携成功 (?dips=linked) を再現し、自動再送信の
+   * API 呼び出しが発生するまで待つ (Arrange + Act の共有部分)。各テストは
+   * このあと 1 つの観点のみを Assert する。
+   */
+  async function renderAndWaitForAutoResubmit(): Promise<void> {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=linked");
-    mockNotifyFlightPlanToDips.mockResolvedValue({
-      flightPlanId: "dips-123",
-      flightPlanRegistrationResult: "OK",
-      flightPlanRegistrationDatetime: "2026-07-19 10:00",
-    });
+    mockNotifyFlightPlanToDips.mockResolvedValue(SAMPLE_RESULT);
 
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
     await waitFor(() => {
-      expect(mockNotifyFlightPlanToDips).toHaveBeenCalledTimes(1);
+      expect(mockNotifyFlightPlanToDips).toHaveBeenCalled();
     });
+  }
+
+  it("test_DipsNotifyButton_oauth_return_linked_calls_notify_exactly_once", async () => {
+    await renderAndWaitForAutoResubmit();
+
+    expect(mockNotifyFlightPlanToDips).toHaveBeenCalledTimes(1);
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_calls_notify_with_restored_form_data", async () => {
+    await renderAndWaitForAutoResubmit();
+
     expect(mockNotifyFlightPlanToDips).toHaveBeenCalledWith(
       "plan-1",
       expect.objectContaining({ departurePoint: "東京都千代田区" })
     );
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_shows_success_banner_after_resubmit", async () => {
+    await renderAndWaitForAutoResubmit();
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(
         "DIPS連携が完了し、飛行計画の通報を自動で送信しました。"
       );
     });
-    expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it("test_DipsNotifyButton_oauth_return_linked_clears_pending_storage_before_resubmit", async () => {
+  it("test_DipsNotifyButton_oauth_return_linked_calls_router_refresh_after_resubmit_success", async () => {
+    await renderAndWaitForAutoResubmit();
+
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalled();
+    });
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_clears_pending_storage_synchronously", async () => {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=linked");
-    mockNotifyFlightPlanToDips.mockResolvedValue({
-      flightPlanId: "dips-123",
-      flightPlanRegistrationResult: "OK",
-      flightPlanRegistrationDatetime: "2026-07-19 10:00",
-    });
+    mockNotifyFlightPlanToDips.mockResolvedValue(SAMPLE_RESULT);
 
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
-    await waitFor(() => {
-      expect(mockNotifyFlightPlanToDips).toHaveBeenCalledTimes(1);
-    });
-
-    // 機微情報を含みうる退避フォームは、自動再送信の成否によらず即座に破棄される
+    // 機微情報を含みうる退避フォームは、自動再送信の成否を待たず即座に破棄される
     expect(window.sessionStorage.getItem(PENDING_NOTIFY_STORAGE_KEY)).toBeNull();
+
+    // バックグラウンドの自動再送信が act() の外で状態更新しないよう、テスト終了前に解決を待つ
+    await waitFor(() => {
+      expect(mockNotifyFlightPlanToDips).toHaveBeenCalled();
+    });
   });
 
-  it("test_DipsNotifyButton_auto_resubmit_failure_shows_error_banner_for_manual_retry", async () => {
+  /** 自動再送信が失敗するケースを再現し、API 呼び出しが発生するまで待つ */
+  async function renderAndWaitForAutoResubmitFailure(): Promise<void> {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=linked");
     mockNotifyFlightPlanToDips.mockRejectedValue(new Error("DIPSサーバーエラー"));
@@ -121,72 +149,128 @@ describe("DipsNotifyButton", () => {
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
     await waitFor(() => {
-      expect(mockNotifyFlightPlanToDips).toHaveBeenCalledTimes(1);
+      expect(mockNotifyFlightPlanToDips).toHaveBeenCalled();
     });
+  }
+
+  it("test_DipsNotifyButton_auto_resubmit_failure_shows_error_banner_for_manual_retry", async () => {
+    await renderAndWaitForAutoResubmitFailure();
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         /通報の自動再送信に失敗しました.*再度「通報する」を押してください/
       );
     });
-    // 失敗後もダイアログは開いたままで、手動での再送信ボタンが有効になっている
-    expect(screen.getByRole("button", { name: "通報する" })).toBeEnabled();
   });
 
-  it("test_DipsNotifyButton_auto_resubmit_disables_submit_button_while_in_flight", async () => {
+  it("test_DipsNotifyButton_auto_resubmit_failure_keeps_manual_submit_button_enabled", async () => {
+    await renderAndWaitForAutoResubmitFailure();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "通報する" })).toBeEnabled();
+    });
+  });
+
+  /** 自動再送信を意図的に未解決のまま止め、進行中の状態を検証できるようにする */
+  function renderWithPendingResubmit(): { resolve: (value: DipsNotificationResult) => void } {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=linked");
-    let resolveNotify: (value: {
-      flightPlanId: string;
-      flightPlanRegistrationResult: string;
-      flightPlanRegistrationDatetime: string;
-    }) => void = () => {};
+    let resolveNotify: (value: DipsNotificationResult) => void = () => {};
     mockNotifyFlightPlanToDips.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<DipsNotificationResult>((resolve) => {
           resolveNotify = resolve;
         })
     );
 
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
+    return { resolve: (value) => resolveNotify(value) };
+  }
+
+  it("test_DipsNotifyButton_auto_resubmit_disables_submit_button_while_in_flight", async () => {
+    renderWithPendingResubmit();
+
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "通報中..." })).toBeDisabled();
     });
+  });
+
+  it("test_DipsNotifyButton_auto_resubmit_does_not_call_notify_more_than_once_while_in_flight", async () => {
+    renderWithPendingResubmit();
+    await waitFor(() => screen.getByRole("button", { name: "通報中..." }));
+
     // 送信中に呼び出しが積み増しされていない (二重送信防止)
     expect(mockNotifyFlightPlanToDips).toHaveBeenCalledTimes(1);
+  });
 
-    resolveNotify({
-      flightPlanId: "dips-123",
-      flightPlanRegistrationResult: "OK",
-      flightPlanRegistrationDatetime: "2026-07-19 10:00",
-    });
+  it("test_DipsNotifyButton_auto_resubmit_closes_dialog_after_resubmit_resolves", async () => {
+    const { resolve } = renderWithPendingResubmit();
+    await waitFor(() => screen.getByRole("button", { name: "通報中..." }));
+
+    resolve(SAMPLE_RESULT);
+
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 
-  it("test_DipsNotifyButton_oauth_return_linked_without_saved_form_shows_banner_only", async () => {
+  /** 退避フォームなしで OAuth 連携成功を再現する */
+  async function renderLinkedWithoutSavedForm(): Promise<void> {
     setDipsQuery("dips=linked");
 
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent("DIPS連携が完了しました。");
-    });
+    await waitFor(() => screen.getByRole("status"));
+  }
+
+  it("test_DipsNotifyButton_oauth_return_linked_without_saved_form_shows_success_banner", async () => {
+    await renderLinkedWithoutSavedForm();
+
+    expect(screen.getByRole("status")).toHaveTextContent("DIPS連携が完了しました。");
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_without_saved_form_does_not_call_notify", async () => {
+    await renderLinkedWithoutSavedForm();
+
     expect(mockNotifyFlightPlanToDips).not.toHaveBeenCalled();
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_without_saved_form_does_not_open_dialog", async () => {
+    await renderLinkedWithoutSavedForm();
+
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("test_DipsNotifyButton_oauth_return_failure_does_not_auto_resubmit", async () => {
+  /** OAuth 連携失敗 (state_error) を、退避フォームがある状態で再現する */
+  async function renderOauthFailureWithSavedForm(): Promise<void> {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=state_error");
 
     render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("DIPS連携の検証に失敗しました");
-    });
+    await waitFor(() => screen.getByRole("alert"));
+  }
+
+  it("test_DipsNotifyButton_oauth_return_failure_shows_state_error_banner", async () => {
+    await renderOauthFailureWithSavedForm();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("DIPS連携の検証に失敗しました");
+  });
+
+  it("test_DipsNotifyButton_oauth_return_failure_does_not_call_notify", async () => {
+    await renderOauthFailureWithSavedForm();
+
     expect(mockNotifyFlightPlanToDips).not.toHaveBeenCalled();
+  });
+
+  it("test_DipsNotifyButton_oauth_return_replaces_url_preserving_other_query_params", async () => {
+    setDipsQuery("dips=linked&page=2");
+
+    render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/flight/plans/plan-1?page=2", { scroll: false });
+    });
   });
 });
