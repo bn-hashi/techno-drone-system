@@ -300,11 +300,12 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
       (err) => {
         if (err instanceof DipsAuthRequiredClientError) {
           // トークン未取得・失効: フォーム入力を退避し、連携後にこのページへ
-          // 戻れるよう、既存のクエリパラメータも含めた returnPath を添えて
-          // DIPS ログイン画面へ誘導する (クエリを落とすと OAuth 往復で失われる)
+          // 戻れるよう returnPath を添えて DIPS ログイン画面へ誘導する
+          // (returnPath はクエリ文字列を含められない。サーバー側の
+          // isSafeInternalReturnPath が ?dips=linked を安全に付与するため
+          // ? を含む値を拒否する設計のため)
           savePendingNotifyForm(planId, form);
-          const returnPath = `${window.location.pathname}${window.location.search}`;
-          window.location.href = dipsLoginUrl(err.realm, returnPath);
+          window.location.href = dipsLoginUrl(err.realm, window.location.pathname);
           return;
         }
         setError(err instanceof Error ? err.message : "DIPS通報に失敗しました");

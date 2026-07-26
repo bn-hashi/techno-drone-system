@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { DipsNotifyButton } from "@/components/flight/plans/DipsNotifyButton";
+import { DipsAuthRequiredClientError, dipsLoginUrl } from "@/lib/api/dips";
 import type { DipsNotificationResult } from "@/lib/api/dips";
 
 // router.refresh / replace の呼び出しを検証するため useRouter 等をモックする
@@ -283,6 +284,91 @@ describe("DipsNotifyButton", () => {
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith("/flight/plans/plan-1?page=2", { scroll: false });
+    });
+  });
+
+  describe("手動送信 (「通報する」ボタン)", () => {
+    /** ダイアログを開き、送信検証を通過する最小限の入力を埋める */
+    function openDialogAndFillValidForm(): void {
+      fireEvent.click(screen.getByRole("button", { name: "DIPSへ通報" }));
+      fireEvent.click(screen.getByLabelText("空撮"));
+      fireEvent.change(screen.getByLabelText("飛行空域種別 (カンマ区切り)"), {
+        target: { value: "1" },
+      });
+      fireEvent.change(screen.getByLabelText("補助者人数"), { target: { value: "1" } });
+      fireEvent.change(screen.getByLabelText("飛行速度 (km/h)"), { target: { value: "10" } });
+      fireEvent.change(screen.getByLabelText("出発地"), { target: { value: "東京都千代田区" } });
+      fireEvent.change(screen.getByLabelText("目的地"), { target: { value: "東京都港区" } });
+      fireEvent.change(screen.getByLabelText("飛行高度 (AGL メートル)"), { target: { value: "50" } });
+      fireEvent.change(screen.getByLabelText("経度"), { target: { value: "139.7" } });
+      fireEvent.change(screen.getByLabelText("緯度"), { target: { value: "35.6" } });
+      fireEvent.change(screen.getByLabelText("半径 (m)"), { target: { value: "100" } });
+    }
+
+    /** 送信成功後、ダイアログが閉じるまで待つ (Act の完了待ち。Assert はテスト側で行う) */
+    async function waitForDialogToClose(): Promise<void> {
+      await waitFor(() => {
+        if (screen.queryByRole("dialog")) {
+          throw new Error("送信成功後もダイアログが閉じていません");
+        }
+      });
+    }
+
+    it("test_DipsNotifyButton_manual_submit_success_reenables_submit_button_after_reopening_dialog", async () => {
+      mockNotifyFlightPlanToDips.mockResolvedValue(SAMPLE_RESULT);
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+      await waitForDialogToClose();
+      // isSubmitting はダイアログの開閉に連動してリセットされないため、
+      // 成功後もリセットされていなければ再度開いたときに「通報中...」のまま無効化され続ける
+      fireEvent.click(screen.getByRole("button", { name: "DIPSへ通報" }));
+
+      expect(screen.getByRole("button", { name: "通報する" })).toBeEnabled();
+    });
+
+    describe("DipsAuthRequiredClientError 発生時", () => {
+      // jsdom は window.location.href への代入で実ナビゲーションを試みて
+      // 何もせず失敗する (Not implemented: navigation) ため、代入結果を検証できるよう
+      // window.location をプレーンオブジェクトに差し替える
+      const originalLocation = window.location;
+
+      beforeEach(() => {
+        Object.defineProperty(window, "location", {
+          configurable: true,
+          value: { ...originalLocation, pathname: "/flight/plans/plan-1", search: "?page=2", href: "" },
+        });
+      });
+
+      afterEach(() => {
+        Object.defineProperty(window, "location", {
+          configurable: true,
+          value: originalLocation,
+        });
+      });
+
+      /** ログイン画面へのリダイレクト (window.location.href への代入) が発生するまで待つ */
+      async function waitForLoginRedirect(): Promise<void> {
+        await waitFor(() => {
+          if (window.location.href === "") {
+            throw new Error("ログイン画面へのリダイレクトがまだ発生していません");
+          }
+        });
+      }
+
+      it("test_DipsNotifyButton_manual_submit_auth_required_returnPath_excludes_query_string", async () => {
+        mockNotifyFlightPlanToDips.mockRejectedValue(new DipsAuthRequiredClientError("fpl"));
+        render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+        openDialogAndFillValidForm();
+
+        fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+        await waitForLoginRedirect();
+
+        // クエリ文字列 (?page=2) を含めると isSafeInternalReturnPath がサーバー側で
+        // 拒否するため、pathname 単独であることを固定する (クエリ保持修正の revert)
+        expect(window.location.href).toBe(dipsLoginUrl("fpl", "/flight/plans/plan-1"));
+      });
     });
   });
 });
