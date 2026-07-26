@@ -124,6 +124,19 @@ describe("DipsNotifyButton", () => {
     });
   });
 
+  /**
+   * バックグラウンドの自動再送信が act() の外で状態更新しないよう、テスト終了前に
+   * 解決を待つ。呼び出し回数・引数等の検証は他のテストが担うため、ここでは
+   * アサーションを重ねず「呼び出しが発生した」ことのポーリングのみに留める。
+   */
+  async function waitForAutoResubmitToSettle(): Promise<void> {
+    await waitFor(() => {
+      if (mockNotifyFlightPlanToDips.mock.calls.length === 0) {
+        throw new Error("notifyFlightPlanToDips がまだ呼び出されていません");
+      }
+    });
+  }
+
   it("test_DipsNotifyButton_oauth_return_linked_clears_pending_storage_synchronously", async () => {
     savePendingFormToSessionStorage("plan-1");
     setDipsQuery("dips=linked");
@@ -134,10 +147,7 @@ describe("DipsNotifyButton", () => {
     // 機微情報を含みうる退避フォームは、自動再送信の成否を待たず即座に破棄される
     expect(window.sessionStorage.getItem(PENDING_NOTIFY_STORAGE_KEY)).toBeNull();
 
-    // バックグラウンドの自動再送信が act() の外で状態更新しないよう、テスト終了前に解決を待つ
-    await waitFor(() => {
-      expect(mockNotifyFlightPlanToDips).toHaveBeenCalled();
-    });
+    await waitForAutoResubmitToSettle();
   });
 
   /** 自動再送信が失敗するケースを再現し、API 呼び出しが発生するまで待つ */

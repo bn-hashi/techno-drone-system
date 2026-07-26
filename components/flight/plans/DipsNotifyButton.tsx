@@ -136,6 +136,26 @@ function validateAndBuildInput(
   };
 }
 
+/**
+ * 検証済み入力で DIPS 通報 API を呼び出す共通シーケンス。
+ * resubmitAfterDipsLink (自動再送信) と handleSubmit (手動送信) はこの
+ * API 呼び出し自体は同一だが、成功時・失敗時の振る舞い（バナー表示・
+ * ログイン誘導の有無など）が異なるため、それぞれコールバックに委ねる。
+ */
+async function sendDipsNotification(
+  targetPlanId: string,
+  input: DipsNotificationInput,
+  onSuccess: () => void,
+  onError: (err: unknown) => void
+): Promise<void> {
+  try {
+    await notifyFlightPlanToDips(targetPlanId, input);
+    onSuccess();
+  } catch (err) {
+    onError(err);
+  }
+}
+
 export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -175,18 +195,24 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
       setIsSubmitting(true);
       setError(null);
       try {
-        await notifyFlightPlanToDips(planId, validated.input);
-        setIsOpen(false);
-        setBanner({ type: "success", message: "DIPS連携が完了し、飛行計画の通報を自動で送信しました。" });
-        router.refresh();
-      } catch (err) {
-        // 自動再送信が失敗した場合は、DipsAuthRequiredClientError であっても
-        // 再度ログイン画面へは遷移させず (無限ループ防止)、手動操作を促す
-        const detail = err instanceof Error ? err.message : "不明なエラー";
-        setBanner({
-          type: "error",
-          message: `DIPS連携が完了しましたが、通報の自動再送信に失敗しました (${detail})。内容を確認のうえ、再度「通報する」を押してください。`,
-        });
+        await sendDipsNotification(
+          planId,
+          validated.input,
+          () => {
+            setIsOpen(false);
+            setBanner({ type: "success", message: "DIPS連携が完了し、飛行計画の通報を自動で送信しました。" });
+            router.refresh();
+          },
+          (err) => {
+            // 自動再送信が失敗した場合は、DipsAuthRequiredClientError であっても
+            // 再度ログイン画面へは遷移させず (無限ループ防止)、手動操作を促す
+            const detail = err instanceof Error ? err.message : "不明なエラー";
+            setBanner({
+              type: "error",
+              message: `DIPS連携が完了しましたが、通報の自動再送信に失敗しました (${detail})。内容を確認のうえ、再度「通報する」を押してください。`,
+            });
+          }
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -263,21 +289,25 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     }
 
     setIsSubmitting(true);
-    try {
-      await notifyFlightPlanToDips(planId, validated.input);
-      setIsOpen(false);
-      router.refresh();
-    } catch (err) {
-      if (err instanceof DipsAuthRequiredClientError) {
-        // トークン未取得・失効: フォーム入力を退避し、連携後にこのページへ
-        // 戻れるよう returnPath を添えて DIPS ログイン画面へ誘導する
-        savePendingNotifyForm(planId, form);
-        window.location.href = dipsLoginUrl(err.realm, window.location.pathname);
-        return;
+    await sendDipsNotification(
+      planId,
+      validated.input,
+      () => {
+        setIsOpen(false);
+        router.refresh();
+      },
+      (err) => {
+        if (err instanceof DipsAuthRequiredClientError) {
+          // トークン未取得・失効: フォーム入力を退避し、連携後にこのページへ
+          // 戻れるよう returnPath を添えて DIPS ログイン画面へ誘導する
+          savePendingNotifyForm(planId, form);
+          window.location.href = dipsLoginUrl(err.realm, window.location.pathname);
+          return;
+        }
+        setError(err instanceof Error ? err.message : "DIPS通報に失敗しました");
+        setIsSubmitting(false);
       }
-      setError(err instanceof Error ? err.message : "DIPS通報に失敗しました");
-      setIsSubmitting(false);
-    }
+    );
   };
 
   const bannerElement = banner && (
