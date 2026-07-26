@@ -126,13 +126,15 @@ describe("DipsNotifyButton", () => {
 
   /**
    * バックグラウンドの自動再送信が act() の外で状態更新しないよう、テスト終了前に
-   * 解決を待つ。呼び出し回数・引数等の検証は他のテストが担うため、ここでは
-   * アサーションを重ねず「呼び出しが発生した」ことのポーリングのみに留める。
+   * 完了 (成功時の router.refresh 呼び出し) まで待つ。呼び出し回数・引数等の検証は
+   * 他のテストが担うため、ここではアサーションを重ねずポーリングのみに留める。
+   * (notifyFlightPlanToDips が呼ばれた時点ではまだ Promise 解決前の途中状態のため、
+   * 呼び出し開始だけを見ると後続の状態更新が act() の外で走る可能性がある)
    */
   async function waitForAutoResubmitToSettle(): Promise<void> {
     await waitFor(() => {
-      if (mockNotifyFlightPlanToDips.mock.calls.length === 0) {
-        throw new Error("notifyFlightPlanToDips がまだ呼び出されていません");
+      if (mockRefresh.mock.calls.length === 0) {
+        throw new Error("自動再送信の完了 (router.refresh) がまだ確認できません");
       }
     });
   }
