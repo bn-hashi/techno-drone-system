@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_ENV=production next build",
+    "build": "NODE_ENV=production NODE_OPTIONS=--max-old-space-size=1536 next build",
     "start": "next start",
     "lint": "next lint && tsc --noEmit",
     "test": "vitest run",
