@@ -107,23 +107,34 @@ npm run build
 - 成功の目印: `✓ Compiled successfully` の後、`✓ Linting and checking validity of types` →
   `✓ Generating static pages (N/N)` まで進み、Route 一覧表が表示される。
 
-**メモリ不足時（2026-07-14 に実際に発生）**:
-`FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` が
-`Linting and checking validity of types` の段階で出た場合、V8 の既定ヒープ上限に達している。
-まず Swap を確認:
+**メモリ不足対策は恒久化済み（2026-07-27）**:
+2026-07-14 に `Linting and checking validity of types` の段階で
+`FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` が発生した。
+以後、手動で `NODE_OPTIONS="--max-old-space-size=1536"` を都度入力する運用だったが、
+`package.json` の `build` スクリプトに組み込み、**`npm run build` を打つだけで自動的に
+ヒープ上限 1536MB で実行される**ようにした（手動指定は不要）。
+
+```json
+"build": "NODE_ENV=production NODE_OPTIONS=--max-old-space-size=1536 next build",
+```
+
+- **1536MB という値の根拠**: 2026-07-14 の障害発生時に、この値で再実行して成功したことが
+  唯一の根拠であり、理論的な算出値ではない（暫定対応時からの値をそのまま踏襲）
+- **注意（物理メモリを超える設定）**: 本番機の物理 RAM は 512MB のみで、1536MB は
+  物理メモリを大きく超える。つまりこの設定は **Swap 前提**であり、Swap 領域が
+  枯渇している状態で実行すると同じ heap out of memory、または OOM Killer による
+  プロセス強制終了が再発しうる。ビルド前に `free -h` で Swap に **3GB 以上の空きがあるか**
+  を必ず確認すること（手順は変わらず本セクション末尾に残す）
+- 値そのものの見直し（引き下げ・Swap 拡張・Lightsail のメモリプラン変更）は
+  運用判断が必要なため本対応の範囲外。異常が再発した場合は `free -h` の出力を添えて相談する
+
+それでも `heap out of memory` が再発した場合は、まず Swap を確認する:
 
 ```bash
 free -h
 ```
 
-Swap に 3GB 以上の余力があれば、ヒープ上限を明示的に引き上げて再実行する:
-
-```bash
-NODE_OPTIONS="--max-old-space-size=1536" npm run build
-```
-
-これは一時的なオプションでコードは変更しない。恒久対応（`package.json` の `build` スクリプトに
-組み込む、または Lightsail のメモリプラン変更）は別途 `/plan` で検討する。
+Swap が枯渇している場合は Swap 拡張や Lightsail のメモリプラン変更を検討する（別途 `/plan` で対応）。
 
 ### 1-6. アプリを再起動
 
@@ -346,7 +357,7 @@ pm2 conf pm2-logrotate
 
 | 症状 | まず打つコマンド | 対処 |
 |---|---|---|
-| ビルドが `Killed` / heap out of memory で死ぬ | `free -h` | Swap を確認。あれば `NODE_OPTIONS=--max-old-space-size=1536` で再実行。0 なら止めて連絡 |
+| ビルドが `Killed` / heap out of memory で死ぬ | `free -h` | `npm run build` は既定でヒープ上限 1536MB（`package.json` 側で自動設定済み・手動指定不要）。それでも死ぬ場合は Swap を確認。0 なら止めて連絡 |
 | `npm ci` が `SIGINT` で止まる | （再実行） | 誤操作/接続瞬断の可能性。もう一度実行するだけで直ることが多い |
 | ブラウザで 502 | `pm2 status` → `pm2 logs techno-drone` | アプリ停止中。ログのエラーを確認 |
 | ログインがループする | （設定確認） | `.env` の `NEXTAUTH_URL` が本番 https URL か |
