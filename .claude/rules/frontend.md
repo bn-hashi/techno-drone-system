@@ -30,4 +30,8 @@ alwaysApply: false
 
 ## 禁止事項
 - `useEffect` での無限ループ (依存配列を必ず確認)
+- OAuth 往復の `returnPath` にクエリ文字列・フラグメントを付けること。サーバー側の
+  `isSafeInternalReturnPath` (`lib/dips/returnPath.ts`) が `?` `#` を含む値を拒否し、
+  不正な値はエラーにならず黙って無視され、戻り先 cookie も削除される。クエリを往復
+  させたい場合は sessionStorage 等の別チャネルを使う
 - `dangerouslySetInnerHTML` (やむを得ない場合は DOMPurify 経由)
