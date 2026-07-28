@@ -22,10 +22,10 @@ export class DipsAuthRequiredError extends Error {
   }
 }
 
-/** ガイドライン未入手のため未対応の API を呼び出した */
+/** ガイドラインはあるが未実装の API を呼び出した (仕様不明ではなく実装未着手) */
 export class DipsUnsupportedApiError extends Error {
   constructor(apiName: string) {
-    super(`${apiName} はガイドライン未入手のため未対応です`);
+    super(`${apiName} は未実装です (ガイドラインは入手済み)`);
     this.name = "DipsUnsupportedApiError";
   }
 }

@@ -1,6 +1,7 @@
 # DIPS連携リアーキテクチャ計画 (承認済み)
 
 作成日: 2026-07-03
+最終更新: 2026-07-28 (機体情報一覧取得APIガイドラインに関する誤記を訂正)
 ステータス: **ユーザー承認済み** — 実装中 (feature/dips-auth-code-flow)
 
 ## 承認済みの決定事項
@@ -25,9 +26,17 @@
   https://www.ossportal.dips.mlit.go.jp/guide/fiss/DIPS2.0_API%EF%BC%88FPR%EF%BC%89_Guideline.pdf
 - FPA (飛行許可・承認申請) ガイドライン v1.4 (2026-06-22):
   https://www.ossportal.dips.mlit.go.jp/guide/dips/DIPS2.0_API（FPA）_Guideline_v1.4.pdf
+- DRS (機体情報一覧取得) ガイドライン 1.1版 (2022-12-05、国土交通省航空局安全部無人航空機安全課):
+  https://www.dips-reg.mlit.go.jp/contents/drs/preview/DRS_API_Guideline.pdf
+  （§2.3.6 機体情報一覧取得API。ログイン不要でダウンロード可能）
 - テキスト抽出方法: `/opt/homebrew/bin/python3.11` + `pypdf` (`PdfReader(...).pages[i].extract_text()`)
-- 機体情報一覧取得API (utm-app系) のガイドラインは非公開。R08-DRS-0005 承認通知の同封資料を確認するか
-  申請窓口 (hqt-jcab.mujin@ki.mlit.go.jp) へ照会 → **入手まで機体照合機能はスコープ外**
+
+**訂正 (2026-07-28)**: 「機体情報一覧取得API (utm-app系) のガイドラインは非公開」としていた従来の記述は誤り。
+上記 DRS ガイドライン §2.3.6 に仕様が完全公開されている。R08-DRS-0005 設定通知書でも 5-1「機体情報一覧取得API」が
+「〇」(申請・承認済み) で、`utm-app-*` の Client ID/Secret も払い出し済み (値は `.gitignore` 対象の設定通知書のみに
+記載し、本ドキュメントには書かない)。**「仕様が入手できない」のではなく「単に未実装」**な状態であり、下記
+「機体情報一覧取得 API (未実装・参考仕様)」および「未対応 (別フェーズ)」を参照。
+なお DRS API は参照系 (GET) のみで、機体の新規登録・変更・抹消はこの API では行えない (DIPS 画面での人手操作が必要)。
 
 ## 確定仕様 (ガイドラインから抽出)
 
@@ -42,7 +51,7 @@
   - レスポンス: `access_token` (有効 **約300秒**) / `refresh_token` (有効 **約3600秒**) / `expires_in` / `refresh_expires_in` / `id_token` 等
 - 本番は `https://www.dips-reg.mlit.go.jp/auth/realms/{realm}/...`
 - リダイレクトURL登録済み: `https://techno-drone-system.com/redirect` (パス固定)
-- 検証環境はIP制限 (57.181.4.59) のためローカルから疎通不可。設定通知書の「申請者ID (USR063011等)」は
+- 検証環境はIP制限 (57.181.4.59) のためローカルから疎通不可。設定通知書の「申請者ID」(R08-DRS-0005 参照) は
   DIPSログイン画面で使う検証用アカウントIDと解釈
 
 ### エンドポイント (検証環境)
@@ -58,6 +67,26 @@
 - 本番ホスト: API系 `www.uafpi.dips.mlit.go.jp` / 許可承認系 `www.uafp.dips.mlit.go.jp`
 - ヘッダ: `Authorization: Bearer {access_token}` / `Content-Type: application/json;charset=UTF-8`
 - `applicantId` をbodyに含める旧設計は廃止 (トークンの認証ユーザーから自動特定、URLも `appliers/me`)
+
+### 機体情報一覧取得 API (DRSガイドライン 2.3.6。未実装・参考仕様)
+
+**この節は仕様の記録のみで、実装は行っていない。** 「未対応 (別フェーズ)」参照。
+
+| 項目 | 値 |
+|---|---|
+| メソッド | GET |
+| URL (本番) | `https://www.dips-reg.mlit.go.jp/utm/v1/aircrafts` |
+| URL (検証) | `https://www.dips-regdev.mlit.go.jp/utm/v1/aircrafts` |
+| realm | `drs-utm` |
+| 認可エンドポイント (検証) | `https://www.dips-regdev.mlit.go.jp/auth/realms/drs-utm/protocol/openid-connect/auth` |
+| 認可エンドポイント (本番) | `https://www.dips-reg.mlit.go.jp/auth/realms/drs-utm/protocol/openid-connect/auth` |
+| リクエストヘッダ | `Authorization: Bearer [access_token]` |
+
+- 認証ホストが他 2 系統 (fpl/req は `uafp(i).dips.mlit.go.jp` 系) と異なり `dips-reg(dev).mlit.go.jp` である点に注意。
+  現行 `DipsConfig` (`lib/dips/config.ts`) は fpl/req の2系統専用のため、実装時は設定構造の見直しが必要。
+- レスポンス全75項目・検証用アカウント4件・テスト機体18機体のデータは設定通知書 (R08-DRS-0005) の
+  「別紙1_機体情報一覧取得API_利用可能情報」シートに定義済み。
+- 機体の新規登録・変更・抹消はこの API では不可 (参照 (GET) のみ)。DIPS 画面での人手操作が必要。
 
 ### 飛行計画通報受付 リクエスト概要 (FPRガイドライン 2.3.8)
 
@@ -104,8 +133,9 @@
 
 ### 未対応 (別フェーズ)
 
-- 機体照合 (utm-app系): ガイドライン未入手。入手後に `DipsApiClient.fetchAircraftList` /
-  `DipsService.verifyAircraftRegistration` / 機体詳細ページの照合UIを再実装
+- 機体照合 (utm-app系): **ガイドラインは入手済み** (DRS API ガイドライン §2.3.6。上記「機体情報一覧取得 API」参照)。
+  仕様待ちではなく実装未着手が正しい状態。実装時に `DipsApiClient.fetchAircraftList` /
+  `DipsService.verifyAircraftRegistration` / 機体詳細ページの照合UIを追加する
 - 飛行禁止エリア情報取得 → `getRiskStub` の実データ化 (Phase F 疎通後)
 - 許可・承認申請受付 (permissionRegister) の UI
 - 通報ダイアログの飛行空域種別: 現状カンマ区切りテキスト。ガイドラインのコード表で選択式に改善余地

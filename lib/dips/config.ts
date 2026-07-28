@@ -8,7 +8,8 @@ import { DipsConfigError } from "@/lib/dips/errors";
  * - fpl (realm: drs-fpl): 飛行計画情報取得 / 飛行禁止エリア情報取得 / 飛行計画通報受付
  * - req (realm: drs-req): 許可・承認情報取得 / 許可・承認申請受付
  *
- * 機体情報一覧取得 (utm-app 系) はガイドライン未入手のため未対応 (docs/dips-rearchitecture-plan.md 参照)。
+ * 機体情報一覧取得 (utm-app 系, realm: drs-utm) は DRS API ガイドライン §2.3.6 で仕様公開済み・
+ * R08-DRS-0005 で申請承認済みだが未実装 (仕様待ちではなく実装未着手。docs/dips-rearchitecture-plan.md 参照)。
  *
  * クレデンシャル値は設定通知書から .env に転記する (リポジトリには一切含めない)。
  * 検証環境はアクセス元 IP 制限 (57.181.4.59) があるため、実通信は本番サーバー上でのみ可能。

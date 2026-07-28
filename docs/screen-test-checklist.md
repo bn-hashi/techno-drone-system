@@ -149,7 +149,7 @@
 
 ## 6. DIPS連携 (本番サーバー検証環境限定)
 
-> 前提: `.env` に DIPS_* 設定済み、`DIPS_ENABLED=true`、検証用 申請者ID (USR0630xx) を用意。
+> 前提: `.env` に DIPS_* 設定済み、`DIPS_ENABLED=true`、検証用 申請者ID (R08-DRS-0005 参照) を用意。
 
 - [x] `DIPS_ENABLED=true` であることをサーバーで確認 (`grep "^DIPS_ENABLED=" .env`)
 - [x] APPROVED かつ自分の計画の詳細に「DIPS通報」ボタンが表示される — `[E2E-TEST]` 計画で確認

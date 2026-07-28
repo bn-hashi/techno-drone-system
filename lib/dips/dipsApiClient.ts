@@ -18,7 +18,8 @@ const REQUEST_TIMEOUT_MS = 10_000;
  * 認証は DipsOidcClient から realm 別・ユーザー別のアクセストークンを取得して Bearer 付与する。
  * ベース URL は endpoint の apiBase (fpr/fpa) で切り替える。fetch はテスト容易性のため注入可能。
  *
- * 機体情報一覧取得 (utm-app 系) はガイドライン未入手のため未実装。
+ * 機体情報一覧取得 (utm-app 系) は DRS API ガイドライン §2.3.6 で仕様公開済みだが未実装
+ * (docs/dips-rearchitecture-plan.md 参照)。
  */
 export class DipsApiClient {
   constructor(
