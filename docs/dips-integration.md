@@ -64,10 +64,10 @@ route.ts (Controller)
 | `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | 機体情報一覧取得用 (`utm-app-*`)。**現行コードは未読込** — `lib/dips/config.ts` は fpl/req の2系統専用で、機体情報一覧取得API実装時に追加予定 | Client ID 一覧 |
 | `DIPS_REQ_CLIENT_ID` / `DIPS_REQ_CLIENT_SECRET` | 許可・承認系 (`req-app-*`) | Client ID 一覧 |
 | `DIPS_FPL_CLIENT_ID` / `DIPS_FPL_CLIENT_SECRET` | 飛行計画系 (`fpl-app-*`) | Client ID 一覧 |
-| `DIPS_APPLICANT_ID_PERMISSION_GET` | 許可・承認情報取得の申請者ID (USR063011) | 申請者 ID 一覧 |
-| `DIPS_APPLICANT_ID_PERMISSION_APPLY` | 許可・承認申請受付の申請者ID (USR063021) | 〃 |
-| `DIPS_APPLICANT_ID_FLIGHT_PLAN_GET` | 飛行計画情報取得の申請者ID (USR063031) | 〃 |
-| `DIPS_APPLICANT_ID_FLIGHT_PLAN_NOTIFY` | 飛行計画通報受付の申請者ID (USR063041) | 〃 |
+| `DIPS_APPLICANT_ID_PERMISSION_GET` | 許可・承認情報取得の申請者ID (R08-DRS-0005 参照) | 申請者 ID 一覧 |
+| `DIPS_APPLICANT_ID_PERMISSION_APPLY` | 許可・承認申請受付の申請者ID (R08-DRS-0005 参照) | 〃 |
+| `DIPS_APPLICANT_ID_FLIGHT_PLAN_GET` | 飛行計画情報取得の申請者ID (R08-DRS-0005 参照) | 〃 |
+| `DIPS_APPLICANT_ID_FLIGHT_PLAN_NOTIFY` | 飛行計画通報受付の申請者ID (R08-DRS-0005 参照) | 〃 |
 
 ## ⚠️ サーバー検証前に必ず確認すること
 

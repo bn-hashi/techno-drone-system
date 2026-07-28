@@ -51,7 +51,7 @@
   - レスポンス: `access_token` (有効 **約300秒**) / `refresh_token` (有効 **約3600秒**) / `expires_in` / `refresh_expires_in` / `id_token` 等
 - 本番は `https://www.dips-reg.mlit.go.jp/auth/realms/{realm}/...`
 - リダイレクトURL登録済み: `https://techno-drone-system.com/redirect` (パス固定)
-- 検証環境はIP制限 (57.181.4.59) のためローカルから疎通不可。設定通知書の「申請者ID (USR063011等)」は
+- 検証環境はIP制限 (57.181.4.59) のためローカルから疎通不可。設定通知書の「申請者ID」(R08-DRS-0005 参照) は
   DIPSログイン画面で使う検証用アカウントIDと解釈
 
 ### エンドポイント (検証環境)
