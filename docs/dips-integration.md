@@ -61,7 +61,7 @@ route.ts (Controller)
 | `DIPS_ENABLED` | `true` で連携有効 (既定: 無効) | — |
 | `DIPS_API_BASE_URL` | DIPS API ベース URL | API 利用ガイドライン参照 |
 | `DIPS_TOKEN_URL` | OIDC トークンエンドポイント | API 利用ガイドライン参照 |
-| `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | 機体情報一覧取得用 (`utm-app-*`) | Client ID 一覧 |
+| `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | 機体情報一覧取得用 (`utm-app-*`)。**現行コードは未読込** — `lib/dips/config.ts` は fpl/req の2系統専用で、機体情報一覧取得API実装時に追加予定 | Client ID 一覧 |
 | `DIPS_REQ_CLIENT_ID` / `DIPS_REQ_CLIENT_SECRET` | 許可・承認系 (`req-app-*`) | Client ID 一覧 |
 | `DIPS_FPL_CLIENT_ID` / `DIPS_FPL_CLIENT_SECRET` | 飛行計画系 (`fpl-app-*`) | Client ID 一覧 |
 | `DIPS_APPLICANT_ID_PERMISSION_GET` | 許可・承認情報取得の申請者ID (USR063011) | 申請者 ID 一覧 |
@@ -75,23 +75,28 @@ route.ts (Controller)
 の正式仕様と突合して確定させること:
 
 1. **エンドポイントパス** (`lib/dips/endpoints.ts`) — 全パスが暫定値
-2. **OIDC グラント種別** (`lib/dips/oidcClient.ts`) — ~~`client_credentials` を仮定~~
-   **訂正 (2026-07-28)**: 誤り。3本の公開ガイドライン (DRS 1.1版 §1.4、DIPS2.0 API(FPA) v1.4 §1.4、
-   DIPS2.0 API(FPR) v1.9 §1.4) はすべて **Authorization Code Flow** (利用者本人が DIPS のログイン画面で
-   ID/パスワードを入力する方式)。`lib/dips/oidcClient.ts` / `app/api/dips/auth/start/route.ts` /
-   `app/redirect/route.ts` は既にこの方式で実装済み (詳細: `docs/dips-rearchitecture-plan.md`)。
-   本項目は解決済みのため、以降のサーバー検証では確認不要
-3. **飛行計画通報のペイロード形式** (`lib/dips/types.ts` の `DipsFlightPlanNotificationPayload`)
-4. **飛行計画情報取得・飛行禁止エリアのレスポンス型** — 現状 `unknown`
+2. **飛行計画通報のペイロード形式** (`lib/dips/types.ts` の `DipsFlightPlanNotificationPayload`)
+3. **飛行計画情報取得・飛行禁止エリアのレスポンス型** — 現状 `unknown`
+
+> **訂正 (2026-07-28)**: 以前ここにあった「OIDC グラント種別 (`lib/dips/oidcClient.ts`) —
+> `client_credentials` を仮定」は誤りだったため上記リストから除外した。3本の公開ガイドライン
+> (DRS 1.1版 §1.4、DIPS2.0 API(FPA) v1.4 §1.4、DIPS2.0 API(FPR) v1.9 §1.4) はすべて
+> **Authorization Code Flow** (利用者本人が DIPS のログイン画面で ID/パスワードを入力する方式)。
+> `lib/dips/oidcClient.ts` / `app/api/dips/auth/start/route.ts` / `app/redirect/route.ts` は
+> 既にこの方式で実装済み (詳細: `docs/dips-rearchitecture-plan.md`)。解決済みのため要確認事項から除外した。
 
 ## サーバーでの動作確認手順
 
 1. 本番サーバー (`57.181.4.59`) の `.env` に上記環境変数を設定し、`DIPS_ENABLED=true`
-2. 上記「暫定実装」4点をガイドラインと突合・修正
-3. 機体情報一覧取得: HTTP 200 + 別紙1「利用可能情報」の18機体が取得できること
-4. 別紙2の固定値・別紙3のレスポンスサンプルと突合
-5. 飛行計画通報 → 飛行計画情報取得の順で確認 (取得側はデータ未投入のため)
-6. 動作確認完了報告を当局へ提出 → 本番環境 API 利用申請 (申請書の緑色セル記入)
+2. 上記「暫定実装」3点をガイドラインと突合・修正
+3. 別紙2の固定値・別紙3のレスポンスサンプルと突合
+4. 飛行計画通報 → 飛行計画情報取得の順で確認 (取得側はデータ未投入のため)
+5. 動作確認完了報告を当局へ提出 → 本番環境 API 利用申請 (申請書の緑色セル記入)
+
+> **訂正 (2026-07-28)**: 「機体情報一覧取得: HTTP 200 + 別紙1「利用可能情報」の18機体が取得できること」
+> という確認手順は削除した。機体情報一覧取得 API は未実装 (`lib/dips/endpoints.ts` に定義なし) のため、
+> 現時点では実施できない。実装後にあらためて確認手順へ追加すること
+> (参考仕様: `docs/dips-rearchitecture-plan.md` の「機体情報一覧取得 API」節)。
 
 ## ローカル開発
 
