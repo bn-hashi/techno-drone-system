@@ -1,6 +1,6 @@
 # DIPS 2.0 API 連携 (Phase 4)
 
-最終更新: 2026-07-03
+最終更新: 2026-07-28 (機体情報一覧取得APIガイドラインに関する誤記・OIDCグラント種別の記述を訂正)
 
 ## 概要
 
@@ -39,10 +39,18 @@ route.ts (Controller)
 
 | ルート | 内容 |
 |---|---|
-| `POST /api/flight/aircraft/[id]/verify-registration` | 機体の登録記号を機体情報一覧取得 API と照合 |
 | `POST /api/flight/plans/[id]/dips-notify` | 飛行計画を飛行計画通報受付 API へ通報 |
 
-いずれも `requireFlightAccess` (ADMIN/PILOT) + 所有者チェック (非所有者は 404)。
+`requireFlightAccess` (ADMIN/PILOT) + 所有者チェック (非所有者は 404)。
+
+> **訂正 (2026-07-28)**: 以前ここに記載していた `POST /api/flight/aircraft/[id]/verify-registration`
+> (機体の登録記号を機体情報一覧取得 API と照合するルート) は、Authorization Code Flow への
+> リアーキテクチャ (#57) 時に削除されており、現在は存在しない。削除の理由は「機体情報一覧取得 API の
+> ガイドラインが非公開」という誤った前提だった。実際は DRS API 接続システム向けガイドライン 1.1版
+> (2022-12-05) §2.3.6 で公開されている
+> (https://www.dips-reg.mlit.go.jp/contents/drs/preview/DRS_API_Guideline.pdf)。
+> 詳細・再実装時の参考仕様は `docs/dips-rearchitecture-plan.md` の「機体情報一覧取得 API」節を参照。
+> 再実装自体は本ドキュメントの訂正時点では未着手 (別タスクのスコープ)。
 
 ## 環境変数 (本番サーバーの .env に設定)
 
@@ -67,7 +75,12 @@ route.ts (Controller)
 の正式仕様と突合して確定させること:
 
 1. **エンドポイントパス** (`lib/dips/endpoints.ts`) — 全パスが暫定値
-2. **OIDC グラント種別** (`lib/dips/oidcClient.ts`) — `client_credentials` を仮定
+2. **OIDC グラント種別** (`lib/dips/oidcClient.ts`) — ~~`client_credentials` を仮定~~
+   **訂正 (2026-07-28)**: 誤り。3本の公開ガイドライン (DRS 1.1版 §1.4、DIPS2.0 API(FPA) v1.4 §1.4、
+   DIPS2.0 API(FPR) v1.9 §1.4) はすべて **Authorization Code Flow** (利用者本人が DIPS のログイン画面で
+   ID/パスワードを入力する方式)。`lib/dips/oidcClient.ts` / `app/api/dips/auth/start/route.ts` /
+   `app/redirect/route.ts` は既にこの方式で実装済み (詳細: `docs/dips-rearchitecture-plan.md`)。
+   本項目は解決済みのため、以降のサーバー検証では確認不要
 3. **飛行計画通報のペイロード形式** (`lib/dips/types.ts` の `DipsFlightPlanNotificationPayload`)
 4. **飛行計画情報取得・飛行禁止エリアのレスポンス型** — 現状 `unknown`
 
