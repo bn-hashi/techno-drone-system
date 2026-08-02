@@ -253,12 +253,7 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
       } else {
         setBanner({ type: "success", message: "DIPS連携が完了しました。" });
       }
-    } else if (dipsResult === "linked") {
-      // dipsFlightPlanId が既に設定済み = 別タブ等で先に通報済み。重複通報を避けて
-      // 自動再送信はスキップする。コンポーネント末尾の早期 return が優先されこの
-      // banner は現状表示されないが、状態としては「無言の分岐」を残さず明示する
-      setBanner({ type: "success", message: "DIPS通報は既に完了しています。" });
-    } else {
+    } else if (dipsResult !== "linked") {
       // 失敗時も入力は復元し、再入力の手間を減らす (モーダルは自動で開かない)
       if (savedForm) setForm(savedForm);
       setBanner({
@@ -269,6 +264,10 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
             : "DIPS連携に失敗しました。もう一度お試しください。",
       });
     }
+    // dipsResult === "linked" && dipsFlightPlanId (別タブ等で先に通報済み) は
+    // どちらの分岐にも該当せず、ここでは何もしない。コンポーネント末尾の早期 return
+    // (dipsFlightPlanId 有りなら「DIPS通報済み」表示) が同一レンダー内で常に優先され、
+    // banner を設定してもユーザーには見えない到達不能コードになるため、あえて設定しない
 
     // リロード時の再処理と URL の汚れを防ぐため、他のクエリパラメータは保持したまま
     // dips のみを取り除く
