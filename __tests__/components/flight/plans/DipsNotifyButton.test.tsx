@@ -228,6 +228,38 @@ describe("DipsNotifyButton", () => {
     });
   });
 
+  /**
+   * 通報済み (dipsFlightPlanId 有り) の状態で、退避フォームありの OAuth 連携成功
+   * (?dips=linked) を再現する。別タブ等で先に通報済みになったケースを表す。
+   */
+  async function renderLinkedWithSavedFormWhileAlreadyNotified(): Promise<void> {
+    savePendingFormToSessionStorage("plan-1");
+    setDipsQuery("dips=linked");
+    mockNotifyFlightPlanToDips.mockResolvedValue(SAMPLE_RESULT);
+
+    render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId="dips-999" />);
+
+    await waitFor(() => screen.getByText(/DIPS通報済み/));
+  }
+
+  it("test_DipsNotifyButton_oauth_return_linked_already_notified_does_not_call_notify", async () => {
+    await renderLinkedWithSavedFormWhileAlreadyNotified();
+
+    expect(mockNotifyFlightPlanToDips).not.toHaveBeenCalled();
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_already_notified_shows_already_notified_text", async () => {
+    await renderLinkedWithSavedFormWhileAlreadyNotified();
+
+    expect(screen.getByText(/DIPS通報済み/)).toBeInTheDocument();
+  });
+
+  it("test_DipsNotifyButton_oauth_return_linked_already_notified_clears_pending_storage", async () => {
+    await renderLinkedWithSavedFormWhileAlreadyNotified();
+
+    expect(window.sessionStorage.getItem(PENDING_NOTIFY_STORAGE_KEY)).toBeNull();
+  });
+
   /** 退避フォームなしで OAuth 連携成功を再現する */
   async function renderLinkedWithoutSavedForm(): Promise<void> {
     setDipsQuery("dips=linked");

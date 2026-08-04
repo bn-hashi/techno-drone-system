@@ -227,6 +227,13 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
   // 二重送信を防止できる (加えて isSubmitting 中はボタン自体も無効化する)。
   // 復元後に router.replace でクエリを除去するため、この effect は2回目の実行で
   // 早期リターンし、無限ループにはならない。
+  //
+  // dipsFlightPlanId (既に通報済みか) も併せて確認する。コンポーネント末尾の
+  // 早期 return (dipsFlightPlanId 有りなら「DIPS通報済み」表示) は hooks の
+  // 呼び出し順より後にあるため、この effect の実行自体は止めない。OAuth 往復中
+  // (数十秒〜数分) に別タブ等で先に通報済みになった場合、確認なしに
+  // resubmitAfterDipsLink を呼ぶと DIPS へ重複通報してしまう
+  // (DipsNotificationInput に flightPlanId がなく、更新ではなく新規通報になる)。
   useEffect(() => {
     const dipsResult = searchParams.get("dips");
     if (!dipsResult) return;
@@ -234,7 +241,7 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     const savedForm = loadPendingNotifyForm(planId);
     window.sessionStorage.removeItem(PENDING_NOTIFY_STORAGE_KEY);
 
-    if (dipsResult === "linked") {
+    if (dipsResult === "linked" && !dipsFlightPlanId) {
       if (savedForm) {
         setForm(savedForm);
         setIsOpen(true);
@@ -246,7 +253,7 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
       } else {
         setBanner({ type: "success", message: "DIPS連携が完了しました。" });
       }
-    } else {
+    } else if (dipsResult !== "linked") {
       // 失敗時も入力は復元し、再入力の手間を減らす (モーダルは自動で開かない)
       if (savedForm) setForm(savedForm);
       setBanner({
@@ -257,6 +264,10 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
             : "DIPS連携に失敗しました。もう一度お試しください。",
       });
     }
+    // dipsResult === "linked" && dipsFlightPlanId (別タブ等で先に通報済み) は
+    // どちらの分岐にも該当せず、ここでは何もしない。コンポーネント末尾の早期 return
+    // (dipsFlightPlanId 有りなら「DIPS通報済み」表示) が同一レンダー内で常に優先され、
+    // banner を設定してもユーザーには見えない到達不能コードになるため、あえて設定しない
 
     // リロード時の再処理と URL の汚れを防ぐため、他のクエリパラメータは保持したまま
     // dips のみを取り除く
@@ -264,7 +275,7 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     remainingParams.delete("dips");
     const newUrl = remainingParams.toString() ? `${pathname}?${remainingParams.toString()}` : pathname;
     router.replace(newUrl, { scroll: false });
-  }, [searchParams, planId, pathname, router, resubmitAfterDipsLink]);
+  }, [searchParams, planId, pathname, router, resubmitAfterDipsLink, dipsFlightPlanId]);
 
   if (dipsFlightPlanId) {
     return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
