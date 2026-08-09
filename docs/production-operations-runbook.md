@@ -63,12 +63,25 @@ git log origin/main -1 --oneline
 
 ```bash
 git checkout main
-git pull origin main
+git rev-list --left-right --count HEAD...origin/main
+```
+
+- 出力は `<左>\t<右>`（左: ローカル `main` だけにあるコミット数 / 右: `origin/main` だけに
+  あるコミット数）。**左が 0 でない場合は停止して相談する**（サーバー上のローカル `main` に
+  未公開のコミットがある状態で、`git status` が `clean` でも起こりうる。この状態のまま
+  `git pull` すると分岐した履歴を merge commit で取り込んでしまい、本番に意図しない内容が
+  反映される。`--ff-only` を付けるだけでは、ローカルが単純に先行しているだけのケースを
+  検出できない）
+- 左が 0 であることを確認できたら、fast-forward のみを許可して取り込む:
+
+```bash
+git pull --ff-only origin main
 ```
 
 成功の目印: `Fast-forward` と出て、ファイル名が流れる。または `Already up to date.`
 
-- `error: Your local changes would be overwritten` が出たら止めて相談する
+- `error: Your local changes would be overwritten` や `fatal: Not possible to fast-forward,
+  aborting.` が出たら止めて相談する
 
 ### 1-3. 依存パッケージを更新
 
@@ -86,6 +99,8 @@ npm ci
 
 ### 1-4. DB マイグレーション
 
+実行前提: STEP 0-2 のスナップショットが `Available`（DB を含めて復元できる状態）であること。
+
 ```bash
 npx prisma migrate deploy
 npx prisma generate
@@ -93,19 +108,16 @@ npx prisma generate
 
 - `migrate deploy` は成功の目印が2パターンある: `No pending migrations to apply.`（変更なし）
   または `Applying migration ...` → `All migrations have been successfully applied.`
-- `migrate deploy` は既存データを消さない安全なコマンド
+- **`migrate deploy` を無条件に「安全なコマンド」とは考えない**。未適用のマイグレーション SQL
+  をそのまま実行するコマンドであり、列のリネーム・削除など既存データに影響しうる変更が
+  含まれる場合がある（実際に本リポジトリの `prisma/migrations/` にも列リネームを含む
+  マイグレーションが存在する）。上記のスナップショット（バックアップ）が `Available` である
+  ことを実行前に確認し、想定外のエラーが出た場合は自己判断で `migrate resolve` 等を叩かず
+  止めて相談する
 - `prisma generate` の成功目印は `✔ Generated Prisma Client (v...)`。バージョン更新の案内
   ボックスが出ても、今は無視してよい（別途 `/plan` で検討）
 
 ### 1-5. 本番ビルド
-
-```bash
-npm run build
-```
-
-- RAM 512MB + Swap 構成のため数分〜十数分かかる。画面が止まって見えても待つ。**Ctrl+C は厳禁**。
-- 成功の目印: `✓ Compiled successfully` の後、`✓ Linting and checking validity of types` →
-  `✓ Generating static pages (N/N)` まで進み、Route 一覧表が表示される。
 
 **メモリ不足対策は恒久化済み（2026-07-27）**:
 2026-07-14 に `Linting and checking validity of types` の段階で
@@ -123,18 +135,34 @@ npm run build
 - **注意（物理メモリを超える設定）**: 本番機の物理 RAM は 512MB のみで、1536MB は
   物理メモリを大きく超える。つまりこの設定は **Swap 前提**であり、Swap 領域が
   枯渇している状態で実行すると同じ heap out of memory、または OOM Killer による
-  プロセス強制終了が再発しうる。ビルド前に `free -h` で Swap に **3GB 以上の空きがあるか**
-  を必ず確認すること（手順は変わらず本セクション末尾に残す）
+  プロセス強制終了が再発しうる。**そのため `npm run build` を打つ前に、必ず下記で Swap の
+  空きを確認する**
 - 値そのものの見直し（引き下げ・Swap 拡張・Lightsail のメモリプラン変更）は
   運用判断が必要なため本対応の範囲外。異常が再発した場合は `free -h` の出力を添えて相談する
 
-それでも `heap out of memory` が再発した場合は、まず Swap を確認する:
+**ビルド前に Swap の空きを確認する（必須。この確認より先に `npm run build` を実行しない）**:
 
 ```bash
 free -h
 ```
 
-Swap が枯渇している場合は Swap 拡張や Lightsail のメモリプラン変更を検討する（別途 `/plan` で対応）。
+- 本番機の Swap は 4GB 構成（2026-07 実測: 空き約 3.7GB）。**Swap の空きが 3GB を下回って
+  いる場合、または `Swap` の行が `0B` 等で無効になっている場合は、ビルドを実行せず止めて
+  相談する**（Swap 拡張やプロセスの見直しが必要な兆候）
+
+確認して問題なければビルドを実行する:
+
+```bash
+npm run build
+```
+
+- RAM 512MB + Swap 構成のため数分〜十数分かかる。画面が止まって見えても待つ。**Ctrl+C は厳禁**。
+- 成功の目印: `✓ Compiled successfully` の後、`✓ Linting and checking validity of types` →
+  `✓ Generating static pages (N/N)` まで進み、Route 一覧表が表示される。
+
+それでも `heap out of memory` や `Killed` が再発した場合は、事前確認の時点から Swap 消費が
+急増した可能性がある。再度 `free -h` を確認し、Swap 拡張や Lightsail のメモリプラン変更を
+検討する（別途 `/plan` で対応）。
 
 ### 1-6. アプリを再起動
 
@@ -155,14 +183,20 @@ pm2 logs techno-drone --lines 30
 - 鍵マーク付きでログイン画面が出るか
 - 管理者でログインできるか
 - 主要画面（受講者一覧・機体管理・飛行日誌・コース管理・飛行計画）が表示されるか
-- **DIPS 通報（NG#3 の修正確認）**:
+- **DIPS 通報（OAuth 復帰後の自動再送信の確認。PR #78 で dipsFlightPlanId を確認し重複通報を
+  防止済み）**:
   1. 未連携の飛行計画を開き「DIPSへ通報」→ フォームに入力
   2. 「通報する」→ DIPS ログイン画面へ遷移 → ログイン
-  3. 元の飛行計画詳細ページに戻り、**入力していたフォーム内容が復元されているか**
-     （画面に「DIPS連携が完了しました。入力内容を復元しています。」の表示が出る）
-  4. （任意。実在の機体・操縦者データで実通報してよい場合のみ）再度「通報する」を押して
-     DIPS API 呼び出しが成功するか。必須の確認は 3 のフォーム復元まで。E2E テスト用の
-     ダミーデータでは DIPS 側バリデーションで拒否される（下記の教訓参照）
+  3. 元の飛行計画詳細ページに戻り、通報が**自動で再送信される**ことを確認する。
+     成功すると画面に「DIPS連携が完了し、飛行計画の通報を自動で送信しました。」の表示が出る
+  4. 入力内容の不備や自動再送信自体の失敗（DIPS 側のバリデーション拒否等）でエラー表示に
+     なった場合**のみ**、内容を確認のうえ「DIPSへ通報」→「通報する」で手動送信する
+  5. 最終確認として、ページ上部の表示が「DIPS通報済み (飛行計画ID: ...)」に変わり、
+     「DIPSへ通報」ボタン自体が表示されなくなっていることを確認する
+
+  **してはいけないこと**: 3 で自動再送信が**成功**した後に、確認目的で改めて
+  「DIPSへ通報」→「通報する」を押さない。自動再送信の成功時点で DIPS API 呼び出しは
+  完了しており、再度押すと DIPS へ重複して通報してしまう。
 
 **教訓（2026-07-14）**:
 
@@ -170,8 +204,8 @@ pm2 logs techno-drone --lines 30
   操作の間に長い会話や中断を挟むと `?dips=state_error` で失敗する。**通報ボタンを押したら
   間を置かずログインまで一気に進めること。**
 - DIPS API（`POST /api/flight-plan/register` 等）は実在しない機体データ（シリアル番号未登録等）
-  だと `DipsApiError` でリジェクトされる。**E2E テスト用のダミー機体・飛行計画では実登録まで
-  到達しない可能性が高い。** フォーム復元の確認までで十分なことが多い。
+  だと `DipsApiError` でリジェクトされる。**E2E テスト用のダミー機体・飛行計画では自動再送信が
+  失敗表示になる可能性が高い。** その場合は上記 4 の手動送信の手順で確認する。
 - DIPS の URL が `stg.uafp.dips.mlit.go.jp` であればステージング環境。本番の実システムでは
   ない点を毎回確認すること。
 
@@ -341,13 +375,41 @@ pm2 conf pm2-logrotate
    パブリック IP に変更する（DNS 反映に時間がかかることがある）
 5. **DB 単体復元**（pg_dump からの場合）: 復元は既存 DB を置き換える破壊的操作のため、
    実行前に必ず現状の DB も `/home/ubuntu/db-backup.sh` で退避してから行う。
-   プレーン形式ダンプは空の DB が前提なので、迷ったら**止めて相談する**
+   `db-backup.sh` が作るのはプレーン形式ダンプ（`pg_dump drone_school | gzip > ...`）で、
+   **空の DB への投入が前提**。既存の `drone_school` にそのまま流し込むとテーブル重複等の
+   エラーで失敗し、中途半端に一部だけ投入された状態になりかねない。迷ったら**止めて相談する**
+
+   アプリを止めた状態（手順1で `pm2 stop` 済み）で、空の `drone_school` を作り直してから
+   復元する:
 
    ```bash
-   gunzip -c /home/ubuntu/backups/drone_school-<日時>.sql.gz | psql drone_school
+   dropdb drone_school
+   createdb drone_school
+   gunzip -c /home/ubuntu/backups/drone_school-<日時>.sql.gz \
+     | psql -v ON_ERROR_STOP=1 --single-transaction drone_school
    ```
 
-6. **復旧確認**: `pm2 start techno-drone` → `pm2 status` が online →
+   - `dropdb` / `createdb` は `pg_dump drone_school` と同じ接続（`ubuntu` ロール、
+     `DATABASE_URL=postgresql://ubuntu@localhost/drone_school`）で実行できる想定。
+     権限エラーが出たら止めて相談する
+   - `-v ON_ERROR_STOP=1 --single-transaction` により、投入中にエラーが起きた時点で処理が
+     止まり、それまでの変更もロールバックされる（中途半端な状態の DB が残ることを防ぐ）。
+     エラーで止まった場合も**止めて相談する**（`drone_school` は空のままなので、退避しておいた
+     現状バックアップから戻せる状態を保っている）
+   - 成功の目印: エラーなくプロンプトに戻る
+
+6. **復元結果の確認**（アプリを再起動する前に、DB 単体で確認する）:
+
+   ```bash
+   psql drone_school -c "\dt"
+   psql drone_school -c "SELECT count(*) FROM users;"
+   ```
+
+   - `\dt` でアプリのテーブル（`users` / `flight_plans` / `aircrafts` 等）が揃っているか、
+     `count(*)` が 0 件や想定より大きくずれた値になっていないかを確認する
+   - 想定と異なる場合はアプリを再起動せず**止めて相談する**
+
+7. **復旧確認**: `pm2 start techno-drone` → `pm2 status` が online →
    ブラウザで `https://techno-drone-system.com` にログイン → 受講者一覧・飛行計画が
    表示されることを確認する
 
