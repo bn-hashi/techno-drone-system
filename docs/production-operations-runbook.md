@@ -102,10 +102,12 @@ npm ci
 実行前提: STEP 0-2 のスナップショットが `Available`（DB を含めて復元できる状態）であること。
 
 ```bash
-npx prisma migrate deploy
-npx prisma generate
+npx prisma migrate deploy && npx prisma generate
 ```
 
+- `&&` でつないでいるのは、`migrate deploy` が失敗した場合に `prisma generate` を実行させない
+  ため（マイグレーション未適用のまま Client だけ再生成すると、スキーマと Client の不整合に
+  気づきにくくなる）
 - `migrate deploy` は成功の目印が2パターンある: `No pending migrations to apply.`（変更なし）
   または `Applying migration ...` → `All migrations have been successfully applied.`
 - **`migrate deploy` を無条件に「安全なコマンド」とは考えない**。未適用のマイグレーション SQL
@@ -189,14 +191,32 @@ pm2 logs techno-drone --lines 30
   2. 「通報する」→ DIPS ログイン画面へ遷移 → ログイン
   3. 元の飛行計画詳細ページに戻り、通報が**自動で再送信される**ことを確認する。
      成功すると画面に「DIPS連携が完了し、飛行計画の通報を自動で送信しました。」の表示が出る
-  4. 入力内容の不備や自動再送信自体の失敗（DIPS 側のバリデーション拒否等）でエラー表示に
-     なった場合**のみ**、内容を確認のうえ「DIPSへ通報」→「通報する」で手動送信する
-  5. 最終確認として、ページ上部の表示が「DIPS通報済み (飛行計画ID: ...)」に変わり、
+  4. エラー表示になった場合は、**すぐに「通報する」を手動で押さない**。エラー表示は
+     「送信に失敗した」ことを必ずしも意味しない（DIPS 側は受理していても、応答待ちで
+     タイムアウトした・応答の解析に失敗した等でもエラー表示になる）。まず以下の順で
+     実際に失敗したのかを切り分ける:
+     a. **画面を再読み込みする**。表示が「DIPS通報済み (飛行計画ID: ...)」に変わっていれば、
+        実際には成功していてエラー表示は一時的なもの。**この場合は何もしない**（手動送信しない）
+     b. 変わっていなければ、サーバーで `pm2 logs techno-drone --lines 50` を確認し、
+        `DIPS飛行計画通報に失敗しました` というログ行に付随するエラーメッセージで切り分ける:
+        - 画面のバナーに「機体に登録記号が設定されていません」等、**DIPS API を呼ぶ前の
+          具体的な入力不備メッセージ**が出ている場合 → DIPS へはまだ届いていない。内容を
+          直してから「DIPSへ通報」→「通報する」で手動送信してよい
+        - 画面のバナーが「DIPS連携でエラーが発生しました」という汎用メッセージで、かつ
+          pm2 ログのエラーメッセージが `DIPS API がエラーを返しました` の場合 → DIPS 側が
+          応答つきで明示的に拒否している。内容を確認のうえ手動送信してよい
+        - pm2 ログのエラーメッセージが `DIPS API への接続に失敗しました`（タイムアウト・
+          接続断）または `DIPS API のレスポンス形式が不正です`（DIPS 側の応答自体は成功して
+          いたのに本文の解析にだけ失敗した状態）の場合 → **DIPS 側で実際には受理されている
+          可能性を排除できない**。手動送信は行わず、**止めて相談する**
+     - ログが確認できない等、判断材料がこれでも揃わない場合も自己判断で手動送信せず
+       止めて相談する。**判断がつかないときは「送らない」を優先する。**
+  5. 成功が確認できたら、ページ上部の表示が「DIPS通報済み (飛行計画ID: ...)」に変わり、
      「DIPSへ通報」ボタン自体が表示されなくなっていることを確認する
 
-  **してはいけないこと**: 3 で自動再送信が**成功**した後に、確認目的で改めて
-  「DIPSへ通報」→「通報する」を押さない。自動再送信の成功時点で DIPS API 呼び出しは
-  完了しており、再度押すと DIPS へ重複して通報してしまう。
+  **してはいけないこと**: 3 の自動再送信が**成功**した後、または 4a のリロードで既に
+  「DIPS通報済み」表示に変わっていた場合に、確認目的で改めて「DIPSへ通報」→「通報する」を
+  押さない。DIPS API 呼び出しは既に完了しており、再度押すと DIPS へ重複して通報してしまう。
 
 **教訓（2026-07-14）**:
 
@@ -205,7 +225,8 @@ pm2 logs techno-drone --lines 30
   間を置かずログインまで一気に進めること。**
 - DIPS API（`POST /api/flight-plan/register` 等）は実在しない機体データ（シリアル番号未登録等）
   だと `DipsApiError` でリジェクトされる。**E2E テスト用のダミー機体・飛行計画では自動再送信が
-  失敗表示になる可能性が高い。** その場合は上記 4 の手動送信の手順で確認する。
+  失敗表示になる可能性が高い。** その場合は上記 4 の手順で pm2 ログを確認し、DIPS 側の
+  明示的な拒否と確認できてから手動送信する。
 - DIPS の URL が `stg.uafp.dips.mlit.go.jp` であればステージング環境。本番の実システムでは
   ない点を毎回確認すること。
 
@@ -383,12 +404,19 @@ pm2 conf pm2-logrotate
    復元する:
 
    ```bash
-   dropdb drone_school
-   createdb drone_school
-   gunzip -c /home/ubuntu/backups/drone_school-<日時>.sql.gz \
-     | psql -v ON_ERROR_STOP=1 --single-transaction drone_school
+   (
+     set -euo pipefail
+     dropdb drone_school
+     createdb drone_school
+     gunzip -c /home/ubuntu/backups/drone_school-<日時>.sql.gz \
+       | psql -v ON_ERROR_STOP=1 --single-transaction drone_school
+   )
    ```
 
+   - `( set -euo pipefail; ... )` でサブシェルにまとめているのは、`dropdb` / `createdb` が
+     失敗した場合に後続コマンドを実行させないため、かつ `pipefail` で `gunzip` の展開失敗
+     （ダンプファイルの欠落・破損等）を `psql` 側の見かけ上の成功で握りつぶさないため。
+     サブシェル（`( )`）にしているので、この設定は今の接続セッション全体には残らない
    - `dropdb` / `createdb` は `pg_dump drone_school` と同じ接続（`ubuntu` ロール、
      `DATABASE_URL=postgresql://ubuntu@localhost/drone_school`）で実行できる想定。
      権限エラーが出たら止めて相談する
