@@ -10,7 +10,7 @@ Claude Code は本ファイルを毎回読み込むため、簡潔に保つこ�
 - ORM：Prisma（接続先: postgresql://ubuntu@localhost/drone_school）
 - 動画配信：/home/ubuntu/videos/ にMP4を配置し、nginxのlocationで直接配信
 - 認証：NextAuth.js（Credentials Provider、DB保存）
-- PDF生成：@react-pdf/renderer（Puppeteerは使わない。メモリ1GBなので）
+- PDF生成：@react-pdf/renderer（Puppeteerは使わない。本番は RAM 512MB + Swap 構成のため）
 - ファイル保存：ローカルSSD（/home/ubuntu/uploads/）
 - メール：Resend（環境変数 RESEND_API_KEY で設定）
 
@@ -46,6 +46,10 @@ Claude Code は本ファイルを毎回読み込むため、簡潔に保つこ�
 - フロントエンド規約: `.claude/rules/frontend.md`
 - テスト規約: `.claude/rules/testing.md`
 - ユーザーレベル共通規約: `~/.claude/rules/` (ECC が配布)
+
+## 環境上の制約
+
+- DIPS 連携の疎通検証はローカル dev では不可（検証環境が IP 制限。本番 Lightsail 57.181.4.59 からのみ到達可能）。DIPS 周辺の動作確認を伴う計画では、本番サーバーでの実施を前提にすること
 
 ## 禁止事項
 - `rm -rf` / `git push --force` / 本番DBへの直接アクセス

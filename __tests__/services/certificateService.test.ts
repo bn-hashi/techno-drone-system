@@ -10,11 +10,9 @@ vi.mock("@/services/emailService", () => ({
   sendCertificateIssuedEmail: vi.fn(),
 }));
 
-// $transaction を pass-through でモック
+// runTransaction を pass-through でモック
 vi.mock("@/lib/db", () => ({
-  getPrisma: () => ({
-    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({} as never)),
-  }),
+  runTransaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({} as never)),
 }));
 
 import * as emailServiceModule from "@/services/emailService";

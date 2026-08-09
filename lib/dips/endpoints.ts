@@ -7,7 +7,8 @@ import type { DipsRealm } from "@/lib/dips/config";
  * - fpl 系 (飛行計画): fprApiBaseUrl (検証 https://www.stg.uafpi.dips.mlit.go.jp)
  * - req 系 (許可承認): fpaApiBaseUrl (検証 https://www.stg.uafp.dips.mlit.go.jp)
  *
- * 機体情報一覧取得 (utm-app 系) はガイドライン未入手のため未定義。
+ * 機体情報一覧取得 (utm-app 系) は DRS API ガイドライン §2.3.6 で仕様公開済み
+ * (GET /utm/v1/aircrafts, realm drs-utm) だが未実装のため未定義 (docs/dips-rearchitecture-plan.md 参照)。
  */
 
 export interface DipsEndpoint {

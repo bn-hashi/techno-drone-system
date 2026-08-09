@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mocked } from "vitest";
 
-// $transaction はコールバックをそのまま実行する Mock にする
+// runTransaction はコールバックをそのまま実行する Mock にする
 // (Repository への tx 注入経路はテストで透過的になる)
 vi.mock("@/lib/db", () => ({
-  getPrisma: () => ({
-    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
-  }),
+  runTransaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
 }));
 
 import { ViewingLogService } from "@/services/viewingLogService";

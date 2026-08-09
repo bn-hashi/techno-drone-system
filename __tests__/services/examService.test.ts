@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi, type Mocked } from "vitest";
 
 vi.mock("@/lib/db", () => ({
-  getPrisma: () => ({
-    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
-  }),
+  runTransaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({}),
 }));
 
 import { ExamService } from "@/services/examService";
