@@ -26,7 +26,7 @@ vi.mock("@/lib/api/dips", async () => {
 });
 
 const dipsAircraft: DipsOwnedAircraftDto = {
-  registrationCode: "JU1219043018",
+  registrationCode: "DUMMY0000001",
   manufacturer: "サンプル製造者01",
   modelNumber: "サンプル型式01",
   serialNumber: "MANUFACT01",
@@ -53,10 +53,10 @@ describe("AircraftForm", () => {
 
     render(<AircraftForm />);
     await user.click(screen.getByRole("button", { name: "DIPSから取り込む" }));
-    const row = await screen.findByText("JU1219043018");
+    const row = await screen.findByText("DUMMY0000001");
     await user.click(row.closest("button") as HTMLButtonElement);
 
-    expect(screen.getByLabelText("登録記号（国土交通省）")).toHaveValue("JU1219043018");
+    expect(screen.getByLabelText("登録記号（国土交通省）")).toHaveValue("DUMMY0000001");
     expect(screen.getByLabelText("製造メーカー *")).toHaveValue("サンプル製造者01");
   });
 

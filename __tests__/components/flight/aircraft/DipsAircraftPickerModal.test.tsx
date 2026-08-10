@@ -16,7 +16,7 @@ vi.mock("@/lib/api/dips", async () => {
 import { DipsAuthRequiredClientError } from "@/lib/api/dips";
 
 const activeAircraft: DipsOwnedAircraftDto = {
-  registrationCode: "JU1219043018",
+  registrationCode: "DUMMY0000001",
   manufacturer: "サンプル製造者01",
   modelNumber: "サンプル型式01",
   serialNumber: "MANUFACT01",
@@ -30,7 +30,7 @@ const activeAircraft: DipsOwnedAircraftDto = {
 };
 
 const deregisteredAircraft: DipsOwnedAircraftDto = {
-  registrationCode: "JU1219043097",
+  registrationCode: "DUMMY0000009",
   manufacturer: "サンプル製造者09",
   modelNumber: "サンプル型式09",
   serialNumber: "MANUFACT09",
@@ -55,7 +55,7 @@ describe("DipsAircraftPickerModal", () => {
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
     );
 
-    expect(await screen.findByText("JU1219043018")).toBeInTheDocument();
+    expect(await screen.findByText("DUMMY0000001")).toBeInTheDocument();
   });
 
   it("test_modal_shows_empty_message_when_no_aircraft", async () => {
@@ -76,7 +76,7 @@ describe("DipsAircraftPickerModal", () => {
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={onSelect} />
     );
-    const row = await screen.findByText("JU1219043018");
+    const row = await screen.findByText("DUMMY0000001");
     await user.click(row.closest("button") as HTMLButtonElement);
 
     expect(onSelect).toHaveBeenCalledWith(activeAircraft);
@@ -99,7 +99,7 @@ describe("DipsAircraftPickerModal", () => {
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
     );
-    const row = await screen.findByText("JU1219043097");
+    const row = await screen.findByText("DUMMY0000009");
 
     expect(row.closest("button")).toBeDisabled();
   });

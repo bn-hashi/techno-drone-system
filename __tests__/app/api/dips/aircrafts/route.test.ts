@@ -109,14 +109,14 @@ describe("GET /api/dips/aircrafts", () => {
 
   it("test_get_returns_200_with_aircrafts", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockListOwnedAircrafts.mockResolvedValue([{ registrationCode: "JU1219043018" }]);
+    mockListOwnedAircrafts.mockResolvedValue([{ registrationCode: "DUMMY0000001" }]);
 
     const response = await GET(makeRequest());
     const body = await response.json();
 
     expect({ status: response.status, aircrafts: body.aircrafts }).toEqual({
       status: 200,
-      aircrafts: [{ registrationCode: "JU1219043018" }],
+      aircrafts: [{ registrationCode: "DUMMY0000001" }],
     });
   });
 

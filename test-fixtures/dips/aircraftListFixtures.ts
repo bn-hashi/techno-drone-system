@@ -4,15 +4,22 @@
  * 出典:
  * - JSON キー名: DRS API 接続システム向けガイドライン 1.2版 §2.3.6
  *   (`_orchestrator/results/quick/20260730-dips-guideline-latest-version-scout.md` で確定)
- * - コード値 (登録記号・各種ステータス・区分): 設定通知書 (R08-DRS-0005) 別紙1 の実データ
+ * - 各種コード値 (機体ステータス・抹消理由・所有者区分・使用者種別等): 設定通知書
+ *   (R08-DRS-0005) 別紙1 の実データ
  *   (`_orchestrator/results/quick/20260727-dips-setup-notice-xlsx-extraction.md`)
  * - 機体09/10 の機体ステータス値: サマリ表と詳細表で食い違いがあったため原本を再確認した結果
  *   (`_orchestrator/results/quick/20260801-dips-annex1-aircraft-status-verify-scout.md`)。
  *   機体09=3(抹消済)・機体10=2(期限切れ) が正。
  *
+ * 登録記号の扱い (2026-08-10 人の決定・差し戻し): このリポジトリは公開 (PUBLIC) のため、
+ * 別紙1 の実登録記号18件は一切転記せず、すべて合成値 (`DUMMY0000001`〜`DUMMY0000018`。
+ * 機体01〜18に対応) に置き換えている。実値は設定通知書 Excel (`.gitignore` 済み) を参照する
+ * こと。合成値も「任意の英数半角12桁」の形式規定は満たすが、実在の登録記号と誤認されない
+ * よう明らかにダミーと分かる値にしている。
+ *
  * 個人情報の扱い: 氏名・フリガナ・住所・電話番号・メールアドレス・生年月日は
  * 原本の値を一切転記せず、すべてダミー文字列に置き換えている。転記しているのは
- * 登録記号と各種コード値 (機体ステータス・抹消理由・RIDの有無 等) のみ。
+ * 各種コード値 (機体ステータス・抹消理由・RIDの有無 等) のみ (登録記号は上記のとおり合成値)。
  *
  * 製造者名・型式名・製造番号・重量は元の抽出レポートに個別値が含まれていなかったため、
  * 合成値 (機体番号から機械的に生成した値) を使用している。実データではない。
@@ -53,11 +60,11 @@ interface AircraftSpec {
   userClassification: number | "";
 }
 
-/** 別紙1「機体情報詳細」機体01〜18 の実データ (登録記号・各種コード値) */
+/** 別紙1「機体情報詳細」機体01〜18 の各種コード値 (実データ)。登録記号のみ合成値 (`DUMMY...`) */
 const AIRCRAFT_SPECS: AircraftSpec[] = [
   {
     no: "01",
-    registrationCode: "JU1219043018",
+    registrationCode: "DUMMY0000001",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 1,
@@ -72,7 +79,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "02",
-    registrationCode: "JU2219043027",
+    registrationCode: "DUMMY0000002",
     manufacturingCategory: 1,
     aircraftType: 2,
     status: 1,
@@ -87,7 +94,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "03",
-    registrationCode: "JU3219043036",
+    registrationCode: "DUMMY0000003",
     manufacturingCategory: 1,
     aircraftType: 3,
     status: 1,
@@ -102,7 +109,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "04",
-    registrationCode: "JU4219043045",
+    registrationCode: "DUMMY0000004",
     manufacturingCategory: 2,
     aircraftType: 4,
     status: 1,
@@ -117,7 +124,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "05",
-    registrationCode: "JU5219043054",
+    registrationCode: "DUMMY0000005",
     manufacturingCategory: 2,
     aircraftType: 5,
     status: 1,
@@ -132,7 +139,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "06",
-    registrationCode: "JU6219043063",
+    registrationCode: "DUMMY0000006",
     manufacturingCategory: 2,
     aircraftType: 6,
     status: 1,
@@ -147,7 +154,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "07",
-    registrationCode: "JU1219043070",
+    registrationCode: "DUMMY0000007",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 1,
@@ -162,7 +169,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "08",
-    registrationCode: "JU1219043083",
+    registrationCode: "DUMMY0000008",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 1,
@@ -177,7 +184,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "09",
-    registrationCode: "JU1219043097",
+    registrationCode: "DUMMY0000009",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -192,7 +199,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "10",
-    registrationCode: "JU1219043100",
+    registrationCode: "DUMMY0000010",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 2,
@@ -207,7 +214,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "11",
-    registrationCode: "JU1219043114",
+    registrationCode: "DUMMY0000011",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 1,
@@ -222,7 +229,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "12",
-    registrationCode: "JU1219043128",
+    registrationCode: "DUMMY0000012",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 1,
@@ -237,7 +244,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "13",
-    registrationCode: "JU1219043131",
+    registrationCode: "DUMMY0000013",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -252,7 +259,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "14",
-    registrationCode: "JU1219043145",
+    registrationCode: "DUMMY0000014",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -267,7 +274,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "15",
-    registrationCode: "JU1219043159",
+    registrationCode: "DUMMY0000015",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -282,7 +289,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "16",
-    registrationCode: "JU1219043162",
+    registrationCode: "DUMMY0000016",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -297,7 +304,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "17",
-    registrationCode: "JU1219043176",
+    registrationCode: "DUMMY0000017",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,
@@ -312,7 +319,7 @@ const AIRCRAFT_SPECS: AircraftSpec[] = [
   },
   {
     no: "18",
-    registrationCode: "JU1219043180",
+    registrationCode: "DUMMY0000018",
     manufacturingCategory: 1,
     aircraftType: 1,
     status: 3,

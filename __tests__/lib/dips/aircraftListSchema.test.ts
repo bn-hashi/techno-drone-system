@@ -59,29 +59,29 @@ describe("normalizeAircraftList", () => {
   it("test_parse_maps_registration_code_to_reg_symbol", () => {
     const result = normalizeAircraftList(accountBResponse);
 
-    expect(result[0].regSymbol).toBe("JU1219043083");
+    expect(result[0].regSymbol).toBe("DUMMY0000008");
   });
 
   it("test_parse_maps_aircraft_status_expired_to_2", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU1219043100").uaStatus).toBe(2);
+    expect(findByRegSymbol(result, "DUMMY0000010").uaStatus).toBe(2);
   });
 
   it("test_parse_maps_deregistered_aircraft_status_to_3", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU1219043097").uaStatus).toBe(3);
+    expect(findByRegSymbol(result, "DUMMY0000009").uaStatus).toBe(3);
   });
 
   describe.each([
-    ["JU1219043097", 5], // 機体09 (アカウントA)
-    ["JU1219043131", 1], // 機体13 (アカウントD)
-    ["JU1219043145", 2], // 機体14
-    ["JU1219043159", 3], // 機体15
-    ["JU1219043162", 4], // 機体16
-    ["JU1219043176", 6], // 機体17
-    ["JU1219043180", 7], // 機体18
+    ["DUMMY0000009", 5], // 機体09 (アカウントA)
+    ["DUMMY0000013", 1], // 機体13 (アカウントD)
+    ["DUMMY0000014", 2], // 機体14
+    ["DUMMY0000015", 3], // 機体15
+    ["DUMMY0000016", 4], // 機体16
+    ["DUMMY0000017", 6], // 機体17
+    ["DUMMY0000018", 7], // 機体18
   ])("test_parse_returns_deregistration_reason_for_each_of_seven_reasons", (regSymbol, reason) => {
     it(`${regSymbol} -> 抹消理由 ${reason}`, () => {
       const result = normalizeAircraftList([...accountAResponse, ...accountDResponse]);
@@ -93,49 +93,49 @@ describe("normalizeAircraftList", () => {
   it("test_parse_returns_null_deregistration_reason_when_status_is_active", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU1219043018").deregistrationReason).toBeNull();
+    expect(findByRegSymbol(result, "DUMMY0000001").deregistrationReason).toBeNull();
   });
 
   it("test_parse_maps_remote_id_type_none", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU1219043070").remoteIdType).toBe(0);
+    expect(findByRegSymbol(result, "DUMMY0000007").remoteIdType).toBe(0);
   });
 
   it("test_parse_maps_remote_id_type_builtin", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU1219043018").remoteIdType).toBe(1);
+    expect(findByRegSymbol(result, "DUMMY0000001").remoteIdType).toBe(1);
   });
 
   it("test_parse_maps_remote_id_type_external", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(findByRegSymbol(result, "JU3219043036").remoteIdType).toBe(2);
+    expect(findByRegSymbol(result, "DUMMY0000003").remoteIdType).toBe(2);
   });
 
   it("test_parse_maps_owner_category_corporate_for_corporate_account", () => {
     const result = normalizeAircraftList(accountDResponse);
 
-    expect(findByRegSymbol(result, "JU1219043128").ownerCategory).toBe(2);
+    expect(findByRegSymbol(result, "DUMMY0000012").ownerCategory).toBe(2);
   });
 
   it("test_parse_maps_user_category_corporate_value_9", () => {
     const result = normalizeAircraftList(accountDResponse);
 
-    expect(findByRegSymbol(result, "JU1219043128").userCategory).toBe("9");
+    expect(findByRegSymbol(result, "DUMMY0000012").userCategory).toBe("9");
   });
 
   it("test_parse_excludes_transferred_aircraft_from_source_account", () => {
     const result = normalizeAircraftList(accountAResponse);
 
-    expect(result.some((a) => a.regSymbol === "JU1219043114")).toBe(false);
+    expect(result.some((a) => a.regSymbol === "DUMMY0000011")).toBe(false);
   });
 
   it("test_parse_includes_transferred_aircraft_in_destination_account", () => {
     const result = normalizeAircraftList(accountDResponse);
 
-    expect(result.some((a) => a.regSymbol === "JU1219043114")).toBe(true);
+    expect(result.some((a) => a.regSymbol === "DUMMY0000011")).toBe(true);
   });
 
   it("test_parse_drops_owner_personal_information", () => {

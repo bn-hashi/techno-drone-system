@@ -16,7 +16,7 @@ vi.mock("@/lib/api/dips", async () => {
 import { DipsAuthRequiredClientError } from "@/lib/api/dips";
 
 const activeAircraft: DipsOwnedAircraftDto = {
-  registrationCode: "JU1219043018",
+  registrationCode: "DUMMY0000001",
   manufacturer: "サンプル製造者01",
   modelNumber: "サンプル型式01",
   serialNumber: "MANUFACT01",
@@ -47,7 +47,7 @@ describe("DipsVerifyButton", () => {
     mockFetchDipsOwnedAircrafts.mockResolvedValue([activeAircraft]);
     const user = userEvent.setup();
 
-    render(<DipsVerifyButton registrationNumber="JU1219043018" />);
+    render(<DipsVerifyButton registrationNumber="DUMMY0000001" />);
     await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
 
     expect(await screen.findByText(/有効/)).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("DipsVerifyButton", () => {
     mockFetchDipsOwnedAircrafts.mockRejectedValue(new DipsAuthRequiredClientError("utm"));
     const user = userEvent.setup();
 
-    render(<DipsVerifyButton registrationNumber="JU1219043018" />);
+    render(<DipsVerifyButton registrationNumber="DUMMY0000001" />);
     await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
 
     const link = await screen.findByRole("link", { name: "DIPSにログインする" });
@@ -81,12 +81,12 @@ describe("DipsVerifyButton", () => {
     mockFetchDipsOwnedAircrafts.mockResolvedValue([activeAircraft]);
     const user = userEvent.setup();
 
-    const { unmount } = render(<DipsVerifyButton registrationNumber="JU1219043018" />);
+    const { unmount } = render(<DipsVerifyButton registrationNumber="DUMMY0000001" />);
     await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
     await screen.findByText(/有効/);
     unmount();
 
-    render(<DipsVerifyButton registrationNumber="JU1219043018" />);
+    render(<DipsVerifyButton registrationNumber="DUMMY0000001" />);
 
     expect(screen.queryByText(/有効期限/)).not.toBeInTheDocument();
   });

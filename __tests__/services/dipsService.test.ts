@@ -64,7 +64,7 @@ const mockApiClient = (): DipsApiClient =>
   }) as unknown as DipsApiClient;
 
 const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
-  regSymbol: "JU1219043018",
+  regSymbol: "DUMMY0000001",
   serialNumber: "MANUFACT01",
   manufactureCategory: 1,
   uaType: 1,
