@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DipsApiError } from "@/lib/dips/errors";
+import { logger } from "@/lib/logger";
 import type {
   DipsAircraftInfo,
   DipsManufactureCategory,
@@ -26,6 +27,15 @@ import type {
  *
  * コード値 (ステータス・区分等) は JSON 上で数値/文字列のどちらで返るかガイドライン
  * から断定できないため、両方を受理して number へ正規化する。
+ *
+ * エントリ単位のフォールバック: レスポンスは複数機体の配列で返るが、そのうち1機の
+ * パースが失敗しても他の機体の取得を妨げない (2026-08-10 人の決定。本番疎通確認は
+ * IP 制限で実質1回勝負のため、1機の異常値でアカウント全体が 502 になる事態を避ける)。
+ * 配列全体ではなくエントリ単位で safeParse し、パースできた機体だけを返す。
+ * 落としたエントリは個人情報を含まない形 (配列内インデックスと Zod のパスのみ) で
+ * 構造化ログに残す。全件が失敗した場合 (レスポンスが配列であることは確認できたが
+ * 1件もパースできない場合) は、レスポンス仕様そのものが変わった可能性が高いため
+ * 空配列を返さず DipsApiError を投げる (詳細は normalizeAircraftList のコメント参照)。
  */
 
 const RAW_CODE = z.union([z.string(), z.number()]);
@@ -114,10 +124,18 @@ const AircraftEntrySchema = z.object({
   user_information: UserInformationSchema,
 });
 
-/** レスポンスはトップレベルが配列 (0件の場合は []) */
-const AircraftListResponseSchema = z.array(AircraftEntrySchema);
+/** レスポンスはトップレベルが配列であることのみを確認する (中身は要素単位で検証する) */
+const RawAircraftListSchema = z.array(z.unknown());
 
 type AircraftEntry = z.infer<typeof AircraftEntrySchema>;
+
+/** 1エントリのパースに失敗した際の記録。個人情報を含みうる受信値そのものは持たない */
+interface DroppedAircraftEntry {
+  /** レスポンス配列内でのインデックス (何番目の機体か) */
+  readonly index: number;
+  /** 失敗原因となった Zod のパス (キー名) の一覧。値は含めない */
+  readonly issuePaths: string[];
+}
 
 function toAircraftInfo(entry: AircraftEntry): DipsAircraftInfo {
   const ai = entry.aircraft_information;
@@ -145,22 +163,88 @@ function toAircraftInfo(entry: AircraftEntry): DipsAircraftInfo {
   };
 }
 
-/** Zod のパス (キー名) のみを連結する。受信値そのものは一切含めない */
-function formatIssuePaths(error: z.ZodError): string {
-  return error.issues.map((issue) => issue.path.join(".")).join(", ");
+/** Zod のパス (キー名) の一覧を返す。受信値そのものは一切含めない */
+function formatIssuePathList(error: z.ZodError): string[] {
+  return error.issues.map((issue) => issue.path.join("."));
+}
+
+/**
+ * 生レスポンスの配列を1件ずつ検証する。配列全体を safeParse すると1件の失敗で
+ * 全体が失敗扱いになるため、要素ごとに safeParse してパースできた機体だけを集める。
+ */
+function parseAircraftEntries(rawEntries: readonly unknown[]): {
+  entries: AircraftEntry[];
+  failures: DroppedAircraftEntry[];
+} {
+  const entries: AircraftEntry[] = [];
+  const failures: DroppedAircraftEntry[] = [];
+
+  rawEntries.forEach((rawEntry, index) => {
+    const result = AircraftEntrySchema.safeParse(rawEntry);
+    if (result.success) {
+      entries.push(result.data);
+    } else {
+      failures.push({ index, issuePaths: formatIssuePathList(result.error) });
+    }
+  });
+
+  return { entries, failures };
+}
+
+/**
+ * パースに失敗したエントリの情報を構造化ログに残す (本番疎通確認時の切り分け用)。
+ * 個人情報の混入を防ぐため、受信値そのものは一切含めず、配列内のインデックスと
+ * Zod のパス (キー名) のみを記録する。
+ */
+function logDroppedAircraftEntries(failures: readonly DroppedAircraftEntry[], totalCount: number): void {
+  logger.error(
+    `DIPS機体情報一覧のパースで${failures.length}/${totalCount}件のエントリを除外しました`,
+    undefined,
+    {
+      route: "normalizeAircraftList",
+      droppedEntries: failures.map((failure) => ({
+        index: failure.index,
+        issuePaths: failure.issuePaths,
+      })),
+    }
+  );
 }
 
 /**
  * DRS API の生レスポンス (機体情報一覧取得) を検証し、DipsAircraftInfo[] へ正規化する。
- * 形式不正時は DipsApiError を投げる。エラーメッセージには Zod のキー名のみを含め、
- * 受信値 (個人情報を含みうる) は一切含めない。
+ *
+ * エントリ単位でパースし、1機のパース失敗は他の機体を巻き込まない (パースできた
+ * 機体だけを返し、失敗した機体はログに記録して除外する)。以下の場合は DipsApiError
+ * を投げる:
+ * - レスポンスが配列でない (API 仕様そのものが変わった可能性が高い)
+ * - 配列に1件以上の要素があるにもかかわらず、全件のパースに失敗した (個々の機体の
+ *   異常値ではなく、レスポンス構造自体の変更を疑うべき状況のため、空配列を返して
+ *   「所有機体0件」と誤解させるより502で失敗を可視化する)
+ *
+ * 空配列 ([]) 自体は「所有機体なし」の正当な応答のため、そのまま [] を返す。
+ * エラーメッセージには Zod のキー名のみを含め、受信値 (個人情報を含みうる) は
+ * 一切含めない。
  */
 export function normalizeAircraftList(raw: unknown): DipsAircraftInfo[] {
-  const result = AircraftListResponseSchema.safeParse(raw);
-  if (!result.success) {
+  const arrayResult = RawAircraftListSchema.safeParse(raw);
+  if (!arrayResult.success) {
     throw new DipsApiError(
-      `DIPS機体情報のレスポンス形式が不正です (対象キー: ${formatIssuePaths(result.error)})`
+      `DIPS機体情報のレスポンス形式が不正です (対象キー: ${formatIssuePathList(arrayResult.error).join(", ")})`
     );
   }
-  return result.data.map(toAircraftInfo);
+
+  const { entries, failures } = parseAircraftEntries(arrayResult.data);
+
+  if (failures.length > 0) {
+    logDroppedAircraftEntries(failures, arrayResult.data.length);
+  }
+
+  if (entries.length === 0 && arrayResult.data.length > 0) {
+    const failedKeys = Array.from(new Set(failures.flatMap((failure) => failure.issuePaths)));
+    throw new DipsApiError(
+      `DIPS機体情報の全${arrayResult.data.length}件のエントリでパースに失敗しました (対象キー: ${failedKeys.join(", ")})`
+    );
+  }
+
+  return entries.map(toAircraftInfo);
 }

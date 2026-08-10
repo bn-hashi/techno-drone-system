@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { normalizeAircraftList } from "@/lib/dips/aircraftListSchema";
 import { DipsApiError } from "@/lib/dips/errors";
+import { logger } from "@/lib/logger";
 import {
   accountAResponse,
   accountBResponse,
@@ -8,6 +9,33 @@ import {
   accountDResponse,
   piiProbeResponse,
 } from "@/test-fixtures/dips/aircraftListFixtures";
+
+interface MutableAircraftEntry {
+  aircraft_information: Record<string, unknown>;
+  owner_information: Record<string, unknown>;
+  user_information: Record<string, unknown>;
+}
+
+/**
+ * フィクスチャの深いコピーを作り、指定した登録記号の機体の1フィールドだけを
+ * 不正値に書き換える。他の機体は無傷のまま残るため、エントリ単位のフォールバックが
+ * 「壊れた1機だけ」を落とすことを検証できる。
+ */
+function corruptFieldByRegSymbol(
+  entries: readonly unknown[],
+  regSymbol: string,
+  section: "aircraft_information" | "owner_information",
+  field: string,
+  invalidValue: unknown
+): unknown[] {
+  const cloned = structuredClone(entries) as MutableAircraftEntry[];
+  const target = cloned.find(
+    (entry) => entry.aircraft_information.registration_code === regSymbol
+  );
+  if (!target) throw new Error(`テストフィクスチャに ${regSymbol} が見つかりません`);
+  target[section][field] = invalidValue;
+  return cloned;
+}
 
 /** アサーション対象の機体を登録記号で探す (見つからなければテスト自体を失敗させる) */
 function findByRegSymbol(aircrafts: ReturnType<typeof normalizeAircraftList>, regSymbol: string) {
@@ -246,5 +274,134 @@ describe("normalizeAircraftList", () => {
     const result = normalizeAircraftList([entry]);
 
     expect(result[0].deregistrationReasonOther).toBeNull();
+  });
+
+  describe("エントリ単位のフォールバック (1機の異常値が他機体を巻き込まないこと)", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("test_parse_keeps_seventeen_aircrafts_when_one_of_eighteen_has_invalid_aircraft_status", () => {
+      // コードレビュー指摘 (情報): 18機中1機の異常値でアカウント全体が502落ちしていた構造の回帰テスト
+      const allEighteen = [...accountAResponse, ...accountBResponse, ...accountDResponse];
+      expect(allEighteen).toHaveLength(18);
+      const raw = corruptFieldByRegSymbol(
+        allEighteen,
+        "DUMMY0000001",
+        "aircraft_information",
+        "aircraft_status",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
+      expect(result).toHaveLength(17);
+      expect(result.some((a) => a.regSymbol === "DUMMY0000001")).toBe(false);
+    });
+
+    it("test_parse_drops_only_the_entry_with_invalid_manufacturing_category", () => {
+      // codeNumber を使う他フィールドの代表1: aircraft_information 直下のコード値
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000002",
+        "aircraft_information",
+        "manufacturing_category",
+        null
+      );
+
+      const result = normalizeAircraftList(raw);
+
+      expect(result).toHaveLength(accountAResponse.length - 1);
+      expect(result.some((a) => a.regSymbol === "DUMMY0000002")).toBe(false);
+      expect(result.some((a) => a.regSymbol === "DUMMY0000001")).toBe(true);
+    });
+
+    it("test_parse_drops_only_the_entry_with_invalid_owner_classification", () => {
+      // codeNumber を使う他フィールドの代表2: owner_information (ネスト構造) 側のコード値
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000003",
+        "owner_information",
+        "owner_classification",
+        null
+      );
+
+      const result = normalizeAircraftList(raw);
+
+      expect(result).toHaveLength(accountAResponse.length - 1);
+      expect(result.some((a) => a.regSymbol === "DUMMY0000003")).toBe(false);
+    });
+
+    it("test_parse_drops_only_the_entry_with_invalid_aircraft_weight", () => {
+      // codeNumber を使う他フィールドの代表3: 重量系 (数値であることが前提の項目)
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000004",
+        "aircraft_information",
+        "aircraft_weight",
+        null
+      );
+
+      const result = normalizeAircraftList(raw);
+
+      expect(result).toHaveLength(accountAResponse.length - 1);
+      expect(result.some((a) => a.regSymbol === "DUMMY0000004")).toBe(false);
+    });
+
+    it("test_parse_throws_when_all_entries_fail_to_parse", () => {
+      // 全件失敗時は「所有機体0件」と誤解させる空配列ではなく DipsApiError を投げる
+      const raw = accountAResponse.map((entry) => {
+        const cloned = structuredClone(entry) as MutableAircraftEntry;
+        cloned.aircraft_information.aircraft_status = "not-a-number";
+        return cloned;
+      });
+
+      expect(() => normalizeAircraftList(raw)).toThrow(DipsApiError);
+    });
+
+    it("test_parse_throws_when_response_is_not_an_array", () => {
+      // レスポンス自体が想定外の形 (配列ですらない) の場合は従来どおり DipsApiError
+      expect(() => normalizeAircraftList({ aircrafts: [] })).toThrow(DipsApiError);
+    });
+
+    it("test_parse_logs_dropped_entry_count_and_zod_paths_without_pii_or_raw_values", () => {
+      const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+      const allEighteen = [...accountAResponse, ...accountBResponse, ...accountDResponse];
+      const raw = corruptFieldByRegSymbol(
+        allEighteen,
+        "DUMMY0000001",
+        "aircraft_information",
+        "aircraft_status",
+        "not-a-number"
+      );
+
+      normalizeAircraftList(raw);
+
+      expect(spy).toHaveBeenCalledOnce();
+      const [message, errorArg, context] = spy.mock.calls[0] as [string, unknown, Record<string, unknown>];
+      expect(message).toContain("1/18");
+      expect(errorArg).toBeUndefined();
+      expect(context).toMatchObject({
+        route: "normalizeAircraftList",
+        droppedEntries: [
+          {
+            index: 0,
+            issuePaths: expect.arrayContaining(["aircraft_information.aircraft_status"]),
+          },
+        ],
+      });
+      // 登録記号・受信値そのもの (不正値 "not-a-number" を含む) がログに含まれないことを確認
+      const serializedContext = JSON.stringify(context);
+      expect(serializedContext).not.toContain("DUMMY0000001");
+      expect(serializedContext).not.toContain("not-a-number");
+    });
+
+    it("test_parse_does_not_call_logger_when_all_entries_parse_successfully", () => {
+      const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+      normalizeAircraftList(accountAResponse);
+
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 });
