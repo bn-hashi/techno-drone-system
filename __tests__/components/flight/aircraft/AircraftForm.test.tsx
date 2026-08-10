@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AircraftForm } from "@/components/flight/aircraft/AircraftForm";
+import type { AircraftDto } from "@/lib/api/aircraft";
+import { updateAircraft } from "@/lib/api/aircraft";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 
 const mockPush = vi.fn();
@@ -15,6 +17,21 @@ vi.mock("@/lib/api/aircraft", () => ({
   createAircraft: vi.fn(),
   updateAircraft: vi.fn(),
 }));
+
+const editableAircraft: AircraftDto = {
+  id: "aircraft-1",
+  userId: "user-1",
+  name: "テスト機体",
+  manufacturer: "サンプル製造者",
+  modelNumber: "サンプル型式",
+  serialNumber: "SN00000001",
+  weightGrams: 1000,
+  maxFlightTimeMin: 20,
+  registrationNumber: "DUMMY0000099",
+  isActive: true,
+  createdAt: "2026-01-01T00:00:00+09:00",
+  updatedAt: "2026-01-01T00:00:00+09:00",
+};
 
 const mockFetchDipsOwnedAircrafts = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/dips", async () => {
@@ -69,5 +86,22 @@ describe("AircraftForm", () => {
 
     expect(input).toHaveValue("JU9999999999");
     expect(mockFetchDipsOwnedAircrafts).not.toHaveBeenCalled();
+  });
+
+  it("test_form_closing_dips_modal_with_close_button_does_not_submit_the_form", async () => {
+    // 回帰テスト: DipsAircraftPickerModal は AircraftForm の <form onSubmit> の内側にあり、
+    // Modal はポータルを使わないため DOM 上も form の子孫になる。閉じるボタンに
+    // type="button" が付いていないと、必須項目が initialData で埋まっている編集画面では
+    // ✕ クリックが意図せずフォーム送信 (updateAircraft) を引き起こしてしまう。
+    mockFetchDipsOwnedAircrafts.mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<AircraftForm initialData={editableAircraft} />);
+    await user.click(screen.getByRole("button", { name: "DIPSから取り込む" }));
+    await screen.findByText("DIPSに登録された機体がありません");
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+
+    expect(updateAircraft).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });
