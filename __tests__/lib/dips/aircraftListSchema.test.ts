@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { normalizeAircraftList } from "@/lib/dips/aircraftListSchema";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { normalizeAircraftList, normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
 import { DipsApiError } from "@/lib/dips/errors";
 import { logger } from "@/lib/logger";
 import {
@@ -14,6 +14,25 @@ interface MutableAircraftEntry {
   aircraft_information: Record<string, unknown>;
   owner_information: Record<string, unknown>;
   user_information: Record<string, unknown>;
+}
+
+/** 3アカウント分 (A/B/D) を合成した全18機体フィクスチャの件数。マジックナンバー化を避ける */
+const ALL_ACCOUNTS_AIRCRAFT_COUNT = 18;
+
+/**
+ * 3アカウント分 (A/B/D) の全18機体フィクスチャを合成する。件数のずれはテストの前提
+ * そのものが崩れていることを意味するため、expect (アサーション) ではなく Arrange の
+ * 一部として Error で早期に気付けるようにする (CodeRabbit 指摘: フィクスチャ前提の
+ * 確認をテスト本体のアサーションから分離する)。
+ */
+function buildAllAccountsAircraftsFixture(): unknown[] {
+  const all = [...accountAResponse, ...accountBResponse, ...accountDResponse];
+  if (all.length !== ALL_ACCOUNTS_AIRCRAFT_COUNT) {
+    throw new Error(
+      `テストフィクスチャの前提が崩れています (期待: ${ALL_ACCOUNTS_AIRCRAFT_COUNT}機, 実際: ${all.length}機)`
+    );
+  }
+  return all;
 }
 
 /**
@@ -192,18 +211,21 @@ describe("normalizeAircraftList", () => {
   });
 
   it("test_parse_error_message_contains_only_key_name_not_value", () => {
+    // 削除したキーのため値そのものが存在せず、メッセージにはキー名のみが含まれる
+    const broken = [minimalValidRawEntry()];
+    delete (broken[0].aircraft_information as Record<string, unknown>).registration_code;
+
+    expect(() => normalizeAircraftList(broken)).toThrow(/registration_code/);
+  });
+
+  it("test_parse_error_message_does_not_contain_sibling_field_values", () => {
     const broken = [minimalValidRawEntry()];
     delete (broken[0].aircraft_information as Record<string, unknown>).registration_code;
 
     try {
       normalizeAircraftList(broken);
-      throw new Error("normalizeAircraftList が例外を投げませんでした");
     } catch (error) {
-      expect(error).toBeInstanceOf(DipsApiError);
-      const message = (error as DipsApiError).message;
-      expect(message).toContain("registration_code");
-      // 値は含まれていた覚えがない (undefined になったキーなので値そのものが存在しない)
-      expect(message).not.toContain("MANUFACT99");
+      expect((error as DipsApiError).message).not.toContain("MANUFACT99");
     }
   });
 
@@ -218,23 +240,47 @@ describe("normalizeAircraftList", () => {
 
   it("test_parse_throws_when_code_value_is_non_numeric_string", () => {
     // 異常系: aircraft_status が非数値文字列で返ってきた場合はパースエラーになる
-    // (codeNumber の Number.isNaN ガード分岐)
+    // (codeNumber の isFinite ガード分岐)
     const broken = minimalValidRawEntry({ aircraft_status: "not-a-number" });
 
     expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
   });
 
-  it("test_parse_throws_when_aircraft_status_is_empty_string", () => {
-    // 修正4回帰テスト: Number("") === 0 のため、空文字が黙って 0 (未定義のステータス)に
-    // 化けていた。codeNumber は空文字を明示的に弾き、パースエラーにする必要がある。
-    const broken = minimalValidRawEntry({ aircraft_status: "" });
+  it("test_parse_normalizes_empty_aircraft_status_to_null", () => {
+    // 修正2回帰テスト (A2): aircraft_status を含む codeNumber 系フィールドの null 寛容化を
+    // 全フィールドへ横展開したことで、空文字は (かつてのようにエラーにするのではなく)
+    // null に正規化されるようになった。`Number("") === 0` によって黙って 0 (有効な機体) に
+    // 化けるわけではないことが要点であり、null であることを直接確認する。
+    const entry = minimalValidRawEntry({ aircraft_status: "" });
+
+    const result = normalizeAircraftList([entry]);
+
+    expect(result[0].uaStatus).toBeNull();
+  });
+
+  it.each([["Infinity"], ["-Infinity"]])(
+    "test_parse_throws_when_aircraft_weight_is_the_string_%s",
+    (value) => {
+      // 回帰テスト (A1): Number.isNaN だけでは Number("Infinity") = Infinity を素通り
+      // させてしまい、Math.round(Infinity*1000) → JSON.stringify で null 化し、
+      // クライアント側の z.number() 検証で不可解に拒否される事故につながっていた。
+      // codeNumber は Infinity/-Infinity も明示的に弾く。
+      const broken = minimalValidRawEntry({ aircraft_weight: value });
+
+      expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
+    }
+  );
+
+  it("test_parse_throws_when_erase_reason_number_is_infinity", () => {
+    // nullableCodeNumber 側にも同じ Infinity ガードを適用している (A1 の横展開)
+    const broken = minimalValidRawEntry({ erase_reason_number: "Infinity" });
 
     expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
   });
 
   it("test_parse_throws_when_erase_reason_number_is_non_numeric_string", () => {
     // 異常系: erase_reason_number が非数値文字列で返ってきた場合はパースエラーになる
-    // (nullableCodeNumber の Number.isNaN ガード分岐)
+    // (nullableCodeNumber の isFinite ガード分岐)
     const broken = minimalValidRawEntry({ erase_reason_number: "not-a-number" });
 
     expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
@@ -276,6 +322,84 @@ describe("normalizeAircraftList", () => {
     expect(result[0].deregistrationReasonOther).toBeNull();
   });
 
+  describe("A2: null寛容化のcodeNumber系全フィールドへの横展開", () => {
+    it("test_parse_normalizes_null_manufacturing_category_to_null", () => {
+      const entry = minimalValidRawEntry({ manufacturing_category: null });
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].manufactureCategory).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_aircraft_type_to_null", () => {
+      const entry = minimalValidRawEntry({ aircraft_type: null });
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].uaType).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_rid_type_to_null", () => {
+      const entry = minimalValidRawEntry({ rid_type: null });
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].remoteIdType).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_aircraft_weight_to_null", () => {
+      const entry = minimalValidRawEntry({ aircraft_weight: null });
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].weightKg).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_maximum_takeoff_weight_to_null", () => {
+      const entry = minimalValidRawEntry({ maximum_takeoff_weight: null });
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].maxTakeoffWeightKg).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_owner_classification_to_null", () => {
+      const entry = minimalValidRawEntry();
+      (entry.owner_information as Record<string, unknown>).owner_classification = null;
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].ownerCategory).toBeNull();
+    });
+
+    it("test_parse_normalizes_null_user_classification_to_empty_string_individual_default", () => {
+      // 最重要の回帰テスト (A2): user_classification は「空文字 = 個人」が正常値の
+      // ドキュメント上の既定であり (別紙1 項番60)、実 API が null を返すケースを
+      // 個人アカウントの機体として扱えないと個人アカウントのほぼ全機が消える。
+      const entry = minimalValidRawEntry();
+      (entry.user_information as Record<string, unknown>).user_classification = null;
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].userCategory).toBe("");
+    });
+
+    it("test_parse_normalizes_missing_user_classification_key_to_empty_string", () => {
+      const entry = minimalValidRawEntry();
+      delete (entry.user_information as Record<string, unknown>).user_classification;
+
+      const result = normalizeAircraftList([entry]);
+
+      expect(result[0].userCategory).toBe("");
+    });
+  });
+
+  it("test_parse_error_message_includes_received_type_when_response_is_not_an_array", () => {
+    // 回帰テスト (C2): 配列でないレスポンスのエラーメッセージが「(対象キー: )」と
+    // 空になっており切り分け情報が残らなかった。受信した型名を含めるようにする。
+    expect(() => normalizeAircraftList({ aircrafts: [] })).toThrow(/受信した型: object/);
+  });
+
   describe("エントリ単位のフォールバック (1機の異常値が他機体を巻き込まないこと)", () => {
     afterEach(() => {
       vi.restoreAllMocks();
@@ -283,10 +407,8 @@ describe("normalizeAircraftList", () => {
 
     it("test_parse_keeps_seventeen_aircrafts_when_one_of_eighteen_has_invalid_aircraft_status", () => {
       // コードレビュー指摘 (情報): 18機中1機の異常値でアカウント全体が502落ちしていた構造の回帰テスト
-      const allEighteen = [...accountAResponse, ...accountBResponse, ...accountDResponse];
-      expect(allEighteen).toHaveLength(18);
       const raw = corruptFieldByRegSymbol(
-        allEighteen,
+        buildAllAccountsAircraftsFixture(),
         "DUMMY0000001",
         "aircraft_information",
         "aircraft_status",
@@ -296,55 +418,121 @@ describe("normalizeAircraftList", () => {
       const result = normalizeAircraftList(raw);
 
       expect(result).toHaveLength(17);
+    });
+
+    it("test_parse_excludes_the_aircraft_with_invalid_aircraft_status", () => {
+      const raw = corruptFieldByRegSymbol(
+        buildAllAccountsAircraftsFixture(),
+        "DUMMY0000001",
+        "aircraft_information",
+        "aircraft_status",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
       expect(result.some((a) => a.regSymbol === "DUMMY0000001")).toBe(false);
     });
 
-    it("test_parse_drops_only_the_entry_with_invalid_manufacturing_category", () => {
-      // codeNumber を使う他フィールドの代表1: aircraft_information 直下のコード値
+    it("test_parse_drops_only_the_entry_with_invalid_manufacturing_category_count", () => {
+      // codeNumber を使う他フィールドの代表1: aircraft_information 直下のコード値。
+      // null は A2 で寛容化されたため、依然として不正な非数値文字列を使う。
       const raw = corruptFieldByRegSymbol(
         accountAResponse,
         "DUMMY0000002",
         "aircraft_information",
         "manufacturing_category",
-        null
+        "not-a-number"
       );
 
       const result = normalizeAircraftList(raw);
 
       expect(result).toHaveLength(accountAResponse.length - 1);
+    });
+
+    it("test_parse_excludes_the_aircraft_with_invalid_manufacturing_category", () => {
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000002",
+        "aircraft_information",
+        "manufacturing_category",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
       expect(result.some((a) => a.regSymbol === "DUMMY0000002")).toBe(false);
+    });
+
+    it("test_parse_retains_other_aircrafts_when_one_has_invalid_manufacturing_category", () => {
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000002",
+        "aircraft_information",
+        "manufacturing_category",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
       expect(result.some((a) => a.regSymbol === "DUMMY0000001")).toBe(true);
     });
 
-    it("test_parse_drops_only_the_entry_with_invalid_owner_classification", () => {
+    it("test_parse_drops_only_the_entry_with_invalid_owner_classification_count", () => {
       // codeNumber を使う他フィールドの代表2: owner_information (ネスト構造) 側のコード値
       const raw = corruptFieldByRegSymbol(
         accountAResponse,
         "DUMMY0000003",
         "owner_information",
         "owner_classification",
-        null
+        "not-a-number"
       );
 
       const result = normalizeAircraftList(raw);
 
       expect(result).toHaveLength(accountAResponse.length - 1);
+    });
+
+    it("test_parse_excludes_the_aircraft_with_invalid_owner_classification", () => {
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000003",
+        "owner_information",
+        "owner_classification",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
       expect(result.some((a) => a.regSymbol === "DUMMY0000003")).toBe(false);
     });
 
-    it("test_parse_drops_only_the_entry_with_invalid_aircraft_weight", () => {
+    it("test_parse_drops_only_the_entry_with_invalid_aircraft_weight_count", () => {
       // codeNumber を使う他フィールドの代表3: 重量系 (数値であることが前提の項目)
       const raw = corruptFieldByRegSymbol(
         accountAResponse,
         "DUMMY0000004",
         "aircraft_information",
         "aircraft_weight",
-        null
+        "not-a-number"
       );
 
       const result = normalizeAircraftList(raw);
 
       expect(result).toHaveLength(accountAResponse.length - 1);
+    });
+
+    it("test_parse_excludes_the_aircraft_with_invalid_aircraft_weight", () => {
+      const raw = corruptFieldByRegSymbol(
+        accountAResponse,
+        "DUMMY0000004",
+        "aircraft_information",
+        "aircraft_weight",
+        "not-a-number"
+      );
+
+      const result = normalizeAircraftList(raw);
+
       expect(result.some((a) => a.regSymbol === "DUMMY0000004")).toBe(false);
     });
 
@@ -364,36 +552,62 @@ describe("normalizeAircraftList", () => {
       expect(() => normalizeAircraftList({ aircrafts: [] })).toThrow(DipsApiError);
     });
 
-    it("test_parse_logs_dropped_entry_count_and_zod_paths_without_pii_or_raw_values", () => {
-      const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
-      const allEighteen = [...accountAResponse, ...accountBResponse, ...accountDResponse];
-      const raw = corruptFieldByRegSymbol(
-        allEighteen,
-        "DUMMY0000001",
-        "aircraft_information",
-        "aircraft_status",
-        "not-a-number"
-      );
+    describe("パース失敗を記録するログの内容", () => {
+      let messageArg: string;
+      let errorArg: unknown;
+      let context: Record<string, unknown> | undefined;
+      let spy: ReturnType<typeof vi.spyOn>;
 
-      normalizeAircraftList(raw);
+      beforeEach(() => {
+        spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+        const raw = corruptFieldByRegSymbol(
+          buildAllAccountsAircraftsFixture(),
+          "DUMMY0000001",
+          "aircraft_information",
+          "aircraft_status",
+          "not-a-number"
+        );
 
-      expect(spy).toHaveBeenCalledOnce();
-      const [message, errorArg, context] = spy.mock.calls[0] as [string, unknown, Record<string, unknown>];
-      expect(message).toContain("1/18");
-      expect(errorArg).toBeUndefined();
-      expect(context).toMatchObject({
-        route: "normalizeAircraftList",
-        droppedEntries: [
-          {
-            index: 0,
-            issuePaths: expect.arrayContaining(["aircraft_information.aircraft_status"]),
-          },
-        ],
+        normalizeAircraftList(raw);
+
+        [messageArg, errorArg, context] = spy.mock.calls[0] as [
+          string,
+          unknown,
+          Record<string, unknown>,
+        ];
       });
-      // 登録記号・受信値そのもの (不正値 "not-a-number" を含む) がログに含まれないことを確認
-      const serializedContext = JSON.stringify(context);
-      expect(serializedContext).not.toContain("DUMMY0000001");
-      expect(serializedContext).not.toContain("not-a-number");
+
+      it("test_parse_logs_dropped_entry_exactly_once", () => {
+        expect(spy).toHaveBeenCalledOnce();
+      });
+
+      it("test_parse_log_message_contains_dropped_and_total_count", () => {
+        expect(messageArg).toContain("1/18");
+      });
+
+      it("test_parse_log_error_argument_is_undefined", () => {
+        expect(errorArg).toBeUndefined();
+      });
+
+      it("test_parse_log_context_contains_route_and_dropped_entries", () => {
+        expect(context).toMatchObject({
+          route: "normalizeAircraftList",
+          droppedEntries: [
+            {
+              index: 0,
+              issuePaths: expect.arrayContaining(["aircraft_information.aircraft_status"]),
+            },
+          ],
+        });
+      });
+
+      it("test_parse_log_does_not_contain_registration_code", () => {
+        expect(JSON.stringify(context)).not.toContain("DUMMY0000001");
+      });
+
+      it("test_parse_log_does_not_contain_raw_invalid_value", () => {
+        expect(JSON.stringify(context)).not.toContain("not-a-number");
+      });
     });
 
     it("test_parse_does_not_call_logger_when_all_entries_parse_successfully", () => {
@@ -403,5 +617,40 @@ describe("normalizeAircraftList", () => {
 
       expect(spy).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("normalizeAircraftListWithDiagnostics", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("test_diagnostics_reports_zero_excluded_when_all_entries_parse", () => {
+    const result = normalizeAircraftListWithDiagnostics(accountAResponse);
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_diagnostics_reports_excluded_count_matching_dropped_entries", () => {
+    // C3 回帰テスト: 除外件数を上位層 (API レスポンス → UI) へ伝搬させることで
+    // 「除外があったのに0件と表示する」誤表示を防ぐ
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const raw = corruptFieldByRegSymbol(
+      accountAResponse,
+      "DUMMY0000002",
+      "aircraft_information",
+      "manufacturing_category",
+      "not-a-number"
+    );
+
+    const result = normalizeAircraftListWithDiagnostics(raw);
+
+    expect(result.excludedCount).toBe(1);
+  });
+
+  it("test_diagnostics_returns_same_aircrafts_as_normalizeAircraftList", () => {
+    const result = normalizeAircraftListWithDiagnostics(accountAResponse);
+
+    expect(result.aircrafts).toEqual(normalizeAircraftList(accountAResponse));
   });
 });

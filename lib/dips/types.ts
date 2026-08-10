@@ -198,51 +198,65 @@ export interface DipsFlightPlanNotificationResult {
  * JSON キー名が不明なため、意図的に型として定義していない。境界の Zod スキーマは
  * 未知フィールドとして黙って破棄する (寛容パース。2026-08-01 人の決定)。将来この項目が
  * 必要になった場合は DIPS 申請窓口へキー名を再照会すること。
+ *
+ * コード値系フィールド (manufactureCategory/uaType/uaStatus/deregistrationReason/
+ * remoteIdType/ownerCategory) はあえて別紙1 の値体系 (DipsUaStatus 等の literal union) を
+ * 型として採用せず `number | null` にしている。実 API が別紙1 未定義の値や null を返しても
+ * 境界のパースが失敗しないようにするための寛容パース方針 (2026-08-10 差し戻し) であり、
+ * `number` 型に literal union を `as` キャストして被せると実行時の値域を保証しないまま
+ * 型だけが狭く見える「偽装」になるため widen した。表示側は
+ * `lib/constants/dipsAircraftStatus.ts` の `dipsUaStatusLabel()` 等が未知値・null を
+ * 「不明」にフォールバックする。null は「値が欠落していた／数値化できなかった」ことを表す
+ * (`aircraftListSchema.ts` の nullableCodeNumber 参照)。
  */
 export interface DipsAircraftInfo {
   /** 登録記号 (国発行・12桁) */
   regSymbol: string;
   /** 製造番号 (20桁以下) */
   serialNumber: string;
-  manufactureCategory: DipsManufactureCategory;
-  uaType: DipsUaType;
+  manufactureCategory: number | null;
+  uaType: number | null;
   makerNameJa: string;
   modelNameJa: string;
   makerNameEn: string;
   modelNameEn: string;
-  /** 機体重量 (kg) */
-  weightKg: number;
-  /** 最大離陸重量 (kg) */
-  maxTakeoffWeightKg: number;
-  uaStatus: DipsUaStatus;
-  deregistrationReason: DipsDeregistrationReason | null;
+  /** 機体重量 (kg)。null は値が欠落していた／数値化できなかったことを表す */
+  weightKg: number | null;
+  /** 最大離陸重量 (kg)。null は値が欠落していた／数値化できなかったことを表す */
+  maxTakeoffWeightKg: number | null;
+  uaStatus: number | null;
+  deregistrationReason: number | null;
   /** 抹消理由が「その他」の場合の自由記述。それ以外は null */
   deregistrationReasonOther: string | null;
-  remoteIdType: DipsRemoteIdType;
+  remoteIdType: number | null;
   /** 有効期限開始 (YYYY-MM-DDThh:mm:ss+09:00) */
   validPeriodStart: string;
   /** 有効期限終了 (YYYY-MM-DDThh:mm:ss+09:00) */
   validPeriodEnd: string;
-  ownerCategory: DipsOwnerCategory;
-  userCategory: DipsUserCategory;
+  ownerCategory: number | null;
+  /** 使用者種別 ("" | "1" | "9" が既知の値。空文字は個人を表す正常値)。未知の値もそのまま通す */
+  userCategory: string;
 }
 
 /**
  * DIPS 所有機体 (機体情報一覧取得 API) を UI へ渡す DTO。`DipsService.listOwnedAircrafts()` が返す。
  * 所有者・使用者の個人情報は含まない (DipsAircraftInfo の時点で既に除去済み)。
+ *
+ * `lib/api/dips.ts` (クライアント側) はこの型を re-export して使う (二重定義の解消)。
+ * コード値系フィールドを `number | null` にしている理由は `DipsAircraftInfo` と同じ。
  */
 export interface DipsOwnedAircraftDto {
   registrationCode: string;
   manufacturer: string;
   modelNumber: string;
   serialNumber: string;
-  /** 機体重量 (g)。DIPS 側は kg 単位のため四捨五入して変換する */
-  weightGrams: number;
-  status: DipsUaStatus;
-  deregistrationReason: DipsDeregistrationReason | null;
+  /** 機体重量 (g)。DIPS 側は kg 単位のため四捨五入して変換する。null は値が欠落していたことを表す */
+  weightGrams: number | null;
+  status: number | null;
+  deregistrationReason: number | null;
   validPeriodEnd: string;
-  remoteIdType: DipsRemoteIdType;
-  ownerCategory: DipsOwnerCategory;
+  remoteIdType: number | null;
+  ownerCategory: number | null;
   /** 取り込み選択可能か (機体ステータスが有効な機体のときのみ true) */
   isSelectable: boolean;
 }
