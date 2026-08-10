@@ -269,8 +269,8 @@ pm2 logs techno-drone --lines 30
 |---|---|
 | ログイン画面に飛ばない / 404 | `DIPS_DRS_AUTH_BASE_URL` の値誤り |
 | `invalid_client` | utm 用 Client ID/Secret (設定通知書シート1) を使っているか再確認 |
-| 502 (DIPS連携でエラー) | pm2 ログの `path` (キー名のみ) を確認し、レスポンス形式の想定と
-  ズレていないか `docs/dips-drs-aircraft-list-api.md` と突合する |
+| 503 (DIPS連携の設定が不足しています) | 自システムの環境変数不足 (`DIPS_UTM_CLIENT_ID` 等)。DIPS 側の障害ではない。pm2 ログで `DipsConfigError` を確認し `.env` を見直す |
+| 502 (DIPS連携でエラー) | pm2 ログの `path` (キー名のみ) を確認し、レスポンス形式の想定とズレていないか `docs/dips-drs-aircraft-list-api.md` と突合する |
 | 403 / 接続拒否 | IP 制限。本番サーバーから実行しているか確認する |
 
 502 Bad Gateway が出たら:
