@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DipsService } from "@/services/dipsService";
 import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
-import type { DipsNotificationUserInput } from "@/lib/dips/types";
+import type { DipsNotificationUserInput, DipsAircraftInfo } from "@/lib/dips/types";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
 import { FlightPlanNotFoundError, BusinessError } from "@/services/errors";
+import { DipsAuthRequiredError } from "@/lib/dips/errors";
 import type { Aircraft, FlightPlan } from "@prisma/client";
 import { FlightPlanStatus } from "@prisma/client";
 
@@ -59,7 +60,30 @@ const mockApiClient = (): DipsApiClient =>
   ({
     fetchPermissions: vi.fn(),
     notifyFlightPlan: vi.fn(),
+    fetchAircraftList: vi.fn(),
   }) as unknown as DipsApiClient;
+
+const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
+  regSymbol: "JU1219043018",
+  serialNumber: "MANUFACT01",
+  manufactureCategory: 1,
+  uaType: 1,
+  makerNameJa: "サンプル製造者01",
+  modelNameJa: "サンプル型式01",
+  makerNameEn: "Sample Maker 01",
+  modelNameEn: "Sample Model 01",
+  weightKg: 1.5,
+  maxTakeoffWeightKg: 2.0,
+  uaStatus: 1,
+  deregistrationReason: null,
+  deregistrationReasonOther: null,
+  remoteIdType: 1,
+  validPeriodStart: "2025-06-20T00:00:00+09:00",
+  validPeriodEnd: "2028-06-19T00:00:00+09:00",
+  ownerCategory: 1,
+  userCategory: "1",
+  ...overrides,
+});
 
 const mockOidcClient = (): DipsOidcClient =>
   ({
@@ -282,6 +306,100 @@ describe("DipsService", () => {
 
       expect(result).toEqual(response);
       expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
+    });
+  });
+
+  // ─── listOwnedAircrafts ──────────────────────────────────────────────────────
+
+  describe("listOwnedAircrafts", () => {
+    it("test_listOwnedAircrafts_returns_only_active_aircrafts_by_default", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
+        makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result.map((a) => a.registrationCode)).toEqual(["JU0000000001"]);
+    });
+
+    it("test_listOwnedAircrafts_includes_invalid_aircrafts_when_option_is_set", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
+        makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1", { includeInvalid: true });
+
+      expect(result.map((a) => a.registrationCode)).toEqual(["JU0000000001", "JU0000000002"]);
+    });
+
+    it("test_listOwnedAircrafts_sorts_by_registration_code_ascending", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ regSymbol: "JU9999999999", uaStatus: 1 }),
+        makeAircraftInfo({ regSymbol: "JU1111111111", uaStatus: 1 }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result.map((a) => a.registrationCode)).toEqual(["JU1111111111", "JU9999999999"]);
+    });
+
+    it("test_listOwnedAircrafts_returns_empty_array_when_account_owns_none", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result).toEqual([]);
+    });
+
+    it("test_listOwnedAircrafts_converts_weight_kg_to_grams", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ weightKg: 24.0001 }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result[0].weightGrams).toBe(24000);
+    });
+
+    it("test_listOwnedAircrafts_maps_model_name_ja_to_model_number", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ modelNameJa: "型式X" }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result[0].modelNumber).toBe("型式X");
+    });
+
+    it("test_listOwnedAircrafts_maps_manufacturing_number_to_serial_number", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ serialNumber: "MANUFACT000000000003" }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result[0].serialNumber).toBe("MANUFACT000000000003");
+    });
+
+    it("test_listOwnedAircrafts_marks_expired_when_status_is_2", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
+        makeAircraftInfo({ uaStatus: 2 }),
+      ]);
+
+      const result = await service.listOwnedAircrafts("user-1", { includeInvalid: true });
+
+      expect({ status: result[0].status, isSelectable: result[0].isSelectable }).toEqual({
+        status: 2,
+        isSelectable: false,
+      });
+    });
+
+    it("test_listOwnedAircrafts_propagates_auth_required_error", async () => {
+      vi.mocked(apiClient.fetchAircraftList).mockRejectedValue(new DipsAuthRequiredError("utm"));
+
+      await expect(service.listOwnedAircrafts("user-1")).rejects.toThrow(DipsAuthRequiredError);
     });
   });
 });

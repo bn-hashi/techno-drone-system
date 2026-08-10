@@ -5,6 +5,8 @@ import type {
   DipsPermissionsResponse,
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
+  DipsAircraftInfo,
+  DipsOwnedAircraftDto,
 } from "@/lib/dips/types";
 import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
 import type { AircraftService } from "@/services/aircraftService";
@@ -13,6 +15,17 @@ import { BusinessError } from "@/services/errors";
 
 /** 飛行計画名称の最大長 (FPRガイドライン 2.3.8) */
 const MAX_FLIGHT_PLAN_NAME_LENGTH = 30;
+
+/** DIPS 機体重量 (kg) → 本システムの機体重量 (g) の単位変換係数 */
+const GRAMS_PER_KILOGRAM = 1000;
+
+/** 機体ステータス: 1=有効な機体 (登録済)。別紙1 のコード値定義に準拠 */
+const AIRCRAFT_STATUS_ACTIVE = 1;
+
+interface ListOwnedAircraftsOptions {
+  /** true なら抹消済み・有効期限切れの機体も含める (既定は有効な機体のみ) */
+  includeInvalid?: boolean;
+}
 
 interface AccessContext {
   userId: string;
@@ -94,4 +107,42 @@ export class DipsService {
   async fetchPermissions(userId: string): Promise<DipsPermissionsResponse> {
     return this.apiClient.fetchPermissions(userId);
   }
+
+  /**
+   * DIPS ログイン済みアカウントが所有する機体一覧を取得する (機体情報一覧取得 API)。
+   *
+   * 既定では機体ステータスが有効 (registration_code の aircraft_status === 1) な機体のみ
+   * 返す。有効性の判定は aircraft_status を正とし、有効期限 (validPeriodEnd) は補助表示に
+   * 留める (別紙1 のテストデータは全機体が同一の有効期限を持ち、ステータス値のみで
+   * 期限切れを区別しているため)。抹消済み・期限切れの機体は誤った登録記号の取り込みを
+   * 防ぐため isSelectable=false とする。
+   */
+  async listOwnedAircrafts(
+    userId: string,
+    options: ListOwnedAircraftsOptions = {}
+  ): Promise<DipsOwnedAircraftDto[]> {
+    const aircrafts = await this.apiClient.fetchAircraftList(userId);
+    const target = options.includeInvalid
+      ? aircrafts
+      : aircrafts.filter((aircraft) => aircraft.uaStatus === AIRCRAFT_STATUS_ACTIVE);
+    return target
+      .map(toOwnedAircraftDto)
+      .sort((a, b) => a.registrationCode.localeCompare(b.registrationCode));
+  }
+}
+
+function toOwnedAircraftDto(aircraft: DipsAircraftInfo): DipsOwnedAircraftDto {
+  return {
+    registrationCode: aircraft.regSymbol,
+    manufacturer: aircraft.makerNameJa,
+    modelNumber: aircraft.modelNameJa,
+    serialNumber: aircraft.serialNumber,
+    weightGrams: Math.round(aircraft.weightKg * GRAMS_PER_KILOGRAM),
+    status: aircraft.uaStatus,
+    deregistrationReason: aircraft.deregistrationReason,
+    validPeriodEnd: aircraft.validPeriodEnd,
+    remoteIdType: aircraft.remoteIdType,
+    ownerCategory: aircraft.ownerCategory,
+    isSelectable: aircraft.uaStatus === AIRCRAFT_STATUS_ACTIVE,
+  };
 }
