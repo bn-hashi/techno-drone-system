@@ -113,4 +113,38 @@ describe("DipsAircraftPickerModal", () => {
 
     expect(await screen.findByText("DIPS機体情報の取得に失敗しました")).toBeInTheDocument();
   });
+
+  it("test_modal_shows_admin_scope_notice_on_screen", async () => {
+    // 「人の決定」論点7: ADMIN は自身の DIPS 機体しか取得できない旨を画面に明示する。
+    // 従来は JSDoc のみで画面に出ておらず差し戻しの対象になった (DipsVerifyButton.tsx と
+    // 文言を揃える)。
+    mockFetchDipsOwnedAircrafts.mockResolvedValue([]);
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText("DIPSにログインしたアカウントが所有する機体のみ表示されます")
+    ).toBeInTheDocument();
+    // fetchDipsOwnedAircrafts の解決による state 更新を待ち、act 警告を防ぐ
+    await screen.findByText("DIPSに登録された機体がありません");
+  });
+
+  it("test_modal_shows_unknown_label_for_unrecognized_status_code", async () => {
+    // クライアント側の寛容パース化 (修正2) に伴う表示側フォールバック。別紙1 未定義の
+    // ステータスコードでも画面が壊れず「不明」と表示されることを確認する。
+    const unknownStatusAircraft: DipsOwnedAircraftDto = {
+      ...activeAircraft,
+      registrationCode: "DUMMY0000099",
+      status: 99,
+    };
+    mockFetchDipsOwnedAircrafts.mockResolvedValue([unknownStatusAircraft]);
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+
+    expect(await screen.findByText("不明")).toBeInTheDocument();
+  });
 });

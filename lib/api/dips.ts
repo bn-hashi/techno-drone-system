@@ -75,18 +75,28 @@ export function dipsLoginUrl(realm: string, returnPath?: string): string {
 
 // ─── 機体情報一覧取得 (DIPS 所有機体) ─────────────────────────────────────────
 
-/** DIPS 所有機体 (機体情報一覧取得 API)。所有者・使用者の個人情報は含まない */
+/**
+ * DIPS 所有機体 (機体情報一覧取得 API)。所有者・使用者の個人情報は含まない。
+ *
+ * コード値 (status/remoteIdType/ownerCategory/deregistrationReason) はサーバー側
+ * (`lib/dips/aircraftListSchema.ts`) が別紙1 未定義の値も含めて任意の数値をそのまま
+ * 通す寛容パース方針のため、クライアント側もここで同じ値域まで受理する (number)。
+ * 別紙1 の値体系 (DipsUaStatus 等) はあくまで既知の値の意味付けであり、表示側は
+ * `lib/constants/dipsAircraftStatus.ts` の `dipsUaStatusLabel()` 等で未知値を
+ * 「不明」にフォールバック表示する。18機のうち1機でも想定外コードを含むと配列全体の
+ * パースが失敗する事故を防ぐための決定 (2026-08-10 差し戻し)。
+ */
 export interface DipsOwnedAircraftDto {
   registrationCode: string;
   manufacturer: string;
   modelNumber: string;
   serialNumber: string;
   weightGrams: number;
-  status: 1 | 2 | 3;
-  deregistrationReason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | null;
+  status: number;
+  deregistrationReason: number | null;
   validPeriodEnd: string;
-  remoteIdType: 0 | 1 | 2;
-  ownerCategory: 1 | 2;
+  remoteIdType: number;
+  ownerCategory: number;
   isSelectable: boolean;
 }
 
@@ -96,13 +106,11 @@ const DipsOwnedAircraftDtoSchema = z.object({
   modelNumber: z.string(),
   serialNumber: z.string(),
   weightGrams: z.number(),
-  status: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-  deregistrationReason: z
-    .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)])
-    .nullable(),
+  status: z.number(),
+  deregistrationReason: z.number().nullable(),
   validPeriodEnd: z.string(),
-  remoteIdType: z.union([z.literal(0), z.literal(1), z.literal(2)]),
-  ownerCategory: z.union([z.literal(1), z.literal(2)]),
+  remoteIdType: z.number(),
+  ownerCategory: z.number(),
   isSelectable: z.boolean(),
 });
 

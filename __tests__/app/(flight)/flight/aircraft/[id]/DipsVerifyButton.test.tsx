@@ -90,4 +90,20 @@ describe("DipsVerifyButton", () => {
 
     expect(screen.queryByText(/有効期限/)).not.toBeInTheDocument();
   });
+
+  it("test_verify_shows_unknown_label_for_unrecognized_status_code", async () => {
+    // クライアント側の寛容パース化 (修正2) に伴う表示側フォールバック。別紙1 未定義の
+    // ステータスコードでも画面が壊れず「不明」と表示されることを確認する。
+    const unknownStatusAircraft: DipsOwnedAircraftDto = {
+      ...activeAircraft,
+      status: 99,
+    };
+    mockFetchDipsOwnedAircrafts.mockResolvedValue([unknownStatusAircraft]);
+    const user = userEvent.setup();
+
+    render(<DipsVerifyButton registrationNumber="DUMMY0000001" />);
+    await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
+
+    expect(await screen.findByText(/不明/)).toBeInTheDocument();
+  });
 });

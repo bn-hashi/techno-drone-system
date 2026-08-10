@@ -29,3 +29,19 @@ export const DIPS_REMOTE_ID_TYPE_LABELS: Record<DipsRemoteIdType, string> = {
   1: "あり (内蔵型)",
   2: "あり (外付型)",
 };
+
+/** コード表に定義がない値に遭遇したときの表示 (寛容パース方針。クライアント側は未知コードでも落ちない) */
+const UNKNOWN_CODE_LABEL = "不明";
+
+/**
+ * 機体ステータスコードから表示ラベルを返す。DIPS 側が別紙1 未定義のコード値を返しても
+ * 画面が壊れないよう、定義外の値は「不明」にフォールバックする。
+ */
+export function dipsUaStatusLabel(status: number): string {
+  return DIPS_UA_STATUS_LABELS[status as DipsUaStatus] ?? UNKNOWN_CODE_LABEL;
+}
+
+/** 抹消理由コードから表示ラベルを返す。未知の値は「不明」にフォールバックする */
+export function dipsDeregistrationReasonLabel(reason: number): string {
+  return DIPS_DEREGISTRATION_REASON_LABELS[reason as DipsDeregistrationReason] ?? UNKNOWN_CODE_LABEL;
+}

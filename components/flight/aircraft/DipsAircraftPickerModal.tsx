@@ -9,10 +9,7 @@ import {
   DipsAuthRequiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
-import {
-  DIPS_UA_STATUS_LABELS,
-  DIPS_DEREGISTRATION_REASON_LABELS,
-} from "@/lib/constants/dipsAircraftStatus";
+import { dipsUaStatusLabel, dipsDeregistrationReasonLabel } from "@/lib/constants/dipsAircraftStatus";
 
 interface DipsAircraftPickerModalProps {
   isOpen: boolean;
@@ -29,18 +26,22 @@ type LoadState =
   | { status: "authRequired"; realm: string }
   | { status: "error"; message: string };
 
-/** 機体ステータスに対応する Badge の見た目 (既存の active/pending/danger 語彙を流用) */
+/**
+ * 機体ステータスに対応する Badge の見た目 (既存の active/pending/danger 語彙を流用)。
+ * 別紙1 未定義のコード値 (寛容パースで通過しうる) は danger 側にフォールバックする
+ * (取り込み対象として選ばせないための保守的な扱い)。
+ */
 function statusBadgeVariant(status: DipsOwnedAircraftDto["status"]): "active" | "pending" | "danger" {
   if (status === 1) return "active";
   if (status === 2) return "pending";
   return "danger";
 }
 
-/** 機体の状態ラベル (抹消済みは抹消理由を併記する) */
+/** 機体の状態ラベル (抹消済みは抹消理由を併記する)。未知コードは「不明」と表示する */
 function statusLabel(aircraft: DipsOwnedAircraftDto): string {
-  const base = DIPS_UA_STATUS_LABELS[aircraft.status];
+  const base = dipsUaStatusLabel(aircraft.status);
   if (aircraft.deregistrationReason) {
-    return `${base} (${DIPS_DEREGISTRATION_REASON_LABELS[aircraft.deregistrationReason]})`;
+    return `${base} (${dipsDeregistrationReasonLabel(aircraft.deregistrationReason)})`;
   }
   return base;
 }
@@ -48,6 +49,10 @@ function statusLabel(aircraft: DipsOwnedAircraftDto): string {
 /**
  * DIPS ログイン済みアカウントが所有する機体を一覧表示し、1機を選択できるモーダル。
  * 機体フォームの「DIPSから取り込む」ボタンから開く。所有者・使用者の情報は表示しない。
+ *
+ * ADMIN が代理登録する場合でも、DIPS へログインしたアカウント (= 自分自身) が所有する
+ * 機体しか取得できない (DIPS 側の仕様上の制約)。この旨は画面上にも案内文として表示する
+ * (`DipsVerifyButton.tsx` の案内文と文言を揃えている)。
  */
 export function DipsAircraftPickerModal({
   isOpen,
@@ -85,6 +90,10 @@ export function DipsAircraftPickerModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="DIPSから機体を取り込む">
       <div className="space-y-3">
+        <p className="text-xs text-gray-500">
+          DIPSにログインしたアカウントが所有する機体のみ表示されます
+        </p>
+
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"

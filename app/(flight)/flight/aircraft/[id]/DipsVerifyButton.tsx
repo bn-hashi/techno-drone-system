@@ -7,10 +7,7 @@ import {
   DipsAuthRequiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
-import {
-  DIPS_UA_STATUS_LABELS,
-  DIPS_DEREGISTRATION_REASON_LABELS,
-} from "@/lib/constants/dipsAircraftStatus";
+import { dipsUaStatusLabel, dipsDeregistrationReasonLabel } from "@/lib/constants/dipsAircraftStatus";
 
 interface DipsVerifyButtonProps {
   registrationNumber: string | null;
@@ -77,9 +74,9 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
 
       {state.status === "found" && (
         <p className="mt-2 text-sm text-gray-700">
-          DIPS上のステータス: {DIPS_UA_STATUS_LABELS[state.aircraft.status]}
+          DIPS上のステータス: {dipsUaStatusLabel(state.aircraft.status)}
           {state.aircraft.deregistrationReason &&
-            ` (${DIPS_DEREGISTRATION_REASON_LABELS[state.aircraft.deregistrationReason]})`}
+            ` (${dipsDeregistrationReasonLabel(state.aircraft.deregistrationReason)})`}
           ・有効期限: {formatValidPeriodEnd(state.aircraft.validPeriodEnd)}
         </p>
       )}
