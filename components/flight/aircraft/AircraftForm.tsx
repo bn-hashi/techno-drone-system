@@ -46,16 +46,26 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
 
   /**
    * DIPS から選択した機体でフォームを上書きする。
-   * 編集モードでは serialNumber が disabled (既存の一意制約と整合させるため) なので
-   * 上書きしない。機体名・最大飛行時間は DIPS に無いためユーザー入力のまま残す。
+   *
+   * serialNumber は編集モードでも常に DIPS 側の値で上書きする (2026-08-10 差し戻しで修正)。
+   * 従来は編集モードで serialNumber を据え置いていたため、登録記号だけが DIPS の値に
+   * 変わり「DIPS 上に存在しない登録記号×製造番号の組み合わせ」が保存されてしまう
+   * バグがあった。入力欄自体は編集モードで disabled のまま (手入力による書き換えは
+   * 許可しない) だが、DIPS 取り込みは明示的なユーザー操作であり、取り込む以上は
+   * 登録記号・製造番号を DIPS 側のペアとして揃えるべきという判断による。重複した
+   * 製造番号は既存の 409 エラー表示に任せる (計画書 §10 論点6)。
+   *
+   * weightGrams は DIPS 側が値を返せなかった (null) 場合、"null" という文字列を
+   * 数値入力欄に入れてしまわないよう上書きせず既存値を維持する。
+   * 機体名・最大飛行時間は DIPS に無いためユーザー入力のまま残す。
    */
   const handleDipsSelect = (aircraft: DipsOwnedAircraftDto) => {
     setForm((prev) => ({
       ...prev,
       manufacturer: aircraft.manufacturer,
       modelNumber: aircraft.modelNumber,
-      serialNumber: isEdit ? prev.serialNumber : aircraft.serialNumber,
-      weightGrams: String(aircraft.weightGrams),
+      serialNumber: aircraft.serialNumber,
+      weightGrams: aircraft.weightGrams !== null ? String(aircraft.weightGrams) : prev.weightGrams,
       registrationNumber: aircraft.registrationCode,
     }));
     setIsDipsModalOpen(false);

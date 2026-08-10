@@ -65,7 +65,7 @@ describe("AircraftForm", () => {
   });
 
   it("test_form_fills_registration_number_after_dips_selection", async () => {
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([dipsAircraft]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [dipsAircraft], excludedCount: 0 });
     const user = userEvent.setup();
 
     render(<AircraftForm />);
@@ -74,7 +74,33 @@ describe("AircraftForm", () => {
     await user.click(row.closest("button") as HTMLButtonElement);
 
     expect(screen.getByLabelText("登録記号（国土交通省）")).toHaveValue("DUMMY0000001");
+  });
+
+  it("test_form_fills_manufacturer_after_dips_selection", async () => {
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [dipsAircraft], excludedCount: 0 });
+    const user = userEvent.setup();
+
+    render(<AircraftForm />);
+    await user.click(screen.getByRole("button", { name: "DIPSから取り込む" }));
+    const row = await screen.findByText("DUMMY0000001");
+    await user.click(row.closest("button") as HTMLButtonElement);
+
     expect(screen.getByLabelText("製造メーカー *")).toHaveValue("サンプル製造者01");
+  });
+
+  it("test_form_overwrites_serial_number_after_dips_selection_in_edit_mode", async () => {
+    // 回帰テスト (B1): 編集モードでは serialNumber を据え置いていたため、登録記号だけが
+    // DIPS の値に変わり「DIPS 上に存在しない登録記号×製造番号の組み合わせ」が保存されて
+    // しまうバグがあった。DIPS 取り込みでは serialNumber も DIPS の値で上書きする。
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [dipsAircraft], excludedCount: 0 });
+    const user = userEvent.setup();
+
+    render(<AircraftForm initialData={editableAircraft} />);
+    await user.click(screen.getByRole("button", { name: "DIPSから取り込む" }));
+    const row = await screen.findByText("DUMMY0000001");
+    await user.click(row.closest("button") as HTMLButtonElement);
+
+    expect(screen.getByLabelText("シリアル番号 *")).toHaveValue(dipsAircraft.serialNumber);
   });
 
   it("test_form_keeps_manual_input_available", async () => {
@@ -93,7 +119,7 @@ describe("AircraftForm", () => {
     // Modal はポータルを使わないため DOM 上も form の子孫になる。閉じるボタンに
     // type="button" が付いていないと、必須項目が initialData で埋まっている編集画面では
     // ✕ クリックが意図せずフォーム送信 (updateAircraft) を引き起こしてしまう。
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [], excludedCount: 0 });
     const user = userEvent.setup();
 
     render(<AircraftForm initialData={editableAircraft} />);
