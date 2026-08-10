@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
  * コールバック時に照合し、リクエストの正当性を検証する。
  */
 
+import { DIPS_REALM_NAMES } from "@/lib/dips/config";
 import type { DipsRealm } from "@/lib/dips/config";
 
 /** DipsRealm の別名 (state 用途)。定義は lib/dips/config.ts に一元化 */
@@ -22,11 +23,16 @@ export function encodeAuthState(realm: DipsAuthStateRealm, nonce: string): strin
   return `${realm}${SEPARATOR}${nonce}`;
 }
 
+/** realm が DIPS_REALM_NAMES に定義済みか判定する (realm 追加時のハードコード列挙を避ける) */
+function isDipsRealm(value: string): value is DipsAuthStateRealm {
+  return Object.prototype.hasOwnProperty.call(DIPS_REALM_NAMES, value);
+}
+
 export function decodeAuthState(
   state: string
 ): { realm: DipsAuthStateRealm; nonce: string } | null {
   const [realm, nonce] = state.split(SEPARATOR);
-  if ((realm !== "fpl" && realm !== "req") || !nonce) {
+  if (!nonce || !isDipsRealm(realm)) {
     return null;
   }
   return { realm, nonce };

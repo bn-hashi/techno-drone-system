@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DipsOidcClient } from "@/lib/dips/oidcClient";
-import { DipsAuthError, DipsAuthRequiredError } from "@/lib/dips/errors";
+import { DipsAuthError, DipsAuthRequiredError, DipsConfigError } from "@/lib/dips/errors";
 import { encryptToken, decryptToken } from "@/lib/dips/tokenCipher";
 import type { DipsConfig } from "@/lib/dips/config";
 import type { IDipsTokenRepository } from "@/repositories/dipsTokenRepository";
@@ -84,6 +84,38 @@ describe("DipsOidcClient", () => {
         scope: "openid offline_access",
         state: "state-123",
       });
+    });
+
+    it("test_buildAuthorizationUrl_uses_drs_auth_base_url_for_utm_realm", () => {
+      const utmConfig: DipsConfig = {
+        ...config,
+        drsAuthBaseUrl: "https://drs-auth.dips.example.test",
+        credentials: {
+          ...config.credentials,
+          utm: { clientId: "utm-app-test", clientSecret: "utm-secret" },
+        },
+      };
+      const client = new DipsOidcClient(utmConfig, tokenRepo, fetchMock as unknown as typeof fetch);
+
+      const url = client.buildAuthorizationUrl("utm", "state-123");
+
+      expect(url).toContain(
+        "https://drs-auth.dips.example.test/auth/realms/drs-utm/protocol/openid-connect/auth"
+      );
+    });
+
+    it("test_buildAuthorizationUrl_keeps_existing_base_url_for_fpl_realm", () => {
+      const url = makeClient().buildAuthorizationUrl("fpl", "state-123");
+
+      expect(url).toContain(
+        "https://auth.dips.example.test/auth/realms/drs-fpl/protocol/openid-connect/auth"
+      );
+    });
+
+    it("test_buildAuthorizationUrl_throws_config_error_when_utm_credentials_missing", () => {
+      expect(() => makeClient().buildAuthorizationUrl("utm", "state-123")).toThrow(
+        DipsConfigError
+      );
     });
   });
 

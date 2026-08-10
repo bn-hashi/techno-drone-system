@@ -13,6 +13,12 @@ import {
 import { isSafeInternalReturnPath } from "@/lib/dips/returnPath";
 import { logger } from "@/lib/logger";
 
+/** realm クエリパラメータを解釈する。未知の値・未指定は既定 (fpl) にフォールバックする */
+function parseRealmParam(raw: string | null): DipsAuthStateRealm {
+  if (raw === "req" || raw === "utm") return raw;
+  return "fpl";
+}
+
 /**
  * DIPS ログイン (認可コードフロー) を開始する。
  * realm を指定し、state の nonce を httpOnly cookie に保存してから DIPS ログイン画面へリダイレクトする。
@@ -23,8 +29,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!auth.ok) return auth.response;
 
   const searchParams = new URL(request.url).searchParams;
-  const realmParam = searchParams.get("realm");
-  const realm: DipsAuthStateRealm = realmParam === "req" ? "req" : "fpl";
+  const realm: DipsAuthStateRealm = parseRealmParam(searchParams.get("realm"));
   const returnPathParam = searchParams.get("returnPath");
 
   try {

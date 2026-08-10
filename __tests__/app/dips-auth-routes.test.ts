@@ -79,6 +79,22 @@ describe("GET /api/dips/auth/start (returnPath cookie)", () => {
     expect(response.status).toBe(307);
   });
 
+  it("test_auth_start_accepts_utm_realm", async () => {
+    const req = new Request("http://localhost/api/dips/auth/start?realm=utm");
+
+    await startGet(req);
+
+    expect(mockBuildAuthorizationUrl).toHaveBeenCalledWith("utm", expect.stringMatching(/^utm\./));
+  });
+
+  it("test_auth_start_falls_back_to_fpl_for_unknown_realm", async () => {
+    const req = new Request("http://localhost/api/dips/auth/start?realm=bogus");
+
+    await startGet(req);
+
+    expect(mockBuildAuthorizationUrl).toHaveBeenCalledWith("fpl", expect.stringMatching(/^fpl\./));
+  });
+
   it("test_start_with_safe_return_path_saves_return_cookie", async () => {
     const req = new Request(
       "http://localhost/api/dips/auth/start?realm=fpl&returnPath=%2Fflight%2Fplans%2Fabc123"
