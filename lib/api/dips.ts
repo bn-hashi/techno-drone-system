@@ -119,7 +119,18 @@ const DipsOwnedAircraftDtoSchema = z.object({
 
 export interface FetchDipsOwnedAircraftsResult {
   aircrafts: DipsOwnedAircraftDto[];
-  /** サーバー側でパースに失敗して除外された機体の件数 (C3: UI の誤表示防止に使う) */
+  /**
+   * 除外された機体の件数。サーバー側でパースに失敗した件数と、クライアント側の DTO
+   * 検証で落とした件数の合算 (CodeRabbit 2026-08-10 2回目レビュー指摘: クライアント側の
+   * 除外がここに合算されておらず、除外通知が出ない・照合 UI が「見つからない」と
+   * 誤って断定する実害があった)
+   */
+  excludedCount: number;
+}
+
+interface ParseOwnedAircraftsResult {
+  aircrafts: DipsOwnedAircraftDto[];
+  /** クライアント側の DTO 検証で落とした件数 */
   excludedCount: number;
 }
 
@@ -127,24 +138,29 @@ export interface FetchDipsOwnedAircraftsResult {
  * DIPS 所有機体の配列を1件ずつ検証する。配列全体を safeParse すると1機の DTO 検証失敗で
  * 全機を失ってしまうため (2026-08-10 差し戻し。サーバー側 edcc694 のエントリ単位
  * フォールバックがクライアント側では効いていなかった問題)、要素ごとに safeParse して
- * パースできた機体だけを返す。パースに失敗した機体は黙って除外する (サーバー側が
- * 既にエントリ単位でフォールバック済みのため、ここで再び失敗するのはクライアント/
- * サーバー間のスキーマ齟齬か、JSON シリアライズで値が壊れた場合 (例: Infinity →
- * JSON.stringify で null 化) に限られる想定)。
+ * パースできた機体だけを返す。パースに失敗した機体は黙って除外するが、その件数は
+ * 呼び出し側 (`fetchDipsOwnedAircrafts`) がサーバー側の `excludedCount` に合算できるよう
+ * 返す (サーバー側が既にエントリ単位でフォールバック済みのため、ここで再び失敗するのは
+ * クライアント/サーバー間のスキーマ齟齬か、JSON シリアライズで値が壊れた場合
+ * (例: Infinity → JSON.stringify で null 化) に限られる想定だが、稀であっても
+ * 利用者に「除外があった」ことは伝える必要がある)。
  */
-function parseOwnedAircrafts(rawAircrafts: unknown): DipsOwnedAircraftDto[] {
+function parseOwnedAircrafts(rawAircrafts: unknown): ParseOwnedAircraftsResult {
   const arrayResult = z.array(z.unknown()).safeParse(rawAircrafts);
   if (!arrayResult.success) {
     throw new Error("DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です");
   }
-  const parsed: DipsOwnedAircraftDto[] = [];
+  const aircrafts: DipsOwnedAircraftDto[] = [];
+  let excludedCount = 0;
   for (const rawEntry of arrayResult.data) {
     const result = DipsOwnedAircraftDtoSchema.safeParse(rawEntry);
     if (result.success) {
-      parsed.push(result.data);
+      aircrafts.push(result.data);
+    } else {
+      excludedCount += 1;
     }
   }
-  return parsed;
+  return { aircrafts, excludedCount };
 }
 
 /**
@@ -184,8 +200,11 @@ export async function fetchDipsOwnedAircrafts(
     throw new Error(body?.error ?? "DIPS機体情報の取得に失敗しました");
   }
 
+  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
+  const { aircrafts, excludedCount: clientExcludedCount } = parseOwnedAircrafts(body?.aircrafts);
+
   return {
-    aircrafts: parseOwnedAircrafts(body?.aircrafts),
-    excludedCount: typeof body?.excludedCount === "number" ? body.excludedCount : 0,
+    aircrafts,
+    excludedCount: serverExcludedCount + clientExcludedCount,
   };
 }

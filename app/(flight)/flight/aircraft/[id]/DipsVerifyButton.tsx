@@ -18,7 +18,13 @@ type VerifyState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "found"; aircraft: DipsOwnedAircraftDto }
-  | { status: "notFound" }
+  /**
+   * 一致する機体が見つからなかった状態。excludedCount > 0 の場合は「DIPS 側の一部
+   * 機体を読み込めなかったため、この機体が含まれていたかは判断できない」ことを意味し、
+   * 「登録されていない」と断定する場合 (excludedCount === 0) とは表示文言を分ける
+   * (CodeRabbit 2026-08-10 2回目レビュー指摘)
+   */
+  | { status: "notFound"; excludedCount: number }
   | { status: "authRequired"; realm: string }
   | { status: "sessionExpired" }
   | { status: "error"; message: string };
@@ -45,9 +51,9 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
     setState({ status: "loading" });
     try {
       // 抹消済み・期限切れの状態も確認したいため includeInvalid=true で取得する
-      const { aircrafts } = await fetchDipsOwnedAircrafts(true);
+      const { aircrafts, excludedCount } = await fetchDipsOwnedAircrafts(true);
       const matched = aircrafts.find((a) => a.registrationCode === registrationNumber);
-      setState(matched ? { status: "found", aircraft: matched } : { status: "notFound" });
+      setState(matched ? { status: "found", aircraft: matched } : { status: "notFound", excludedCount });
     } catch (err) {
       if (err instanceof DipsAuthRequiredClientError) {
         setState({ status: "authRequired", realm: err.realm });
@@ -89,9 +95,17 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
         </p>
       )}
 
-      {state.status === "notFound" && (
+      {state.status === "notFound" && state.excludedCount === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           DIPS上に該当する機体が見つかりませんでした
+        </p>
+      )}
+
+      {state.status === "notFound" && state.excludedCount > 0 && (
+        // 「登録されていない」と断定せず、除外があったために判断できないことを伝える
+        // (個人情報や除外理由の値そのものは含めず、件数のみ表示する)
+        <p className="mt-2 text-sm text-amber-700">
+          {state.excludedCount}件の機体情報を読み込めなかったため、この機体がDIPSに登録されているか判断できませんでした。解消しない場合はサポートへお問い合わせください
         </p>
       )}
 

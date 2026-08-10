@@ -74,6 +74,36 @@ describe("DipsVerifyButton", () => {
     ).toBeInTheDocument();
   });
 
+  it("test_verify_shows_incomplete_verification_notice_instead_of_not_found_when_excluded_count_positive", async () => {
+    // CodeRabbit 2026-08-10 2回目レビュー指摘の回帰テスト: excludedCount > 0 で
+    // 一致しなかった場合は「見つかりませんでした」と断定せず、除外があったために
+    // 判断できないことを伝える文言を表示する
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 1 });
+    const user = userEvent.setup();
+
+    render(<DipsVerifyButton registrationNumber="JU0000000000" />);
+    await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
+
+    expect(
+      await screen.findByText(/1件の機体情報を読み込めなかったため、この機体がDIPSに登録されているか判断できませんでした/)
+    ).toBeInTheDocument();
+  });
+
+  it("test_verify_does_not_show_not_found_message_when_excluded_count_positive", async () => {
+    // 上記と対をなす確認: excludedCount > 0 のときは断定的な「見つかりませんでした」
+    // 文言を出さないこと自体を検証する
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 1 });
+    const user = userEvent.setup();
+
+    render(<DipsVerifyButton registrationNumber="JU0000000000" />);
+    await user.click(screen.getByRole("button", { name: "DIPSと照合" }));
+
+    await screen.findByText(/読み込めなかった/);
+    expect(
+      screen.queryByText("DIPS上に該当する機体が見つかりませんでした")
+    ).not.toBeInTheDocument();
+  });
+
   it("test_verify_shows_dips_login_link_when_auth_required", async () => {
     mockFetchDipsOwnedAircrafts.mockRejectedValue(new DipsAuthRequiredClientError("utm"));
     const user = userEvent.setup();

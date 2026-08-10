@@ -110,6 +110,30 @@ describe("fetchDipsOwnedAircrafts", () => {
     expect(result.aircrafts).toEqual([validAircraft]);
   });
 
+  it("test_fetchDipsOwnedAircrafts_counts_client_side_dto_validation_failure_in_excluded_count", async () => {
+    // CodeRabbit 2026-08-10 2回目レビュー指摘: クライアント側の DTO 検証で落とした件数が
+    // excludedCount に加算されておらず、サーバーが 0 を返すとクライアントで1件除外しても
+    // 除外通知が出なかった。ここでは server excludedCount: 0 のときクライアント側の1件が
+    // そのまま excludedCount に反映されることを確認する。
+    const invalidAircraft = { ...validAircraft, registrationCode: "DUMMY0000098", weightGrams: "not-a-number" };
+    mockFetchJson({ aircrafts: [validAircraft, invalidAircraft], excludedCount: 0 });
+
+    const result = await fetchDipsOwnedAircrafts();
+
+    expect(result.excludedCount).toBe(1);
+  });
+
+  it("test_fetchDipsOwnedAircrafts_adds_client_side_excluded_count_to_server_side_excluded_count", async () => {
+    // サーバー側 (パース失敗) とクライアント側 (DTO 検証失敗) の除外は別の原因で発生しうる
+    // ため、合算されることを確認する (サーバー2件 + クライアント1件 = 3件)。
+    const invalidAircraft = { ...validAircraft, registrationCode: "DUMMY0000098", weightGrams: "not-a-number" };
+    mockFetchJson({ aircrafts: [validAircraft, invalidAircraft], excludedCount: 2 });
+
+    const result = await fetchDipsOwnedAircrafts();
+
+    expect(result.excludedCount).toBe(3);
+  });
+
   it("test_fetchDipsOwnedAircrafts_returns_empty_array_when_every_entry_fails_dto_validation", async () => {
     const invalidAircraft = { ...validAircraft, weightGrams: "not-a-number" };
     mockFetchJson({ aircrafts: [invalidAircraft], excludedCount: 0 });
@@ -117,6 +141,15 @@ describe("fetchDipsOwnedAircrafts", () => {
     const result = await fetchDipsOwnedAircrafts();
 
     expect(result.aircrafts).toEqual([]);
+  });
+
+  it("test_fetchDipsOwnedAircrafts_counts_all_entries_as_excluded_when_every_entry_fails_dto_validation", async () => {
+    const invalidAircraft = { ...validAircraft, weightGrams: "not-a-number" };
+    mockFetchJson({ aircrafts: [invalidAircraft], excludedCount: 0 });
+
+    const result = await fetchDipsOwnedAircrafts();
+
+    expect(result.excludedCount).toBe(1);
   });
 
   it("test_fetchDipsOwnedAircrafts_throws_auth_required_error_on_401", async () => {
