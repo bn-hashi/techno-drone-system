@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AircraftDto, AircraftFormData } from "@/lib/api/aircraft";
 import { createAircraft, updateAircraft } from "@/lib/api/aircraft";
+import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
+import { DipsAircraftPickerModal } from "@/components/flight/aircraft/DipsAircraftPickerModal";
 
 interface AircraftFormProps {
   initialData?: AircraftDto;
@@ -34,10 +36,30 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDipsModalOpen, setIsDipsModalOpen] = useState(false);
+  const [dipsImportNotice, setDipsImportNotice] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  /**
+   * DIPS から選択した機体でフォームを上書きする。
+   * 編集モードでは serialNumber が disabled (既存の一意制約と整合させるため) なので
+   * 上書きしない。機体名・最大飛行時間は DIPS に無いためユーザー入力のまま残す。
+   */
+  const handleDipsSelect = (aircraft: DipsOwnedAircraftDto) => {
+    setForm((prev) => ({
+      ...prev,
+      manufacturer: aircraft.manufacturer,
+      modelNumber: aircraft.modelNumber,
+      serialNumber: isEdit ? prev.serialNumber : aircraft.serialNumber,
+      weightGrams: String(aircraft.weightGrams),
+      registrationNumber: aircraft.registrationCode,
+    }));
+    setIsDipsModalOpen(false);
+    setDipsImportNotice("DIPSから取り込みました。機体名と最大飛行時間を入力してください。");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,12 +208,24 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
       </div>
 
       <div>
-        <label
-          htmlFor="aircraft-registration-number"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          登録記号（国土交通省）
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label
+            htmlFor="aircraft-registration-number"
+            className="block text-sm font-medium text-gray-700"
+          >
+            登録記号（国土交通省）
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setDipsImportNotice(null);
+              setIsDipsModalOpen(true);
+            }}
+            className="text-xs text-blue-600 hover:underline"
+          >
+            DIPSから取り込む
+          </button>
+        </div>
         <input
           id="aircraft-registration-number"
           type="text"
@@ -200,7 +234,17 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
           onChange={handleChange}
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        {dipsImportNotice && (
+          <p className="mt-1 text-xs text-green-700">{dipsImportNotice}</p>
+        )}
       </div>
+
+      <DipsAircraftPickerModal
+        isOpen={isDipsModalOpen}
+        onClose={() => setIsDipsModalOpen(false)}
+        onSelect={handleDipsSelect}
+        returnPath={typeof window !== "undefined" ? window.location.pathname : undefined}
+      />
 
       <div className="flex gap-3 pt-2">
         <button

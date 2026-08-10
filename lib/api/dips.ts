@@ -1,6 +1,7 @@
 /**
  * DIPS 連携のクライアント API ヘルパー
  */
+import { z } from "zod";
 
 export interface DipsNotificationInput {
   flightPurpose: number[];
@@ -70,4 +71,65 @@ export function dipsLoginUrl(realm: string, returnPath?: string): string {
     params.set("returnPath", returnPath);
   }
   return `/api/dips/auth/start?${params.toString()}`;
+}
+
+// ─── 機体情報一覧取得 (DIPS 所有機体) ─────────────────────────────────────────
+
+/** DIPS 所有機体 (機体情報一覧取得 API)。所有者・使用者の個人情報は含まない */
+export interface DipsOwnedAircraftDto {
+  registrationCode: string;
+  manufacturer: string;
+  modelNumber: string;
+  serialNumber: string;
+  weightGrams: number;
+  status: 1 | 2 | 3;
+  deregistrationReason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | null;
+  validPeriodEnd: string;
+  remoteIdType: 0 | 1 | 2;
+  ownerCategory: 1 | 2;
+  isSelectable: boolean;
+}
+
+const DipsOwnedAircraftDtoSchema = z.object({
+  registrationCode: z.string(),
+  manufacturer: z.string(),
+  modelNumber: z.string(),
+  serialNumber: z.string(),
+  weightGrams: z.number(),
+  status: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  deregistrationReason: z
+    .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)])
+    .nullable(),
+  validPeriodEnd: z.string(),
+  remoteIdType: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  ownerCategory: z.union([z.literal(1), z.literal(2)]),
+  isSelectable: z.boolean(),
+});
+
+/**
+ * DIPS ログイン済みアカウントが所有する機体一覧を取得する。
+ * トークン未取得・失効 (401 authRequired) の場合は DipsAuthRequiredClientError を投げる。
+ */
+export async function fetchDipsOwnedAircrafts(
+  includeInvalid = false
+): Promise<DipsOwnedAircraftDto[]> {
+  const res = await fetch(`/api/dips/aircrafts?includeInvalid=${includeInvalid}`);
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & { aircrafts?: unknown })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "utm");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS機体情報の取得に失敗しました");
+  }
+
+  const result = z.array(DipsOwnedAircraftDtoSchema).safeParse(body?.aircrafts);
+  if (!result.success) {
+    throw new Error("DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です");
+  }
+  return result.data;
 }
