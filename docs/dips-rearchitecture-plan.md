@@ -1,7 +1,8 @@
 # DIPS連携リアーキテクチャ計画 (承認済み)
 
 作成日: 2026-07-03
-最終更新: 2026-07-28 (機体情報一覧取得APIガイドラインに関する誤記を訂正)
+最終更新: 2026-08-10 (機体情報一覧取得API [DRS, realm utm] を実装。詳細は
+`docs/dips-drs-aircraft-list-api.md`)
 ステータス: **ユーザー承認済み** — 実装中 (feature/dips-auth-code-flow)
 
 ## 承認済みの決定事項
@@ -68,9 +69,10 @@
 - ヘッダ: `Authorization: Bearer {access_token}` / `Content-Type: application/json;charset=UTF-8`
 - `applicantId` をbodyに含める旧設計は廃止 (トークンの認証ユーザーから自動特定、URLも `appliers/me`)
 
-### 機体情報一覧取得 API (DRSガイドライン 2.3.6。未実装・参考仕様)
+### 機体情報一覧取得 API (DRSガイドライン 2.3.6)
 
-**この節は仕様の記録のみで、実装は行っていない。** 「未対応 (別フェーズ)」参照。
+**2026-08-10 実装済み。** `GET /api/dips/aircrafts` (realm `utm`)。実装の詳細・JSON キー名の
+対応表・PII 方針は `docs/dips-drs-aircraft-list-api.md` を参照。
 
 | 項目 | 値 |
 |---|---|
@@ -133,9 +135,11 @@
 
 ### 未対応 (別フェーズ)
 
-- 機体照合 (utm-app系): **ガイドラインは入手済み** (DRS API ガイドライン §2.3.6。上記「機体情報一覧取得 API」参照)。
-  仕様待ちではなく実装未着手が正しい状態。実装時に `DipsApiClient.fetchAircraftList` /
-  `DipsService.verifyAircraftRegistration` / 機体詳細ページの照合UIを追加する
+- 機体照合 (utm-app系): **2026-08-10 実装済み** (上記「機体情報一覧取得 API」参照)。
+  第1段階は DB に保存せず都度取得のみ (機体詳細ページの「DIPSと照合」)。第2段階の候補
+  (add-only なステータス列の追加等) は `_orchestrator/results/req-003/planner.md` §7 参照
+- 本番環境での realm 別認証ドメイン分岐 (fpl 系が req 系と本番でドメイン分岐する可能性。
+  検証環境では未確認・本番 Client ID 未払い出しのため検証不能。別依頼で対応)
 - 飛行禁止エリア情報取得 → `getRiskStub` の実データ化 (Phase F 疎通後)
 - 許可・承認申請受付 (permissionRegister) の UI
 - 通報ダイアログの飛行空域種別: 現状カンマ区切りテキスト。ガイドラインのコード表で選択式に改善余地
@@ -150,5 +154,8 @@
 | `DIPS_FPA_API_BASE_URL` | 許可承認API系 (検証: `https://www.stg.uafp.dips.mlit.go.jp`) |
 | `DIPS_FPL_CLIENT_ID` / `DIPS_FPL_CLIENT_SECRET` | realm `drs-fpl` 用 |
 | `DIPS_REQ_CLIENT_ID` / `DIPS_REQ_CLIENT_SECRET` | realm `drs-req` 用 |
+| `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | realm `drs-utm` (機体情報一覧取得) 用。**任意** (未設定時は utm 機能のみ利用不可、他 realm は影響なし) |
+| `DIPS_DRS_AUTH_BASE_URL` | realm `drs-utm` の認証ベース (検証: `https://www.dips-regdev.mlit.go.jp`)。fpl/req とドメインが異なるため別変数 |
+| `DIPS_DRS_API_BASE_URL` | 機体情報一覧取得API系 (検証: `https://www.dips-regdev.mlit.go.jp`) |
 | `DIPS_REDIRECT_URI` | `https://techno-drone-system.com/redirect` |
 | `DIPS_TOKEN_ENCRYPTION_KEY` | トークン暗号化鍵 (32byte hex) |

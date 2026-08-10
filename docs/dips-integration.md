@@ -1,6 +1,7 @@
 # DIPS 2.0 API 連携 (Phase 4)
 
-最終更新: 2026-07-28 (機体情報一覧取得APIガイドラインに関する誤記・OIDCグラント種別の記述を訂正)
+最終更新: 2026-08-10 (機体情報一覧取得API [DRS, realm utm] を実装。詳細は
+`docs/dips-drs-aircraft-list-api.md`)
 
 ## 概要
 
@@ -40,17 +41,23 @@ route.ts (Controller)
 | ルート | 内容 |
 |---|---|
 | `POST /api/flight/plans/[id]/dips-notify` | 飛行計画を飛行計画通報受付 API へ通報 |
+| `GET /api/dips/aircrafts` | DIPS ログイン済みアカウントの所有機体一覧を取得 (機体情報一覧取得 API)。クエリ `includeInvalid=true` で抹消済み・期限切れも含める |
 
-`requireFlightAccess` (ADMIN/PILOT) + 所有者チェック (非所有者は 404)。
+`requireFlightAccess` (ADMIN/PILOT)。`GET /api/dips/aircrafts` は所有者チェックの概念がなく、
+DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
 
 > **訂正 (2026-07-28)**: 以前ここに記載していた `POST /api/flight/aircraft/[id]/verify-registration`
 > (機体の登録記号を機体情報一覧取得 API と照合するルート) は、Authorization Code Flow への
-> リアーキテクチャ (#57) 時に削除されており、現在は存在しない。削除の理由は「機体情報一覧取得 API の
+> リアーキテクチャ (#57) 時に削除されており、当時は存在しなかった。削除の理由は「機体情報一覧取得 API の
 > ガイドラインが非公開」という誤った前提だった。実際は DRS API 接続システム向けガイドライン 1.1版
 > (2022-12-05) §2.3.6 で公開されている
 > (https://www.dips-reg.mlit.go.jp/contents/drs/preview/DRS_API_Guideline.pdf)。
-> 詳細・再実装時の参考仕様は `docs/dips-rearchitecture-plan.md` の「機体情報一覧取得 API」節を参照。
-> 再実装自体は本ドキュメントの訂正時点では未着手 (別タスクのスコープ)。
+>
+> **2026-08-10 追記**: 機体情報一覧取得 API を realm `utm` として実装した (上表参照)。ただし
+> UI 導線は当時検討していた「登録記号の自動照合」とは形が異なる: (a) 機体フォームの
+> 「DIPSから取り込む」ボタン + 選択モーダルでフォームへ自動入力、(b) 機体詳細ページの
+> 「DIPSと照合」ボタンで都度ステータス・有効期限を表示 (DB には保存しない)。実装の詳細・
+> JSON キー名の対応表は `docs/dips-drs-aircraft-list-api.md` を参照。
 
 ## 環境変数 (本番サーバーの .env に設定)
 
@@ -61,7 +68,9 @@ route.ts (Controller)
 | `DIPS_ENABLED` | `true` で連携有効 (既定: 無効) | — |
 | `DIPS_API_BASE_URL` | DIPS API ベース URL | API 利用ガイドライン参照 |
 | `DIPS_TOKEN_URL` | OIDC トークンエンドポイント | API 利用ガイドライン参照 |
-| `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | 機体情報一覧取得用 (`utm-app-*`)。**現行コードは未読込** — `lib/dips/config.ts` は fpl/req の2系統専用で、機体情報一覧取得API実装時に追加予定 | Client ID 一覧 |
+| `DIPS_UTM_CLIENT_ID` / `DIPS_UTM_CLIENT_SECRET` | 機体情報一覧取得用 (`utm-app-*`)。**任意** (utm 機能を使うときのみ必須。未設定でも fpl/req は影響なし) | Client ID 一覧 (シート1 J51/J52) |
+| `DIPS_DRS_AUTH_BASE_URL` | realm `drs-utm` の認証 (Keycloak) ベース URL。fpl/req とドメインが異なる。検証: `https://www.dips-regdev.mlit.go.jp` | ガイドライン §3.1 |
+| `DIPS_DRS_API_BASE_URL` | 機体情報一覧取得 API のベース URL。検証: `https://www.dips-regdev.mlit.go.jp` | ガイドライン §2.3.6 |
 | `DIPS_REQ_CLIENT_ID` / `DIPS_REQ_CLIENT_SECRET` | 許可・承認系 (`req-app-*`) | Client ID 一覧 |
 | `DIPS_FPL_CLIENT_ID` / `DIPS_FPL_CLIENT_SECRET` | 飛行計画系 (`fpl-app-*`) | Client ID 一覧 |
 | `DIPS_APPLICANT_ID_PERMISSION_GET` | 許可・承認情報取得の申請者ID (R08-DRS-0005 参照) | 申請者 ID 一覧 |
@@ -93,10 +102,12 @@ route.ts (Controller)
 4. 飛行計画通報 → 飛行計画情報取得の順で確認 (取得側はデータ未投入のため)
 5. 動作確認完了報告を当局へ提出 → 本番環境 API 利用申請 (申請書の緑色セル記入)
 
-> **訂正 (2026-07-28)**: 「機体情報一覧取得: HTTP 200 + 別紙1「利用可能情報」の18機体が取得できること」
-> という確認手順は削除した。機体情報一覧取得 API は未実装 (`lib/dips/endpoints.ts` に定義なし) のため、
-> 現時点では実施できない。実装後にあらためて確認手順へ追加すること
-> (参考仕様: `docs/dips-rearchitecture-plan.md` の「機体情報一覧取得 API」節)。
+> **訂正 (2026-07-28 時点)**: 「機体情報一覧取得: HTTP 200 + 別紙1「利用可能情報」の18機体が取得できること」
+> という確認手順は、当時は機体情報一覧取得 API が未実装 (`lib/dips/endpoints.ts` に定義なし) だった
+> ため削除していた。
+>
+> **2026-08-10 追記**: 機体情報一覧取得 API を実装した。詳細な疎通確認手順は
+> `docs/production-operations-runbook.md` の「1-8. 機体情報一覧取得の疎通確認」に追加した。
 
 ## ローカル開発
 

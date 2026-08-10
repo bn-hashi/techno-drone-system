@@ -7,6 +7,7 @@ import { AircraftNotFoundError } from "@/services/errors";
 import { UserRole } from "@/types/prisma";
 import { hasFlightAccess } from "@/lib/auth/flightPermissions";
 import { DeactivateButton } from "./DeactivateButton";
+import { DipsVerifyButton } from "./DipsVerifyButton";
 
 interface AircraftDetailPageProps {
   params: { id: string };
@@ -106,6 +107,12 @@ export default async function AircraftDetailPage({ params }: AircraftDetailPageP
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">登録日</dt>
             <dd className="text-sm text-gray-900">
               {new Date(aircraft.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
+            </dd>
+          </div>
+          <div className="px-6 py-4 flex gap-4">
+            <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">DIPSとの照合</dt>
+            <dd className="text-sm text-gray-900">
+              <DipsVerifyButton registrationNumber={aircraft.registrationNumber} />
             </dd>
           </div>
         </dl>

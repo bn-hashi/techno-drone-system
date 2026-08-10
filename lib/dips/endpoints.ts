@@ -6,9 +6,8 @@ import type { DipsRealm } from "@/lib/dips/config";
  * ベース URL は realm 系統ごとに異なる:
  * - fpl 系 (飛行計画): fprApiBaseUrl (検証 https://www.stg.uafpi.dips.mlit.go.jp)
  * - req 系 (許可承認): fpaApiBaseUrl (検証 https://www.stg.uafp.dips.mlit.go.jp)
- *
- * 機体情報一覧取得 (utm-app 系) は DRS API ガイドライン §2.3.6 で仕様公開済み
- * (GET /utm/v1/aircrafts, realm drs-utm) だが未実装のため未定義 (docs/dips-rearchitecture-plan.md 参照)。
+ * - utm 系 (機体情報一覧取得): drsApiBaseUrl (検証 https://www.dips-regdev.mlit.go.jp)。
+ *   DRS API ガイドライン §2.3.6。他 2 系統とは認証・API のドメインが異なる
  */
 
 export interface DipsEndpoint {
@@ -18,7 +17,7 @@ export interface DipsEndpoint {
   /** 認証に使う realm */
   realm: DipsRealm;
   /** どの系統のベース URL を使うか */
-  apiBase: "fpr" | "fpa";
+  apiBase: "fpr" | "fpa" | "drs";
 }
 
 export const DIPS_ENDPOINTS = {
@@ -56,5 +55,12 @@ export const DIPS_ENDPOINTS = {
     path: "/req-pub/api/v1/appliers/me/permissionRegister",
     realm: "req",
     apiBase: "fpa",
+  },
+  /** 機体情報一覧取得 (utm, DRS API ガイドライン §2.3.6) */
+  aircraftList: {
+    method: "GET",
+    path: "/utm/v1/aircrafts",
+    realm: "utm",
+    apiBase: "drs",
   },
 } as const satisfies Record<string, DipsEndpoint>;

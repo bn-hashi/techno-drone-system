@@ -1,4 +1,4 @@
-import { DIPS_REALM_NAMES } from "@/lib/dips/config";
+import { DIPS_REALM_NAMES, requireRealmCredentials, requireAuthBaseUrl } from "@/lib/dips/config";
 import type { DipsConfig, DipsRealm } from "@/lib/dips/config";
 import { DipsAuthError, DipsAuthRequiredError } from "@/lib/dips/errors";
 import { encryptToken, decryptToken } from "@/lib/dips/tokenCipher";
@@ -53,9 +53,10 @@ export class DipsOidcClient {
 
   /** DIPS ログイン画面へ誘導する認可 URL を組み立てる (scope は仕様上の固定値) */
   buildAuthorizationUrl(realm: DipsRealm, state: string): string {
+    const { clientId } = requireRealmCredentials(this.config, realm);
     const url = new URL(this.endpointUrl(realm, "auth"));
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", this.config.credentials[realm].clientId);
+    url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", this.config.redirectUri);
     url.searchParams.set("scope", "openid offline_access");
     url.searchParams.set("state", state);
@@ -65,7 +66,7 @@ export class DipsOidcClient {
 
   /** 認可コードをトークンに交換し、暗号化して保存する */
   async exchangeCodeAndStore(userId: string, realm: DipsRealm, code: string): Promise<void> {
-    const { clientId, clientSecret } = this.config.credentials[realm];
+    const { clientId, clientSecret } = requireRealmCredentials(this.config, realm);
     const tokens = await this.requestToken(realm, {
       grant_type: "authorization_code",
       code,
@@ -126,7 +127,7 @@ export class DipsOidcClient {
     record: DipsToken
   ): Promise<string> {
     const refreshToken = decryptToken(record.encryptedRefreshToken, this.config.tokenEncryptionKey);
-    const { clientId, clientSecret } = this.config.credentials[realm];
+    const { clientId, clientSecret } = requireRealmCredentials(this.config, realm);
 
     let tokens: TokenGrantResult;
     try {
@@ -171,7 +172,8 @@ export class DipsOidcClient {
 
   private endpointUrl(realm: DipsRealm, endpoint: "auth" | "token"): string {
     const realmName = DIPS_REALM_NAMES[realm];
-    return `${this.config.authBaseUrl}/auth/realms/${realmName}/protocol/openid-connect/${endpoint}`;
+    const authBaseUrl = requireAuthBaseUrl(this.config, realm);
+    return `${authBaseUrl}/auth/realms/${realmName}/protocol/openid-connect/${endpoint}`;
   }
 
   private async requestToken(

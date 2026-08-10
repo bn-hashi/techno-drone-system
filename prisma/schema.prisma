@@ -419,7 +419,7 @@ model FlightPlan {
 model DipsToken {
   id                    String   @id @default(cuid())
   userId                String
-  /// realm キー: "fpl" (drs-fpl) | "req" (drs-req)
+  /// realm キー: "fpl" (drs-fpl) | "req" (drs-req) | "utm" (drs-utm)
   realm                 String
   encryptedAccessToken  String
   encryptedRefreshToken String
