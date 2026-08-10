@@ -23,8 +23,12 @@ export function encodeAuthState(realm: DipsAuthStateRealm, nonce: string): strin
   return `${realm}${SEPARATOR}${nonce}`;
 }
 
-/** realm が DIPS_REALM_NAMES に定義済みか判定する (realm 追加時のハードコード列挙を避ける) */
-function isDipsRealm(value: string): value is DipsAuthStateRealm {
+/**
+ * realm が DIPS_REALM_NAMES に定義済みか判定する (realm 追加時のハードコード列挙を避ける)。
+ * state のデコードだけでなく、realm クエリパラメータの検証 (`/api/dips/auth/start`) でも
+ * 共有する単一ソースとして export する。
+ */
+export function isDipsRealm(value: string): value is DipsAuthStateRealm {
   return Object.prototype.hasOwnProperty.call(DIPS_REALM_NAMES, value);
 }
 

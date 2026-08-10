@@ -45,6 +45,7 @@ vi.mock("@/lib/serviceFactory", () => ({
 
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { getDipsService } from "@/lib/serviceFactory";
+import { DipsConfigError } from "@/lib/dips/errors";
 import { GET as startGet } from "@/app/api/dips/auth/start/route";
 import { GET as redirectGet } from "@/app/redirect/route";
 
@@ -152,6 +153,22 @@ describe("GET /api/dips/auth/start (returnPath cookie)", () => {
     await startGet(req);
 
     expect(cookieStore.has(DIPS_RETURN_COOKIE_NAME)).toBe(false);
+  });
+});
+
+describe("GET /api/dips/auth/start (エラーハンドリング)", () => {
+  it("test_start_returns_503_on_dips_config_error", async () => {
+    // 回帰テスト (B3): DipsConfigError (自システムの環境変数不足) を捕捉せず、
+    // 素の 500 JSON が画面に出ていた。本 PR が導入した utm 系の lazy validation により
+    // 実際に発生しうるシナリオのため、503 で返すことを確認する (C1 と同じ方針)
+    vi.mocked(getDipsService).mockImplementation(() => {
+      throw new DipsConfigError(["DIPS_UTM_CLIENT_ID"]);
+    });
+    const req = new Request("http://localhost/api/dips/auth/start?realm=utm");
+
+    const response = await startGet(req);
+
+    expect(response.status).toBe(503);
   });
 });
 

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getDipsService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
-import { DipsDisabledError } from "@/lib/dips/errors";
-import { generateNonce, encodeAuthState } from "@/lib/dips/authState";
+import { DipsDisabledError, DipsConfigError } from "@/lib/dips/errors";
+import { generateNonce, encodeAuthState, isDipsRealm } from "@/lib/dips/authState";
 import type { DipsAuthStateRealm } from "@/lib/dips/authState";
 import {
   DIPS_STATE_COOKIE_NAME,
@@ -13,10 +13,17 @@ import {
 import { isSafeInternalReturnPath } from "@/lib/dips/returnPath";
 import { logger } from "@/lib/logger";
 
-/** realm クエリパラメータを解釈する。未知の値・未指定は既定 (fpl) にフォールバックする */
+/** realm 追加時にここを更新し忘れないよう、既定値も定数として明示する */
+const DEFAULT_DIPS_REALM: DipsAuthStateRealm = "fpl";
+
+/**
+ * realm クエリパラメータを解釈する。未知の値・未指定は既定 (fpl) にフォールバックする。
+ * 妥当な realm かどうかの判定は `isDipsRealm` (DIPS_REALM_NAMES 由来) に一元化し、
+ * ここでの再列挙 (ハードコード) を避ける。
+ */
 function parseRealmParam(raw: string | null): DipsAuthStateRealm {
-  if (raw === "req" || raw === "utm") return raw;
-  return "fpl";
+  if (raw !== null && isDipsRealm(raw)) return raw;
+  return DEFAULT_DIPS_REALM;
 }
 
 /**
@@ -65,6 +72,15 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.redirect(authorizationUrl);
   } catch (error) {
     if (error instanceof DipsDisabledError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    // 自システムの環境変数不足 (DIPS 側の障害ではない)。DipsDisabledError と同じく
+    // 「連携を開始できる状態にない」ことが原因のため 503 とし、切り分けのため
+    // 専用のログメッセージを残す (C1 と同じ方針: DIPS 側障害の 500 と区別する)
+    if (error instanceof DipsConfigError) {
+      logger.error("DIPS連携の設定が不足しています", error, {
+        route: "GET /api/dips/auth/start",
+      });
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
     logger.error("DIPS認可開始でエラーが発生しました", error, {
