@@ -36,8 +36,8 @@ interface AccessContext {
  * DIPS 2.0 連携のビジネスロジック
  *
  * 認証は Authorization Code Flow。realm 別トークンは DipsOidcClient が管理する。
- * 機体情報一覧取得 (utm-app 系) は DRS API ガイドライン §2.3.6 で仕様公開済みだが未対応
- * (docs/dips-rearchitecture-plan.md 参照)。
+ * 機体情報一覧取得 (utm-app 系, DRS API ガイドライン §2.3.6) は listOwnedAircrafts() で
+ * 実装済み (詳細: docs/dips-drs-aircraft-list-api.md)。
  */
 export class DipsService {
   constructor(
