@@ -1,25 +1,31 @@
 import type { DipsConfig } from "@/lib/dips/config";
+import { requireApiBaseUrl } from "@/lib/dips/config";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DIPS_ENDPOINTS } from "@/lib/dips/endpoints";
 import type { DipsEndpoint } from "@/lib/dips/endpoints";
 import { DipsApiError } from "@/lib/dips/errors";
+import { normalizeAircraftList } from "@/lib/dips/aircraftListSchema";
 import type {
   DipsPermissionsResponse,
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
+  DipsAircraftInfo,
 } from "@/lib/dips/types";
 
 /** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
+ * エラーレスポンス本文をログ・例外メッセージへ格納する際の最大長。
+ * DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、全文は保持しない。
+ */
+const RESPONSE_BODY_PREVIEW_LENGTH = 200;
+
+/**
  * DIPS 2.0 API クライアント
  *
  * 認証は DipsOidcClient から realm 別・ユーザー別のアクセストークンを取得して Bearer 付与する。
- * ベース URL は endpoint の apiBase (fpr/fpa) で切り替える。fetch はテスト容易性のため注入可能。
- *
- * 機体情報一覧取得 (utm-app 系) は DRS API ガイドライン §2.3.6 で仕様公開済みだが未実装
- * (docs/dips-rearchitecture-plan.md 参照)。
+ * ベース URL は endpoint の apiBase (fpr/fpa/drs) で切り替える。fetch はテスト容易性のため注入可能。
  */
 export class DipsApiClient {
   constructor(
@@ -45,8 +51,14 @@ export class DipsApiClient {
     );
   }
 
+  /** 機体情報一覧取得 (utm realm)。レスポンスは境界で検証・正規化してから返す */
+  async fetchAircraftList(userId: string): Promise<DipsAircraftInfo[]> {
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.aircraftList);
+    return normalizeAircraftList(raw);
+  }
+
   private baseUrlFor(endpoint: DipsEndpoint): string {
-    return endpoint.apiBase === "fpr" ? this.config.fprApiBaseUrl : this.config.fpaApiBaseUrl;
+    return requireApiBaseUrl(this.config, endpoint.apiBase);
   }
 
   private async request<T>(userId: string, endpoint: DipsEndpoint, body?: unknown): Promise<T> {
@@ -75,7 +87,10 @@ export class DipsApiClient {
     }
 
     if (!response.ok) {
-      const responseBody = await response.text().catch(() => undefined);
+      const rawResponseBody = await response.text().catch(() => undefined);
+      // DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、
+      // 診断に必要な範囲 (先頭 200 文字) までに切り詰めて保持する
+      const responseBody = rawResponseBody?.slice(0, RESPONSE_BODY_PREVIEW_LENGTH);
       throw new DipsApiError(
         `DIPS API がエラーを返しました (${endpoint.method} ${endpoint.path})`,
         response.status,

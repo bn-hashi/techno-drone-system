@@ -4,6 +4,8 @@ import { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsConfig } from "@/lib/dips/config";
 import type { DipsFlightPlanNotificationPayload } from "@/lib/dips/types";
+import { DipsConfigError } from "@/lib/dips/errors";
+import { accountAResponse } from "@/test-fixtures/dips/aircraftListFixtures";
 
 const config: DipsConfig = {
   authBaseUrl: "https://auth.dips.example.test",
@@ -136,6 +138,81 @@ describe("DipsApiClient", () => {
     const result = await makeClient().notifyFlightPlan("user-1", samplePayload);
 
     expect(result.flightPlanId).toBe("FP-1");
+  });
+
+  // ─── fetchAircraftList (utm realm / drs base) ────────────────────────────────
+
+  const makeDrsClient = () => {
+    const drsConfig: DipsConfig = { ...config, drsApiBaseUrl: "https://drs-api.dips.example.test" };
+    return new DipsApiClient(drsConfig, oidcClient, fetchMock as unknown as typeof fetch);
+  };
+
+  it("test_fetchAircraftList_requests_drs_aircrafts_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    await makeDrsClient().fetchAircraftList("user-1");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://drs-api.dips.example.test/utm/v1/aircrafts");
+  });
+
+  it("test_fetchAircraftList_uses_utm_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    await makeDrsClient().fetchAircraftList("user-1");
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "utm");
+  });
+
+  it("test_fetchAircraftList_sends_bearer_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    await makeDrsClient().fetchAircraftList("user-1");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.authorization).toBe("Bearer test-token");
+  });
+
+  it("test_fetchAircraftList_uses_get_method", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    await makeDrsClient().fetchAircraftList("user-1");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("GET");
+  });
+
+  it("test_fetchAircraftList_returns_normalized_aircrafts", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    const result = await makeDrsClient().fetchAircraftList("user-1");
+
+    expect(result).toHaveLength(9);
+    expect(result[0]).toHaveProperty("regSymbol");
+  });
+
+  it("test_fetchAircraftList_throws_api_error_on_non_200", async () => {
+    fetchMock.mockResolvedValue(new Response("forbidden", { status: 403 }));
+
+    await expect(makeDrsClient().fetchAircraftList("user-1")).rejects.toMatchObject({
+      name: "DipsApiError",
+      status: 403,
+    });
+  });
+
+  it("test_fetchAircraftList_throws_api_error_on_invalid_json", async () => {
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeDrsClient().fetchAircraftList("user-1")).rejects.toMatchObject({
+      name: "DipsApiError",
+    });
+  });
+
+  it("test_fetchAircraftList_throws_config_error_when_drs_base_url_missing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    // config (drsApiBaseUrl 未設定) をそのまま使うクライアント
+    await expect(makeClient().fetchAircraftList("user-1")).rejects.toThrow(DipsConfigError);
   });
 
   // ─── エラーハンドリング ───────────────────────────────────────────────────────
