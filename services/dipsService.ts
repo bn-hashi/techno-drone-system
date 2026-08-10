@@ -9,6 +9,7 @@ import type {
   DipsOwnedAircraftDto,
 } from "@/lib/dips/types";
 import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
+import { DIPS_UA_STATUS_ACTIVE } from "@/lib/constants/dipsAircraftStatus";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
 import { BusinessError } from "@/services/errors";
@@ -19,12 +20,16 @@ const MAX_FLIGHT_PLAN_NAME_LENGTH = 30;
 /** DIPS 機体重量 (kg) → 本システムの機体重量 (g) の単位変換係数 */
 const GRAMS_PER_KILOGRAM = 1000;
 
-/** 機体ステータス: 1=有効な機体 (登録済)。別紙1 のコード値定義に準拠 */
-const AIRCRAFT_STATUS_ACTIVE = 1;
-
 interface ListOwnedAircraftsOptions {
   /** true なら抹消済み・有効期限切れの機体も含める (既定は有効な機体のみ) */
   includeInvalid?: boolean;
+}
+
+/** listOwnedAircrafts() の戻り値。除外件数は C3 (UI の誤表示防止) のために伝搬する */
+export interface ListOwnedAircraftsResult {
+  aircrafts: DipsOwnedAircraftDto[];
+  /** DIPS レスポンスのうちパースに失敗して除外した機体の件数 */
+  excludedCount: number;
 }
 
 interface AccessContext {
@@ -111,23 +116,31 @@ export class DipsService {
   /**
    * DIPS ログイン済みアカウントが所有する機体一覧を取得する (機体情報一覧取得 API)。
    *
-   * 既定では機体ステータスが有効 (registration_code の aircraft_status === 1) な機体のみ
-   * 返す。有効性の判定は aircraft_status を正とし、有効期限 (validPeriodEnd) は補助表示に
-   * 留める (別紙1 のテストデータは全機体が同一の有効期限を持ち、ステータス値のみで
-   * 期限切れを区別しているため)。抹消済み・期限切れの機体は誤った登録記号の取り込みを
-   * 防ぐため isSelectable=false とする。
+   * 既定では機体ステータスが有効 (aircraft_status === 1) な機体のみ返す。判定ルールの
+   * 対象は機体情報 (aircraft_information.aircraft_status) であり、登録記号
+   * (registration_code) 自体はステータス値を持たない。有効性の判定は aircraft_status を
+   * 正とし、有効期限 (validPeriodEnd) は補助表示に留める (別紙1 のテストデータは全機体が
+   * 同一の有効期限を持ち、ステータス値のみで期限切れを区別しているため)。抹消済み・
+   * 期限切れ・ステータス不明 (null) の機体は誤った登録記号の取り込みを防ぐため
+   * isSelectable=false とする。
+   *
+   * `excludedCount` は DIPS レスポンスのパースに失敗して除外した機体の件数を伝搬する
+   * (C3: UI が「除外があったのに0件と表示する」誤表示を避けるために使う)。
    */
   async listOwnedAircrafts(
     userId: string,
     options: ListOwnedAircraftsOptions = {}
-  ): Promise<DipsOwnedAircraftDto[]> {
-    const aircrafts = await this.apiClient.fetchAircraftList(userId);
+  ): Promise<ListOwnedAircraftsResult> {
+    const { aircrafts, excludedCount } = await this.apiClient.fetchAircraftList(userId);
     const target = options.includeInvalid
       ? aircrafts
-      : aircrafts.filter((aircraft) => aircraft.uaStatus === AIRCRAFT_STATUS_ACTIVE);
-    return target
-      .map(toOwnedAircraftDto)
-      .sort((a, b) => a.registrationCode.localeCompare(b.registrationCode));
+      : aircrafts.filter((aircraft) => aircraft.uaStatus === DIPS_UA_STATUS_ACTIVE);
+    return {
+      aircrafts: target
+        .map(toOwnedAircraftDto)
+        .sort((a, b) => a.registrationCode.localeCompare(b.registrationCode)),
+      excludedCount,
+    };
   }
 }
 
@@ -137,12 +150,13 @@ function toOwnedAircraftDto(aircraft: DipsAircraftInfo): DipsOwnedAircraftDto {
     manufacturer: aircraft.makerNameJa,
     modelNumber: aircraft.modelNameJa,
     serialNumber: aircraft.serialNumber,
-    weightGrams: Math.round(aircraft.weightKg * GRAMS_PER_KILOGRAM),
+    // weightKg が null (値が欠落／数値化できなかった) の場合は捏造の 0g にせず null のまま伝える
+    weightGrams: aircraft.weightKg === null ? null : Math.round(aircraft.weightKg * GRAMS_PER_KILOGRAM),
     status: aircraft.uaStatus,
     deregistrationReason: aircraft.deregistrationReason,
     validPeriodEnd: aircraft.validPeriodEnd,
     remoteIdType: aircraft.remoteIdType,
     ownerCategory: aircraft.ownerCategory,
-    isSelectable: aircraft.uaStatus === AIRCRAFT_STATUS_ACTIVE,
+    isSelectable: aircraft.uaStatus === DIPS_UA_STATUS_ACTIVE,
   };
 }

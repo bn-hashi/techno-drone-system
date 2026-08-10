@@ -89,13 +89,15 @@ describe("GET /api/dips/aircrafts", () => {
     expect(response.status).toBe(502);
   });
 
-  it("test_get_returns_502_on_dips_config_error", async () => {
+  it("test_get_returns_503_on_dips_config_error", async () => {
+    // 回帰テスト (C1): 自システムの設定不足 (DipsConfigError) は DIPS 側障害の 502 と
+    // 区別し、503 として返す (運用の切り分け表と整合させる)
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
     mockListOwnedAircrafts.mockRejectedValue(new DipsConfigError(["DIPS_UTM_CLIENT_ID"]));
 
     const response = await GET(makeRequest());
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(503);
   });
 
   it("test_get_returns_502_on_dips_auth_error", async () => {
@@ -109,7 +111,10 @@ describe("GET /api/dips/aircrafts", () => {
 
   it("test_get_returns_200_with_aircrafts", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockListOwnedAircrafts.mockResolvedValue([{ registrationCode: "DUMMY0000001" }]);
+    mockListOwnedAircrafts.mockResolvedValue({
+      aircrafts: [{ registrationCode: "DUMMY0000001" }],
+      excludedCount: 0,
+    });
 
     const response = await GET(makeRequest());
     const body = await response.json();
@@ -120,9 +125,23 @@ describe("GET /api/dips/aircrafts", () => {
     });
   });
 
+  it("test_get_returns_200_with_excluded_count", async () => {
+    // C3 回帰テスト: パースに失敗して除外された機体の件数を UI まで伝搬させる
+    vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
+    mockListOwnedAircrafts.mockResolvedValue({
+      aircrafts: [{ registrationCode: "DUMMY0000001" }],
+      excludedCount: 2,
+    });
+
+    const response = await GET(makeRequest());
+    const body = await response.json();
+
+    expect(body.excludedCount).toBe(2);
+  });
+
   it("test_get_passes_include_invalid_query_to_service", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockListOwnedAircrafts.mockResolvedValue([]);
+    mockListOwnedAircrafts.mockResolvedValue({ aircrafts: [], excludedCount: 0 });
 
     await GET(makeRequest("?includeInvalid=true"));
 
@@ -131,7 +150,7 @@ describe("GET /api/dips/aircrafts", () => {
 
   it("test_get_defaults_include_invalid_to_false", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockListOwnedAircrafts.mockResolvedValue([]);
+    mockListOwnedAircrafts.mockResolvedValue({ aircrafts: [], excludedCount: 0 });
 
     await GET(makeRequest());
 

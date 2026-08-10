@@ -25,8 +25,10 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   try {
     const service = getDipsService();
-    const aircrafts = await service.listOwnedAircrafts(auth.userId, { includeInvalid });
-    return NextResponse.json({ aircrafts }, { status: 200 });
+    const { aircrafts, excludedCount } = await service.listOwnedAircrafts(auth.userId, {
+      includeInvalid,
+    });
+    return NextResponse.json({ aircrafts, excludedCount }, { status: 200 });
   } catch (error) {
     if (error instanceof DipsDisabledError) {
       return NextResponse.json({ error: error.message }, { status: 503 });
@@ -38,11 +40,15 @@ export async function GET(request: Request): Promise<NextResponse> {
         { status: 401 }
       );
     }
-    if (
-      error instanceof DipsConfigError ||
-      error instanceof DipsAuthError ||
-      error instanceof DipsApiError
-    ) {
+    // 自システムの環境変数不足 (DIPS 側の障害ではない)。DIPS 側障害の 502 と混同すると
+    // 運用時の切り分け表 (docs/production-operations-runbook.md) で誤誘導するため区別する
+    if (error instanceof DipsConfigError) {
+      logger.error("DIPS連携の設定が不足しています", error, {
+        route: "GET /api/dips/aircrafts",
+      });
+      return NextResponse.json({ error: "DIPS連携の設定が不足しています" }, { status: 503 });
+    }
+    if (error instanceof DipsAuthError || error instanceof DipsApiError) {
       logger.error("DIPS機体情報一覧取得に失敗しました", error, {
         route: "GET /api/dips/aircrafts",
       });

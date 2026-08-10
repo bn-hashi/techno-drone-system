@@ -313,87 +313,148 @@ describe("DipsService", () => {
 
   describe("listOwnedAircrafts", () => {
     it("test_listOwnedAircrafts_returns_only_active_aircrafts_by_default", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
-        makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [
+          makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
+          makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
+        ],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result.map((a) => a.registrationCode)).toEqual(["JU0000000001"]);
+      expect(result.aircrafts.map((a) => a.registrationCode)).toEqual(["JU0000000001"]);
     });
 
     it("test_listOwnedAircrafts_includes_invalid_aircrafts_when_option_is_set", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
-        makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [
+          makeAircraftInfo({ regSymbol: "JU0000000001", uaStatus: 1 }),
+          makeAircraftInfo({ regSymbol: "JU0000000002", uaStatus: 3 }),
+        ],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1", { includeInvalid: true });
 
-      expect(result.map((a) => a.registrationCode)).toEqual(["JU0000000001", "JU0000000002"]);
+      expect(result.aircrafts.map((a) => a.registrationCode)).toEqual([
+        "JU0000000001",
+        "JU0000000002",
+      ]);
     });
 
     it("test_listOwnedAircrafts_sorts_by_registration_code_ascending", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ regSymbol: "JU9999999999", uaStatus: 1 }),
-        makeAircraftInfo({ regSymbol: "JU1111111111", uaStatus: 1 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [
+          makeAircraftInfo({ regSymbol: "JU9999999999", uaStatus: 1 }),
+          makeAircraftInfo({ regSymbol: "JU1111111111", uaStatus: 1 }),
+        ],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result.map((a) => a.registrationCode)).toEqual(["JU1111111111", "JU9999999999"]);
+      expect(result.aircrafts.map((a) => a.registrationCode)).toEqual([
+        "JU1111111111",
+        "JU9999999999",
+      ]);
     });
 
     it("test_listOwnedAircrafts_returns_empty_array_when_account_owns_none", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({ aircrafts: [], excludedCount: 0 });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result).toEqual([]);
+      expect(result.aircrafts).toEqual([]);
     });
 
     it("test_listOwnedAircrafts_converts_weight_kg_to_grams", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ weightKg: 24.0001 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ weightKg: 24.0001 })],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result[0].weightGrams).toBe(24000);
+      expect(result.aircrafts[0].weightGrams).toBe(24000);
+    });
+
+    it("test_listOwnedAircrafts_keeps_weight_grams_null_when_weight_kg_is_null", async () => {
+      // 回帰テスト (修正2 の null 寛容化): 重量が数値化できなかった機体は、捏造の 0g では
+      // なく null のまま DTO に伝える
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ weightKg: null })],
+        excludedCount: 0,
+      });
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result.aircrafts[0].weightGrams).toBeNull();
     });
 
     it("test_listOwnedAircrafts_maps_model_name_ja_to_model_number", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ modelNameJa: "型式X" }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ modelNameJa: "型式X" })],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result[0].modelNumber).toBe("型式X");
+      expect(result.aircrafts[0].modelNumber).toBe("型式X");
     });
 
     it("test_listOwnedAircrafts_maps_manufacturing_number_to_serial_number", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ serialNumber: "MANUFACT000000000003" }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ serialNumber: "MANUFACT000000000003" })],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1");
 
-      expect(result[0].serialNumber).toBe("MANUFACT000000000003");
+      expect(result.aircrafts[0].serialNumber).toBe("MANUFACT000000000003");
     });
 
     it("test_listOwnedAircrafts_marks_expired_when_status_is_2", async () => {
-      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue([
-        makeAircraftInfo({ uaStatus: 2 }),
-      ]);
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ uaStatus: 2 })],
+        excludedCount: 0,
+      });
 
       const result = await service.listOwnedAircrafts("user-1", { includeInvalid: true });
 
-      expect({ status: result[0].status, isSelectable: result[0].isSelectable }).toEqual({
+      expect({
+        status: result.aircrafts[0].status,
+        isSelectable: result.aircrafts[0].isSelectable,
+      }).toEqual({
         status: 2,
         isSelectable: false,
       });
+    });
+
+    it("test_listOwnedAircrafts_treats_null_status_as_not_selectable", async () => {
+      // 回帰テスト (修正2 の null 寛容化): aircraft_status が数値化できなかった機体は
+      // 「有効」と誤認させないよう選択不可として扱う
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo({ uaStatus: null })],
+        excludedCount: 0,
+      });
+
+      const result = await service.listOwnedAircrafts("user-1", { includeInvalid: true });
+
+      expect(result.aircrafts[0].isSelectable).toBe(false);
+    });
+
+    it("test_listOwnedAircrafts_propagates_excluded_count_from_api_client", async () => {
+      // C3 回帰テスト: パースに失敗して除外された機体の件数を上位層 (API レスポンス →
+      // UI) まで伝搬させる
+      vi.mocked(apiClient.fetchAircraftList).mockResolvedValue({
+        aircrafts: [makeAircraftInfo()],
+        excludedCount: 3,
+      });
+
+      const result = await service.listOwnedAircrafts("user-1");
+
+      expect(result.excludedCount).toBe(3);
     });
 
     it("test_listOwnedAircrafts_propagates_auth_required_error", async () => {

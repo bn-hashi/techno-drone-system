@@ -182,13 +182,28 @@ describe("DipsApiClient", () => {
     expect(init.method).toBe("GET");
   });
 
-  it("test_fetchAircraftList_returns_normalized_aircrafts", async () => {
+  it("test_fetchAircraftList_returns_all_normalized_aircrafts", async () => {
     fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
 
     const result = await makeDrsClient().fetchAircraftList("user-1");
 
-    expect(result).toHaveLength(9);
-    expect(result[0]).toHaveProperty("regSymbol");
+    expect(result.aircrafts).toHaveLength(9);
+  });
+
+  it("test_fetchAircraftList_normalized_aircraft_has_reg_symbol_property", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    const result = await makeDrsClient().fetchAircraftList("user-1");
+
+    expect(result.aircrafts[0]).toHaveProperty("regSymbol");
+  });
+
+  it("test_fetchAircraftList_reports_zero_excluded_when_all_entries_parse", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountAResponse));
+
+    const result = await makeDrsClient().fetchAircraftList("user-1");
+
+    expect(result.excludedCount).toBe(0);
   });
 
   it("test_fetchAircraftList_throws_api_error_on_non_200", async () => {

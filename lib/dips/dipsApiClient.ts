@@ -4,12 +4,12 @@ import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DIPS_ENDPOINTS } from "@/lib/dips/endpoints";
 import type { DipsEndpoint } from "@/lib/dips/endpoints";
 import { DipsApiError } from "@/lib/dips/errors";
-import { normalizeAircraftList } from "@/lib/dips/aircraftListSchema";
+import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
+import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
 import type {
   DipsPermissionsResponse,
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
-  DipsAircraftInfo,
 } from "@/lib/dips/types";
 
 /** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
@@ -51,10 +51,14 @@ export class DipsApiClient {
     );
   }
 
-  /** 機体情報一覧取得 (utm realm)。レスポンスは境界で検証・正規化してから返す */
-  async fetchAircraftList(userId: string): Promise<DipsAircraftInfo[]> {
+  /**
+   * 機体情報一覧取得 (utm realm)。レスポンスは境界で検証・正規化してから返す。
+   * `excludedCount` はパースに失敗して除外した機体の件数 (C3: UI が「除外があったのに
+   * 0件と表示する」誤表示を避けるために使う)。
+   */
+  async fetchAircraftList(userId: string): Promise<NormalizeAircraftListResult> {
     const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.aircraftList);
-    return normalizeAircraftList(raw);
+    return normalizeAircraftListWithDiagnostics(raw);
   }
 
   private baseUrlFor(endpoint: DipsEndpoint): string {
