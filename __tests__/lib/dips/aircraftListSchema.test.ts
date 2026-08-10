@@ -187,4 +187,64 @@ describe("normalizeAircraftList", () => {
 
     expect(result.map((a) => a.uaStatus)).toEqual([1, 1]);
   });
+
+  it("test_parse_throws_when_code_value_is_non_numeric_string", () => {
+    // 異常系: aircraft_status が非数値文字列で返ってきた場合はパースエラーになる
+    // (codeNumber の Number.isNaN ガード分岐)
+    const broken = minimalValidRawEntry({ aircraft_status: "not-a-number" });
+
+    expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
+  });
+
+  it("test_parse_throws_when_aircraft_status_is_empty_string", () => {
+    // 修正4回帰テスト: Number("") === 0 のため、空文字が黙って 0 (未定義のステータス)に
+    // 化けていた。codeNumber は空文字を明示的に弾き、パースエラーにする必要がある。
+    const broken = minimalValidRawEntry({ aircraft_status: "" });
+
+    expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
+  });
+
+  it("test_parse_throws_when_erase_reason_number_is_non_numeric_string", () => {
+    // 異常系: erase_reason_number が非数値文字列で返ってきた場合はパースエラーになる
+    // (nullableCodeNumber の Number.isNaN ガード分岐)
+    const broken = minimalValidRawEntry({ erase_reason_number: "not-a-number" });
+
+    expect(() => normalizeAircraftList([broken])).toThrow(DipsApiError);
+  });
+
+  it("test_parse_normalizes_null_erase_reason_number_to_null", () => {
+    // 修正3回帰テスト: erase_reason_number が JSON の null で返ってもパースは失敗せず
+    // deregistrationReason は null に正規化される (検証環境に事前到達できないため寛容側)
+    const entry = minimalValidRawEntry({ erase_reason_number: null });
+
+    const result = normalizeAircraftList([entry]);
+
+    expect(result[0].deregistrationReason).toBeNull();
+  });
+
+  it("test_parse_normalizes_missing_erase_reason_number_key_to_null", () => {
+    const entry = minimalValidRawEntry();
+    delete (entry.aircraft_information as Record<string, unknown>).erase_reason_number;
+
+    const result = normalizeAircraftList([entry]);
+
+    expect(result[0].deregistrationReason).toBeNull();
+  });
+
+  it("test_parse_normalizes_null_erase_reason_other_to_null", () => {
+    const entry = minimalValidRawEntry({ erase_reason_other: null });
+
+    const result = normalizeAircraftList([entry]);
+
+    expect(result[0].deregistrationReasonOther).toBeNull();
+  });
+
+  it("test_parse_normalizes_missing_erase_reason_other_key_to_null", () => {
+    const entry = minimalValidRawEntry();
+    delete (entry.aircraft_information as Record<string, unknown>).erase_reason_other;
+
+    const result = normalizeAircraftList([entry]);
+
+    expect(result[0].deregistrationReasonOther).toBeNull();
+  });
 });

@@ -30,29 +30,51 @@ import type {
 
 const RAW_CODE = z.union([z.string(), z.number()]);
 
-/** コード値 (数値/文字列) を number へ正規化する。数値化できない値はパースエラーにする */
+/**
+ * コード値 (数値/文字列) を number へ正規化する。数値化できない値 (空文字を含む) は
+ * パースエラーにする。`Number("") === 0` のため空文字を明示的に弾く必要がある
+ * (弾かないと `aircraft_status: ""` のような欠損値が静かに 0 として扱われてしまう)。
+ */
 const codeNumber = RAW_CODE.transform((value, ctx) => {
+  if (typeof value === "string" && value.trim() === "") {
+    ctx.addIssue({ code: "custom", message: "コード値が空文字です" });
+    return z.NEVER;
+  }
   const num = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(num)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "コード値が数値ではありません" });
+    ctx.addIssue({ code: "custom", message: "コード値が数値ではありません" });
     return z.NEVER;
   }
   return num;
 });
 
-/** 空文字を null に正規化しつつ、それ以外はコード値を number へ正規化する (抹消理由用) */
-const nullableCodeNumber = RAW_CODE.transform((value, ctx) => {
+/**
+ * 空文字・null・キー欠落を null に正規化しつつ、それ以外はコード値を number へ正規化する
+ * (抹消理由用)。`erase_reason_number` は実 API が null で返す可能性を排除できないため
+ * 寛容側に倒す (検証環境に事前到達できないための判断。2026-08-10 差し戻しで追加)。
+ */
+const nullableCodeNumber = RAW_CODE.nullish().transform((value, ctx) => {
+  if (value === null || value === undefined) return null;
   if (typeof value === "string" && value.trim() === "") return null;
   const num = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(num)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "コード値が数値ではありません" });
+    ctx.addIssue({ code: "custom", message: "コード値が数値ではありません" });
     return z.NEVER;
   }
   return num;
 });
 
-/** 空文字を null に正規化する自由記述項目用 (抹消理由の「その他の理由」) */
-const nullableFreeText = z.string().transform((value) => (value === "" ? null : value));
+/**
+ * 空文字・null・キー欠落を null に正規化する自由記述項目用 (抹消理由の「その他の理由」)。
+ * `erase_reason_number` と同じ理由で null・キー欠落も許容する。
+ */
+const nullableFreeText = z
+  .string()
+  .nullish()
+  .transform((value) => {
+    if (value === null || value === undefined || value === "") return null;
+    return value;
+  });
 
 /** 使用者種別 ("" | "1" | "9") を文字列へ正規化する。数値で返る場合も文字列化する */
 const userCategoryCode = RAW_CODE.transform((value) =>
