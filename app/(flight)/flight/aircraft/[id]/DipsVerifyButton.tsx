@@ -5,6 +5,7 @@ import {
   fetchDipsOwnedAircrafts,
   dipsLoginUrl,
   DipsAuthRequiredClientError,
+  AppSessionExpiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 import { dipsUaStatusLabel, dipsDeregistrationReasonLabel } from "@/lib/constants/dipsAircraftStatus";
@@ -19,6 +20,7 @@ type VerifyState =
   | { status: "found"; aircraft: DipsOwnedAircraftDto }
   | { status: "notFound" }
   | { status: "authRequired"; realm: string }
+  | { status: "sessionExpired" }
   | { status: "error"; message: string };
 
 function formatValidPeriodEnd(value: string): string {
@@ -43,12 +45,16 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
     setState({ status: "loading" });
     try {
       // 抹消済み・期限切れの状態も確認したいため includeInvalid=true で取得する
-      const aircrafts = await fetchDipsOwnedAircrafts(true);
+      const { aircrafts } = await fetchDipsOwnedAircrafts(true);
       const matched = aircrafts.find((a) => a.registrationCode === registrationNumber);
       setState(matched ? { status: "found", aircraft: matched } : { status: "notFound" });
     } catch (err) {
       if (err instanceof DipsAuthRequiredClientError) {
         setState({ status: "authRequired", realm: err.realm });
+        return;
+      }
+      if (err instanceof AppSessionExpiredClientError) {
+        setState({ status: "sessionExpired" });
         return;
       }
       setState({
@@ -75,7 +81,9 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
       {state.status === "found" && (
         <p className="mt-2 text-sm text-gray-700">
           DIPS上のステータス: {dipsUaStatusLabel(state.aircraft.status)}
-          {state.aircraft.deregistrationReason &&
+          {/* deregistrationReason は falsy-zero (`0 && ...` が数字の 0 を描画してしまう) を
+              避けるため null との比較で判定する */}
+          {state.aircraft.deregistrationReason !== null &&
             ` (${dipsDeregistrationReasonLabel(state.aircraft.deregistrationReason)})`}
           ・有効期限: {formatValidPeriodEnd(state.aircraft.validPeriodEnd)}
         </p>
@@ -98,6 +106,15 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
             className="ml-1 text-blue-600 hover:underline"
           >
             DIPSにログインする
+          </a>
+        </p>
+      )}
+
+      {state.status === "sessionExpired" && (
+        <p className="mt-2 text-sm text-gray-700">
+          ログインが必要です。再度ログインしてください。
+          <a href="/login" className="ml-1 text-blue-600 hover:underline">
+            ログイン画面へ
           </a>
         </p>
       )}

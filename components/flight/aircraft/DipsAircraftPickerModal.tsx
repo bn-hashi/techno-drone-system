@@ -7,9 +7,10 @@ import {
   fetchDipsOwnedAircrafts,
   dipsLoginUrl,
   DipsAuthRequiredClientError,
+  AppSessionExpiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
-import { dipsUaStatusLabel, dipsDeregistrationReasonLabel } from "@/lib/constants/dipsAircraftStatus";
+import { dipsUaStatusLabel, dipsDeregistrationReasonLabel, dipsUaStatusBadgeVariant } from "@/lib/constants/dipsAircraftStatus";
 
 interface DipsAircraftPickerModalProps {
   isOpen: boolean;
@@ -22,25 +23,17 @@ interface DipsAircraftPickerModalProps {
 
 type LoadState =
   | { status: "loading" }
-  | { status: "loaded"; aircrafts: DipsOwnedAircraftDto[] }
+  | { status: "loaded"; aircrafts: DipsOwnedAircraftDto[]; excludedCount: number }
   | { status: "authRequired"; realm: string }
+  | { status: "sessionExpired" }
   | { status: "error"; message: string };
-
-/**
- * 機体ステータスに対応する Badge の見た目 (既存の active/pending/danger 語彙を流用)。
- * 別紙1 未定義のコード値 (寛容パースで通過しうる) は danger 側にフォールバックする
- * (取り込み対象として選ばせないための保守的な扱い)。
- */
-function statusBadgeVariant(status: DipsOwnedAircraftDto["status"]): "active" | "pending" | "danger" {
-  if (status === 1) return "active";
-  if (status === 2) return "pending";
-  return "danger";
-}
 
 /** 機体の状態ラベル (抹消済みは抹消理由を併記する)。未知コードは「不明」と表示する */
 function statusLabel(aircraft: DipsOwnedAircraftDto): string {
   const base = dipsUaStatusLabel(aircraft.status);
-  if (aircraft.deregistrationReason) {
+  // deregistrationReason は 0 を取りうるコード値ではないが、falsy-zero (`0 && ...` が
+  // 数字の 0 を描画してしまう) を避けるため null との比較で判定する
+  if (aircraft.deregistrationReason !== null) {
     return `${base} (${dipsDeregistrationReasonLabel(aircraft.deregistrationReason)})`;
   }
   return base;
@@ -53,6 +46,15 @@ function statusLabel(aircraft: DipsOwnedAircraftDto): string {
  * ADMIN が代理登録する場合でも、DIPS へログインしたアカウント (= 自分自身) が所有する
  * 機体しか取得できない (DIPS 側の仕様上の制約)。この旨は画面上にも案内文として表示する
  * (`DipsVerifyButton.tsx` の案内文と文言を揃えている)。
+ *
+ * データ取得は `useEffect` + `fetchDipsOwnedAircrafts` の手書き実装のままにしている
+ * (2026-08-10 差し戻しで検討: `.claude/rules/frontend.md` は Client Component からの
+ * データ取得に TanStack Query を使う方針だが、本コンポーネントは同じ差し戻しで
+ * falsy-zero 修正・ステータス表示の一元化・除外件数の伝搬・セッション切れ導線・
+ * レスポンス形状の変更を同時に加えており、これに TanStack Query への移行まで重ねると
+ * QueryClientProvider を前提にしたテストの全面書き換えが必要になり回帰リスクが
+ * 積み上がる。機能的な利点がない純粋なリファクタのため今回は見送り、builder 報告書に
+ * 未対応の指摘として理由を残す)。
  */
 export function DipsAircraftPickerModal({
   isOpen,
@@ -68,13 +70,17 @@ export function DipsAircraftPickerModal({
     let cancelled = false;
     setState({ status: "loading" });
     fetchDipsOwnedAircrafts(includeInvalid)
-      .then((aircrafts) => {
-        if (!cancelled) setState({ status: "loaded", aircrafts });
+      .then(({ aircrafts, excludedCount }) => {
+        if (!cancelled) setState({ status: "loaded", aircrafts, excludedCount });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof DipsAuthRequiredClientError) {
           setState({ status: "authRequired", realm: err.realm });
+          return;
+        }
+        if (err instanceof AppSessionExpiredClientError) {
+          setState({ status: "sessionExpired" });
           return;
         }
         setState({
@@ -117,7 +123,23 @@ export function DipsAircraftPickerModal({
           </p>
         )}
 
+        {state.status === "sessionExpired" && (
+          <p className="text-sm text-gray-700">
+            ログインが必要です。再度ログインしてください。
+            <a href="/login" className="ml-1 text-blue-600 hover:underline">
+              ログイン画面へ
+            </a>
+          </p>
+        )}
+
         {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
+
+        {state.status === "loaded" && state.excludedCount > 0 && (
+          <p className="text-sm text-amber-700">
+            {state.excludedCount}件の機体情報を読み込めませんでした。表示されている機体以外にも
+            所有機体がある可能性があります。解消しない場合はサポートへお問い合わせください
+          </p>
+        )}
 
         {state.status === "loaded" && state.aircrafts.length === 0 && (
           <p className="text-sm text-gray-500">DIPSに登録された機体がありません</p>
@@ -139,7 +161,7 @@ export function DipsAircraftPickerModal({
                       {aircraft.manufacturer} {aircraft.modelNumber}
                     </span>
                   </span>
-                  <Badge variant={statusBadgeVariant(aircraft.status)}>
+                  <Badge variant={dipsUaStatusBadgeVariant(aircraft.status)}>
                     {statusLabel(aircraft)}
                   </Badge>
                 </button>

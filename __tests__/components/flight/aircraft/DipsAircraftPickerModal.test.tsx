@@ -13,7 +13,7 @@ vi.mock("@/lib/api/dips", async () => {
   };
 });
 
-import { DipsAuthRequiredClientError } from "@/lib/api/dips";
+import { DipsAuthRequiredClientError, AppSessionExpiredClientError } from "@/lib/api/dips";
 
 const activeAircraft: DipsOwnedAircraftDto = {
   registrationCode: "DUMMY0000001",
@@ -49,7 +49,7 @@ describe("DipsAircraftPickerModal", () => {
   });
 
   it("test_modal_renders_aircraft_rows_from_api", async () => {
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([activeAircraft]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
 
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
@@ -59,7 +59,7 @@ describe("DipsAircraftPickerModal", () => {
   });
 
   it("test_modal_shows_empty_message_when_no_aircraft", async () => {
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [], excludedCount: 0 });
 
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
@@ -69,7 +69,7 @@ describe("DipsAircraftPickerModal", () => {
   });
 
   it("test_modal_calls_on_select_with_selected_aircraft", async () => {
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([activeAircraft]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
     const onSelect = vi.fn();
     const user = userEvent.setup();
 
@@ -93,8 +93,24 @@ describe("DipsAircraftPickerModal", () => {
     expect(link).toHaveAttribute("href", expect.stringContaining("realm=utm"));
   });
 
+  it("test_modal_shows_app_login_link_when_app_session_expired", async () => {
+    // B4 回帰テスト: requireFlightAccess() が返す素の 401 (アプリのセッション切れ) は
+    // DIPS の再認可導線とは別の、アプリのログイン画面への導線を表示する
+    mockFetchDipsOwnedAircrafts.mockRejectedValue(new AppSessionExpiredClientError());
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+
+    const link = await screen.findByRole("link", { name: "ログイン画面へ" });
+    expect(link).toHaveAttribute("href", "/login");
+  });
+
   it("test_modal_disables_selection_for_deregistered_aircraft", async () => {
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([deregisteredAircraft]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({
+      aircrafts: [deregisteredAircraft],
+      excludedCount: 0,
+    });
 
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
@@ -118,7 +134,7 @@ describe("DipsAircraftPickerModal", () => {
     // 「人の決定」論点7: ADMIN は自身の DIPS 機体しか取得できない旨を画面に明示する。
     // 従来は JSDoc のみで画面に出ておらず差し戻しの対象になった (DipsVerifyButton.tsx と
     // 文言を揃える)。
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [], excludedCount: 0 });
 
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
@@ -139,12 +155,60 @@ describe("DipsAircraftPickerModal", () => {
       registrationCode: "DUMMY0000099",
       status: 99,
     };
-    mockFetchDipsOwnedAircrafts.mockResolvedValue([unknownStatusAircraft]);
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({
+      aircrafts: [unknownStatusAircraft],
+      excludedCount: 0,
+    });
 
     render(
       <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
     );
 
     expect(await screen.findByText("不明")).toBeInTheDocument();
+  });
+
+  it("test_modal_shows_deregistration_reason_suffix_when_reason_code_is_zero", async () => {
+    // 回帰テスト (B2 falsy-zero): statusLabel() の `if (aircraft.deregistrationReason)` は
+    // 0 を falsy として扱うため、抹消理由が 0 (別紙1 未定義のコード値) の機体では
+    // 括弧書きの抹消理由がまるごと欠落していた。null との比較に直すことで、0 でも
+    // 「不明」というラベル付きの括弧が表示される
+    const zeroReasonAircraft: DipsOwnedAircraftDto = {
+      ...deregisteredAircraft,
+      registrationCode: "DUMMY0000010",
+      deregistrationReason: 0,
+    };
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({
+      aircrafts: [zeroReasonAircraft],
+      excludedCount: 0,
+    });
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+
+    expect(await screen.findByText("抹消済み (不明)")).toBeInTheDocument();
+  });
+
+  it("test_modal_shows_excluded_count_notice_when_some_aircrafts_were_dropped", async () => {
+    // C3 回帰テスト: パースに失敗して除外された機体があるにもかかわらず何も表示されないと
+    // 「機体がありません」の空メッセージだけが見え、ユーザーに誤解を与える
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 2 });
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+
+    expect(await screen.findByText(/2件の機体情報を読み込めませんでした/)).toBeInTheDocument();
+  });
+
+  it("test_modal_does_not_show_excluded_count_notice_when_nothing_was_dropped", async () => {
+    mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+
+    render(
+      <DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />
+    );
+    await screen.findByText("DUMMY0000001");
+
+    expect(screen.queryByText(/件の機体情報を読み込めませんでした/)).not.toBeInTheDocument();
   });
 });
