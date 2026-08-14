@@ -79,4 +79,20 @@ describe("Modal", () => {
     // Assert
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
+
+  it("test_Modal_close_button_has_type_button_so_it_does_not_submit_a_parent_form", () => {
+    // Arrange
+    // Modal はポータルを使わないため、<form> の内側に置かれると DOM 上も form の子孫になる。
+    // type 属性がない <button> は HTML 仕様上 既定で type="submit" になり、意図せず
+    // 親フォームの送信を引き起こす (回帰: DipsAircraftPickerModal を機体編集フォーム内で
+    // 使ったときに ✕ クリックで updateAircraft が走った不具合)。
+    render(
+      <Modal isOpen={true} onClose={vi.fn()} ariaLabel="テストモーダル">
+        コンテンツ
+      </Modal>
+    );
+
+    // Act / Assert
+    expect(screen.getByRole("button", { name: "閉じる" })).toHaveAttribute("type", "button");
+  });
 });

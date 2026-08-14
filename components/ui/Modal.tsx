@@ -76,6 +76,7 @@ export function Modal({ isOpen, onClose, title, ariaLabel, children }: ModalProp
             </h2>
           )}
           <button
+            type="button"
             aria-label="閉じる"
             onClick={onClose}
             className="ml-auto text-gray-400 hover:text-gray-600"

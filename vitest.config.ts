@@ -11,7 +11,10 @@ export default defineConfig({
     include: ["**/__tests__/**/*.{ts,tsx}", "**/*.{test,spec}.{ts,tsx}"],
     // *.slow.test.* は実レンダリング等を伴う低速統合テスト。
     // デフォルト実行から除外し、`npm run test:slow` (vitest.slow.config.ts) で実行する。
-    exclude: ["node_modules", ".next", "e2e", "**/*.slow.test.*"],
+    // .claude/worktrees/** はエージェント用の一時ワークツリー配下。残置すると
+    // 収集対象に混入し、本タスクと無関係な失敗（config.test.ts の重複解決や
+    // e2e/specs/*.spec.ts の Playwright 二重登録）を起こすため除外する。
+    exclude: ["node_modules", ".next", "e2e", "**/*.slow.test.*", "**/.claude/worktrees/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

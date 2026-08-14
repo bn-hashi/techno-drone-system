@@ -1,12 +1,10 @@
 /**
- * DIPS 2.0 API 型定義 (Phase 4 実連携に向けた先行整備。現時点で実 API は呼ばない)
+ * DIPS 2.0 API 型定義
  *
  * 出典: R08-DRS-0005 設定通知書
  * - DipsPermissionInfo 系: 別紙3「許可・承認情報取得APIレスポンスサンプル」の実 JSON キーに準拠
- * - 機体情報のコード値: 別紙1「機体情報一覧取得API 利用可能情報」のデータ定義に準拠
- *
- * 注意: DipsAircraftInfo のフィールド名は別紙1の項目名 (日本語) からの暫定訳。
- * Phase 4 実装時に「DIPS2.0 API 接続システム向けガイドライン」の正式レスポンス仕様と突合すること。
+ * - DipsAircraftInfo 系: DRS API 接続システム向けガイドライン 1.2版 §2.3.6 の正式 JSON キー名に準拠
+ *   (`lib/dips/aircraftListSchema.ts` が生レスポンスを検証・正規化してこの型を返す)
  */
 
 // ─── 許可・承認情報取得 API (別紙3: JSON キーは実サンプル準拠) ─────────────────
@@ -64,8 +62,6 @@ export interface DipsPermissionsResponse {
 }
 
 // ─── 機体情報一覧取得 API のコード値定義 (別紙1 準拠) ────────────────────────────
-// ⚠️ ガイドライン (DRS API 接続システム向けガイドライン §2.3.6) は入手済みだが、
-// 機体照合機能が未実装のため以下の型は現在未使用。実装時に正式仕様と突合して使用する。
 
 /** 製造区分: 1=メーカーの機体/改造した機体, 2=自作した機体 */
 export type DipsManufactureCategory = 1 | 2;
@@ -82,11 +78,14 @@ export type DipsDeregistrationReason = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 /** RID の有無: 0=なし, 1=あり(内蔵型), 2=あり(外付型) */
 export type DipsRemoteIdType = 0 | 1 | 2;
 
-/** リモートID発信方式: 0=未設定, 1=BLE5.0, 2=Wi-Fi Aware, 3=Wi-Fi Beacon */
-export type DipsRemoteIdBroadcastMethod = 0 | 1 | 2 | 3;
-
 /** 所有者区分: 1=個人, 2=法人 */
 export type DipsOwnerCategory = 1 | 2;
+
+/**
+ * 使用者種別: ""=個人, "1"=個人, "9"=法人 (別紙1 項番60)。
+ * 所有者区分 (1=個人/2=法人) と値体系が異なる点に注意。空文字も正常値として扱う。
+ */
+export type DipsUserCategory = "" | "1" | "9";
 
 // ─── 飛行計画通報受付 API (FPRガイドライン v1.9 2.3.8 準拠) ─────────────────────
 
@@ -188,29 +187,76 @@ export interface DipsFlightPlanNotificationResult {
 }
 
 /**
- * 機体情報 (別紙1「機体情報詳細」の主要属性のみ。フィールド名は暫定訳 — Phase 4 で正式仕様と突合)
+ * 機体情報 (別紙1「機体情報詳細」のうち本システムが使用する属性のみ)。
+ * `lib/dips/aircraftListSchema.ts` の `normalizeAircraftList()` が返す正規化後の型。
+ *
+ * 個人情報 (氏名・フリガナ・生年月日・住所・電話番号・メールアドレス等) に相当する
+ * フィールドは意図的に定義していない。境界の Zod スキーマが未定義キーを除去するため、
+ * 型として持たないことがそのまま個人情報の遮断になる (計画書 §6 参照)。
+ *
+ * 「リモートID発信方式」(別紙1 項番39) は現行ガイドライン (1.2版) 本体に対応する記載がなく
+ * JSON キー名が不明なため、意図的に型として定義していない。境界の Zod スキーマは
+ * 未知フィールドとして黙って破棄する (寛容パース。2026-08-01 人の決定)。将来この項目が
+ * 必要になった場合は DIPS 申請窓口へキー名を再照会すること。
+ *
+ * コード値系フィールド (manufactureCategory/uaType/uaStatus/deregistrationReason/
+ * remoteIdType/ownerCategory) はあえて別紙1 の値体系 (DipsUaStatus 等の literal union) を
+ * 型として採用せず `number | null` にしている。実 API が別紙1 未定義の値や null を返しても
+ * 境界のパースが失敗しないようにするための寛容パース方針 (2026-08-10 差し戻し) であり、
+ * `number` 型に literal union を `as` キャストして被せると実行時の値域を保証しないまま
+ * 型だけが狭く見える「偽装」になるため widen した。表示側は
+ * `lib/constants/dipsAircraftStatus.ts` の `dipsUaStatusLabel()` 等が未知値・null を
+ * 「不明」にフォールバックする。null は「値が欠落していた／数値化できなかった」ことを表す
+ * (`aircraftListSchema.ts` の nullableCodeNumber 参照)。
  */
 export interface DipsAircraftInfo {
   /** 登録記号 (国発行・12桁) */
   regSymbol: string;
   /** 製造番号 (20桁以下) */
   serialNumber: string;
-  manufactureCategory: DipsManufactureCategory;
-  uaType: DipsUaType;
+  manufactureCategory: number | null;
+  uaType: number | null;
   makerNameJa: string;
   modelNameJa: string;
   makerNameEn: string;
   modelNameEn: string;
-  /** 機体重量 (kg) */
-  weightKg: number;
-  /** 最大離陸重量 (kg) */
-  maxTakeoffWeightKg: number;
-  uaStatus: DipsUaStatus;
-  deregistrationReason: DipsDeregistrationReason | null;
-  remoteIdType: DipsRemoteIdType;
-  remoteIdBroadcastMethod: DipsRemoteIdBroadcastMethod;
+  /** 機体重量 (kg)。null は値が欠落していた／数値化できなかったことを表す */
+  weightKg: number | null;
+  /** 最大離陸重量 (kg)。null は値が欠落していた／数値化できなかったことを表す */
+  maxTakeoffWeightKg: number | null;
+  uaStatus: number | null;
+  deregistrationReason: number | null;
+  /** 抹消理由が「その他」の場合の自由記述。それ以外は null */
+  deregistrationReasonOther: string | null;
+  remoteIdType: number | null;
   /** 有効期限開始 (YYYY-MM-DDThh:mm:ss+09:00) */
   validPeriodStart: string;
   /** 有効期限終了 (YYYY-MM-DDThh:mm:ss+09:00) */
   validPeriodEnd: string;
+  ownerCategory: number | null;
+  /** 使用者種別 ("" | "1" | "9" が既知の値。空文字は個人を表す正常値)。未知の値もそのまま通す */
+  userCategory: string;
+}
+
+/**
+ * DIPS 所有機体 (機体情報一覧取得 API) を UI へ渡す DTO。`DipsService.listOwnedAircrafts()` が返す。
+ * 所有者・使用者の個人情報は含まない (DipsAircraftInfo の時点で既に除去済み)。
+ *
+ * `lib/api/dips.ts` (クライアント側) はこの型を re-export して使う (二重定義の解消)。
+ * コード値系フィールドを `number | null` にしている理由は `DipsAircraftInfo` と同じ。
+ */
+export interface DipsOwnedAircraftDto {
+  registrationCode: string;
+  manufacturer: string;
+  modelNumber: string;
+  serialNumber: string;
+  /** 機体重量 (g)。DIPS 側は kg 単位のため四捨五入して変換する。null は値が欠落していたことを表す */
+  weightGrams: number | null;
+  status: number | null;
+  deregistrationReason: number | null;
+  validPeriodEnd: string;
+  remoteIdType: number | null;
+  ownerCategory: number | null;
+  /** 取り込み選択可能か (機体ステータスが有効な機体のときのみ true) */
+  isSelectable: boolean;
 }
