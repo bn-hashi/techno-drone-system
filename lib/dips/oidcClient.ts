@@ -86,6 +86,18 @@ export class DipsOidcClient {
   }
 
   /**
+   * DIPS 連携を解除する (realm 単位)。該当するトークン行を削除する。
+   *
+   * `tokenRepo.deleteByUserAndRealm` は userId + realm の複合条件で削除するため、
+   * 他 realm (例: utm 解除時の fpl/req) や他ユーザーの行には影響しない。
+   * 未連携 (該当行が存在しない) 状態で呼んでも Prisma の deleteMany は例外を投げないため、
+   * この呼び出しは冪等になる。
+   */
+  async unlinkAccount(userId: string, realm: DipsRealm): Promise<void> {
+    await this.tokenRepo.deleteByUserAndRealm(userId, realm);
+  }
+
+  /**
    * 有効なアクセストークンを返す。
    * 失効間近ならリフレッシュし、リフレッシュ不能なら DipsAuthRequiredError を投げる。
    */
