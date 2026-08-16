@@ -114,6 +114,19 @@ export class DipsService {
   }
 
   /**
+   * DIPS 連携を解除する (realm 単位)。
+   *
+   * 対象は引数の userId のみ。この関数自体は誰の連携でも解除できてしまうため、
+   * 「他ユーザーの連携を解除できない」という制約は呼び出し元 (Controller) が
+   * セッションの userId だけを渡すことで担保する (リクエストから userId を受け取らない)。
+   * realm 単位で削除するため、他 realm (例: utm を解除しても fpl/req) のトークンは残る
+   * (`DipsOidcClient.unlinkAccount` 参照)。未連携の状態で呼んでもエラーにしない (冪等)。
+   */
+  async unlinkAccount(userId: string, realm: DipsRealm): Promise<void> {
+    await this.oidcClient.unlinkAccount(userId, realm);
+  }
+
+  /**
    * DIPS ログイン済みアカウントが所有する機体一覧を取得する (機体情報一覧取得 API)。
    *
    * 既定では機体ステータスが有効 (aircraft_status === 1) な機体のみ返す。判定ルールの

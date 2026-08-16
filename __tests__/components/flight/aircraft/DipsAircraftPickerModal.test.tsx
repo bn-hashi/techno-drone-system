@@ -5,11 +5,13 @@ import { DipsAircraftPickerModal } from "@/components/flight/aircraft/DipsAircra
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 
 const mockFetchDipsOwnedAircrafts = vi.hoisted(() => vi.fn());
+const mockUnlinkDipsAccount = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/dips", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/dips")>("@/lib/api/dips");
   return {
     ...actual,
     fetchDipsOwnedAircrafts: mockFetchDipsOwnedAircrafts,
+    unlinkDipsAccount: mockUnlinkDipsAccount,
   };
 });
 
@@ -46,6 +48,7 @@ const deregisteredAircraft: DipsOwnedAircraftDto = {
 describe("DipsAircraftPickerModal", () => {
   beforeEach(() => {
     mockFetchDipsOwnedAircrafts.mockReset();
+    mockUnlinkDipsAccount.mockReset();
   });
 
   it("test_modal_renders_aircraft_rows_from_api", async () => {
@@ -210,5 +213,130 @@ describe("DipsAircraftPickerModal", () => {
     await screen.findByText("DUMMY0000001");
 
     expect(screen.queryByText(/件の機体情報を読み込めませんでした/)).not.toBeInTheDocument();
+  });
+
+  // ─── DIPS連携の解除 (req-007) ──────────────────────────────────────────────
+
+  describe("別のアカウントでログインし直す (連携解除)", () => {
+    it("test_modal_shows_unlink_trigger_button_below_aircraft_list", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+
+      expect(
+        screen.getByRole("button", { name: "別のアカウントでログインし直す" })
+      ).toBeInTheDocument();
+    });
+
+    it("test_modal_does_not_call_unlink_api_when_trigger_is_clicked_without_confirmation", async () => {
+      // 確認ダイアログを出さずに解除が実行されないこと
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+
+      expect(mockUnlinkDipsAccount).not.toHaveBeenCalled();
+    });
+
+    it("test_modal_shows_confirmation_message_after_clicking_trigger", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+
+      expect(
+        screen.getByText("連携を解除しますか？ 次回利用時に再度DIPSへのログインが必要になります。")
+      ).toBeInTheDocument();
+    });
+
+    it("test_modal_cancel_button_does_not_call_unlink_api", async () => {
+      // キャンセルすると解除されないこと
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+      expect(mockUnlinkDipsAccount).not.toHaveBeenCalled();
+    });
+
+    it("test_modal_cancel_button_hides_confirmation_and_restores_trigger_button", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+      expect(screen.queryByText(/連携を解除しますか/)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "別のアカウントでログインし直す" })
+      ).toBeInTheDocument();
+    });
+
+    it("test_modal_confirm_button_calls_unlink_api_with_utm_realm", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      mockUnlinkDipsAccount.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "解除する" }));
+
+      expect(mockUnlinkDipsAccount).toHaveBeenCalledWith("utm");
+    });
+
+    it("test_modal_shows_login_prompt_after_successful_unlink_so_unlinked_state_is_visible", async () => {
+      // 受け入れ条件6: 解除後の状態が画面から分かること (「未連携」であることが伝わる)
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      mockUnlinkDipsAccount.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "解除する" }));
+
+      const link = await screen.findByRole("link", { name: "DIPSにログインする" });
+      expect(link).toHaveAttribute("href", expect.stringContaining("realm=utm"));
+    });
+
+    it("test_modal_shows_error_message_when_unlink_api_fails", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      mockUnlinkDipsAccount.mockRejectedValue(new Error("DIPS連携の解除に失敗しました"));
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "解除する" }));
+
+      expect(await screen.findByText("DIPS連携の解除に失敗しました")).toBeInTheDocument();
+    });
+
+    it("test_modal_shows_trigger_button_again_after_unlink_failure_so_user_can_retry", async () => {
+      mockFetchDipsOwnedAircrafts.mockResolvedValue({ aircrafts: [activeAircraft], excludedCount: 0 });
+      mockUnlinkDipsAccount.mockRejectedValue(new Error("DIPS連携の解除に失敗しました"));
+      const user = userEvent.setup();
+
+      render(<DipsAircraftPickerModal isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} />);
+      await screen.findByText("DUMMY0000001");
+      await user.click(screen.getByRole("button", { name: "別のアカウントでログインし直す" }));
+      await user.click(screen.getByRole("button", { name: "解除する" }));
+      await screen.findByText("DIPS連携の解除に失敗しました");
+
+      expect(
+        screen.getByRole("button", { name: "別のアカウントでログインし直す" })
+      ).toBeInTheDocument();
+    });
   });
 });

@@ -182,6 +182,32 @@ describe("DipsOidcClient", () => {
     });
   });
 
+  describe("unlinkAccount", () => {
+    it("test_unlinkAccount_deletes_token_for_given_user_and_realm", async () => {
+      vi.mocked(tokenRepo.deleteByUserAndRealm).mockResolvedValue(undefined);
+
+      await makeClient().unlinkAccount("user-1", "utm");
+
+      expect(tokenRepo.deleteByUserAndRealm).toHaveBeenCalledWith("user-1", "utm");
+    });
+
+    it("test_unlinkAccount_does_not_throw_when_no_token_exists", async () => {
+      // Prisma の deleteMany は対象0件でも例外を投げない (冪等)
+      vi.mocked(tokenRepo.deleteByUserAndRealm).mockResolvedValue(undefined);
+
+      await expect(makeClient().unlinkAccount("user-1", "utm")).resolves.not.toThrow();
+    });
+
+    it("test_unlinkAccount_does_not_call_fetch", async () => {
+      // 解除は DB 操作のみで DIPS 側 API を呼ばない
+      vi.mocked(tokenRepo.deleteByUserAndRealm).mockResolvedValue(undefined);
+
+      await makeClient().unlinkAccount("user-1", "fpl");
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getAccessToken", () => {
     it("test_getAccessToken_throws_AuthRequired_when_no_token_record", async () => {
       vi.mocked(tokenRepo.findByUserAndRealm).mockResolvedValue(null);

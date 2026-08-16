@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import {
   fetchDipsOwnedAircrafts,
+  unlinkDipsAccount,
   dipsLoginUrl,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
@@ -28,6 +29,12 @@ type LoadState =
   | { status: "sessionExpired" }
   | { status: "error"; message: string };
 
+/** 「別のアカウントでログインし直す」の確認・実行フロー */
+type UnlinkState = "idle" | "confirming" | "unlinking" | "error";
+
+/** 本モーダルが扱う DIPS 連携は機体情報一覧取得 (utm realm) のみ */
+const AIRCRAFT_PICKER_REALM = "utm";
+
 /** 機体の状態ラベル (抹消済みは抹消理由を併記する)。未知コードは「不明」と表示する */
 function statusLabel(aircraft: DipsOwnedAircraftDto): string {
   const base = dipsUaStatusLabel(aircraft.status);
@@ -47,6 +54,11 @@ function statusLabel(aircraft: DipsOwnedAircraftDto): string {
  * 機体しか取得できない (DIPS 側の仕様上の制約)。この旨は画面上にも案内文として表示する
  * (`DipsVerifyButton.tsx` の案内文と文言を揃えている)。
  *
+ * 機体一覧の下に「別のアカウントでログインし直す」を置き、DIPS 連携の解除 (utm realm) を
+ * 行える (req-007)。誤操作防止のためモーダル内インライン確認 (`window.confirm` は使わない)
+ * を挟んでから `unlinkDipsAccount` を呼ぶ。解除後は authRequired 状態に切り替え、
+ * 「未連携」であることが画面から分かるようにする。
+ *
  * データ取得は `useEffect` + `fetchDipsOwnedAircrafts` の手書き実装のままにしている
  * (2026-08-10 差し戻しで検討: `.claude/rules/frontend.md` は Client Component からの
  * データ取得に TanStack Query を使う方針だが、本コンポーネントは同じ差し戻しで
@@ -64,6 +76,8 @@ export function DipsAircraftPickerModal({
 }: DipsAircraftPickerModalProps) {
   const [includeInvalid, setIncludeInvalid] = useState(false);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [unlinkState, setUnlinkState] = useState<UnlinkState>("idle");
+  const [unlinkErrorMessage, setUnlinkErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,6 +106,36 @@ export function DipsAircraftPickerModal({
       cancelled = true;
     };
   }, [isOpen, includeInvalid]);
+
+  // モーダルを閉じたら確認ダイアログ・エラー表示を初期状態に戻す (再度開いたときに
+  // 前回の確認中/エラー状態が残らないようにする)
+  useEffect(() => {
+    if (!isOpen) {
+      setUnlinkState("idle");
+      setUnlinkErrorMessage(null);
+    }
+  }, [isOpen]);
+
+  function handleRequestUnlink(): void {
+    setUnlinkState("confirming");
+  }
+
+  function handleCancelUnlink(): void {
+    setUnlinkState("idle");
+  }
+
+  async function handleConfirmUnlink(): Promise<void> {
+    setUnlinkState("unlinking");
+    try {
+      await unlinkDipsAccount(AIRCRAFT_PICKER_REALM);
+      setUnlinkState("idle");
+      // 解除後は「未連携」であることが画面から分かるよう、ログイン誘導の状態に切り替える
+      setState({ status: "authRequired", realm: AIRCRAFT_PICKER_REALM });
+    } catch (err) {
+      setUnlinkState("error");
+      setUnlinkErrorMessage(err instanceof Error ? err.message : "DIPS連携の解除に失敗しました");
+    }
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="DIPSから機体を取り込む">
@@ -169,6 +213,44 @@ export function DipsAircraftPickerModal({
             ))}
           </ul>
         )}
+
+        <div className="border-t border-gray-100 pt-3">
+          {unlinkState === "confirming" || unlinkState === "unlinking" ? (
+            <div className="space-y-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-gray-700">
+              <p>連携を解除しますか？ 次回利用時に再度DIPSへのログインが必要になります。</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmUnlink}
+                  disabled={unlinkState === "unlinking"}
+                  className="rounded bg-red-600 px-3 py-1 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {unlinkState === "unlinking" ? "解除中..." : "解除する"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelUnlink}
+                  disabled={unlinkState === "unlinking"}
+                  className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleRequestUnlink}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              別のアカウントでログインし直す
+            </button>
+          )}
+
+          {unlinkState === "error" && unlinkErrorMessage && (
+            <p className="mt-2 text-sm text-red-600">{unlinkErrorMessage}</p>
+          )}
+        </div>
       </div>
     </Modal>
   );
