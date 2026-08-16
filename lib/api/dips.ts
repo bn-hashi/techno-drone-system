@@ -75,6 +75,25 @@ export async function notifyFlightPlanToDips(
 }
 
 /**
+ * DIPS 連携を解除する (realm 単位)。対象は常にログイン中の自分自身のトークン。
+ * 未連携の状態で呼んでも成功する (冪等)。
+ */
+export async function unlinkDipsAccount(realm: string): Promise<void> {
+  const res = await fetch(`/api/dips/tokens/${encodeURIComponent(realm)}`, { method: "DELETE" });
+
+  if (res.status === 401) {
+    throw new AppSessionExpiredClientError();
+  }
+  if (res.status === 403) {
+    throw new Error("この操作を行う権限がありません");
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? "DIPS連携の解除に失敗しました");
+  }
+}
+
+/**
  * DIPS ログイン (認可コードフロー) を開始する URL。
  * returnPath (アプリ内パス) を渡すと、認可完了後にそのページへ戻る。
  * サーバー側で検証されるため、不正なパスは既定の一覧ページ扱いになる。

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   fetchDipsOwnedAircrafts,
+  unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
@@ -180,5 +181,54 @@ describe("fetchDipsOwnedAircrafts", () => {
     await expect(fetchDipsOwnedAircrafts()).rejects.toThrow(
       "DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です"
     );
+  });
+});
+
+describe("unlinkDipsAccount", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_unlinkDipsAccount_calls_delete_on_the_realm_scoped_endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: () => Promise.resolve({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await unlinkDipsAccount("utm");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/dips/tokens/utm", { method: "DELETE" });
+  });
+
+  it("test_unlinkDipsAccount_resolves_on_success", async () => {
+    mockFetchJson({ success: true });
+
+    await expect(unlinkDipsAccount("utm")).resolves.toBeUndefined();
+  });
+
+  it("test_unlinkDipsAccount_throws_app_session_expired_error_on_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(unlinkDipsAccount("utm")).rejects.toBeInstanceOf(AppSessionExpiredClientError);
+  });
+
+  it("test_unlinkDipsAccount_throws_japanese_message_on_403", async () => {
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(unlinkDipsAccount("utm")).rejects.toThrow("この操作を行う権限がありません");
+  });
+
+  it("test_unlinkDipsAccount_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "内部エラーが発生しました" }, 500);
+
+    await expect(unlinkDipsAccount("utm")).rejects.toThrow("内部エラーが発生しました");
+  });
+
+  it("test_unlinkDipsAccount_throws_default_message_when_error_body_is_missing", async () => {
+    mockFetchJson({}, 500);
+
+    await expect(unlinkDipsAccount("utm")).rejects.toThrow("DIPS連携の解除に失敗しました");
   });
 });
