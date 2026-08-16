@@ -89,6 +89,7 @@ const mockOidcClient = (): DipsOidcClient =>
   ({
     buildAuthorizationUrl: vi.fn(),
     exchangeCodeAndStore: vi.fn(),
+    unlinkAccount: vi.fn(),
   }) as unknown as DipsOidcClient;
 
 const mockAircraftService = (): AircraftService =>
@@ -292,6 +293,47 @@ describe("DipsService", () => {
       await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
         FlightPlanNotFoundError
       );
+    });
+  });
+
+  // ─── unlinkAccount ───────────────────────────────────────────────────────────
+
+  describe("unlinkAccount", () => {
+    it("test_unlinkAccount_delegates_to_oidc_client_with_given_user_and_realm", async () => {
+      vi.mocked(oidcClient.unlinkAccount).mockResolvedValue(undefined);
+
+      await service.unlinkAccount("user-1", "utm");
+
+      expect(oidcClient.unlinkAccount).toHaveBeenCalledWith("user-1", "utm");
+    });
+
+    it("test_unlinkAccount_only_targets_the_given_userId_not_a_different_one", async () => {
+      // 「他ユーザーのトークンを解除できない」制約は、この関数が受け取った userId
+      // だけをそのまま oidcClient に渡すことで担保される (別の userId にすり替わらない)
+      vi.mocked(oidcClient.unlinkAccount).mockResolvedValue(undefined);
+
+      await service.unlinkAccount("user-2", "utm");
+
+      expect(oidcClient.unlinkAccount).not.toHaveBeenCalledWith("user-1", "utm");
+      expect(oidcClient.unlinkAccount).toHaveBeenCalledWith("user-2", "utm");
+    });
+
+    it("test_unlinkAccount_does_not_affect_other_realms", async () => {
+      // realm 単位の削除であることを、渡す realm がそのまま1つだけ oidcClient に
+      // 届くことで確認する (utm 解除呼び出しで fpl/req が呼ばれないこと)
+      vi.mocked(oidcClient.unlinkAccount).mockResolvedValue(undefined);
+
+      await service.unlinkAccount("user-1", "utm");
+
+      expect(oidcClient.unlinkAccount).toHaveBeenCalledTimes(1);
+      expect(oidcClient.unlinkAccount).toHaveBeenCalledWith("user-1", "utm");
+    });
+
+    it("test_unlinkAccount_resolves_when_oidc_client_reports_no_token_deleted", async () => {
+      // 未連携状態でも oidcClient 側は例外を投げない (冪等) 前提で、Service もそのまま解決する
+      vi.mocked(oidcClient.unlinkAccount).mockResolvedValue(undefined);
+
+      await expect(service.unlinkAccount("user-1", "utm")).resolves.toBeUndefined();
     });
   });
 
