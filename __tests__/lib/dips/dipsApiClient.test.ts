@@ -42,6 +42,32 @@ const samplePayload: DipsFlightPlanNotificationPayload = {
   },
 };
 
+/**
+ * 許可・承認情報取得 API の生レスポンス1件分 (最小限の有効な形。設定通知書
+ * R08-DRS-0005 別紙3 のレスポンスサンプルに準拠。値はすべてテスト用のダミー)。
+ * 詳細なスキーマ境界のテストは __tests__/lib/dips/permissionsSchema.test.ts が担う。
+ */
+const validPermissionEntry = {
+  permissionNumber: "東空運航TEST01",
+  permissionNumber2: null,
+  receptionNumber: "P000000001",
+  permissionDate: "2026-01-01",
+  permissionPeriodStart: "2026-01-01",
+  permissionPeriodEnd: "2026-12-31",
+  flightLocation: "テスト県テスト市",
+  flightRoutes: [{ routeName: "テスト経路", routeLatlons: ["000000 0000000"] }],
+  aboveDenselyInhabitedDistricts: true,
+  moreThan150mAboveTheGround: false,
+  aroundAirports: false,
+  lessThan30m: false,
+  overEventSites: false,
+  nightOperation: false,
+  beyondVisualLineOfSight: false,
+  transportHazardousMaterials: false,
+  dropObjects: false,
+  uaInfos: [{ uaMaker: "テスト製造者", uaName: "テスト型式", regSymbol: "999999999999" }],
+};
+
 describe("DipsApiClient", () => {
   let oidcClient: DipsOidcClient;
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -84,13 +110,37 @@ describe("DipsApiClient", () => {
     expect(init.headers.authorization).toBe("Bearer test-token");
   });
 
-  it("test_fetchPermissions_returns_parsed_body", async () => {
-    const body = { permissions: [{ permissionNumber: "東空運航123" }] };
-    fetchMock.mockResolvedValue(jsonResponse(body));
+  it("test_fetchPermissions_returns_normalized_permission_with_reception_number", async () => {
+    // fetchPermissions は生レスポンスをそのまま返さず、fetchAircraftList と同様に
+    // 境界 (lib/dips/permissionsSchema.ts) で検証・正規化してから返す
+    // (詳細: __tests__/lib/dips/permissionsSchema.test.ts)
+    fetchMock.mockResolvedValue(jsonResponse({ permissions: [validPermissionEntry] }));
 
     const result = await makeClient().fetchPermissions("user-1");
 
-    expect(result).toEqual(body);
+    expect(result.permissions[0].receptionNumber).toBe("P000000001");
+  });
+
+  it("test_fetchPermissions_reports_zero_excluded_when_all_entries_parse", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ permissions: [validPermissionEntry] }));
+
+    const result = await makeClient().fetchPermissions("user-1");
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_fetchPermissions_drops_only_the_invalid_entry_and_reports_excluded_count", async () => {
+    const invalidEntry = { ...validPermissionEntry, receptionNumber: 12345 }; // string 期待
+    fetchMock.mockResolvedValue(
+      jsonResponse({ permissions: [validPermissionEntry, invalidEntry] })
+    );
+
+    const result = await makeClient().fetchPermissions("user-1");
+
+    expect({
+      receptionNumbers: result.permissions.map((p) => p.receptionNumber),
+      excludedCount: result.excludedCount,
+    }).toEqual({ receptionNumbers: ["P000000001"], excludedCount: 1 });
   });
 
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────

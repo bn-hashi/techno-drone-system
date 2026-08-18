@@ -1,8 +1,8 @@
 import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsRealm } from "@/lib/dips/config";
+import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
 import type {
-  DipsPermissionsResponse,
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
   DipsAircraftInfo,
@@ -108,8 +108,13 @@ export class DipsService {
     return result;
   }
 
-  /** 許可・承認情報を取得する (パススルー) */
-  async fetchPermissions(userId: string): Promise<DipsPermissionsResponse> {
+  /**
+   * 許可・承認情報を取得する (パススルー)。
+   * 正規化 (寛容パース・エントリ単位のフォールバック) は DipsApiClient.fetchPermissions()
+   * が境界 (HTTP レスポンス受信直後) で行う。Service 層で追加のビジネスロジック
+   * (フィルタ・DTO変換等) が必要になったら listOwnedAircrafts() のようにここへ実装する。
+   */
+  async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
     return this.apiClient.fetchPermissions(userId);
   }
 

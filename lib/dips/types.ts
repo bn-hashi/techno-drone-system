@@ -3,6 +3,7 @@
  *
  * 出典: R08-DRS-0005 設定通知書
  * - DipsPermissionInfo 系: 別紙3「許可・承認情報取得APIレスポンスサンプル」の実 JSON キーに準拠
+ *   (`lib/dips/permissionsSchema.ts` が生レスポンスを検証・正規化してこの型を返す)
  * - DipsAircraftInfo 系: DRS API 接続システム向けガイドライン 1.2版 §2.3.6 の正式 JSON キー名に準拠
  *   (`lib/dips/aircraftListSchema.ts` が生レスポンスを検証・正規化してこの型を返す)
  */
@@ -57,9 +58,9 @@ export interface DipsPermissionInfo {
   uaInfos: DipsUaInfo[];
 }
 
-export interface DipsPermissionsResponse {
-  permissions: DipsPermissionInfo[];
-}
+// レスポンス全体の型 (`{ permissions: DipsPermissionInfo[] }`) は敢えて定義しない。
+// 正規化後は除外件数 (excludedCount) を伴う `NormalizePermissionsResult`
+// (`lib/dips/permissionsSchema.ts`) が実質的な後継のため、二重定義を避ける。
 
 // ─── 機体情報一覧取得 API のコード値定義 (別紙1 準拠) ────────────────────────────
 

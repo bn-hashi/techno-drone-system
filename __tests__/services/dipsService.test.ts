@@ -341,7 +341,10 @@ describe("DipsService", () => {
 
   describe("fetchPermissions", () => {
     it("test_fetchPermissions_delegates_to_api_client", async () => {
-      const response = { permissions: [] };
+      // 正規化 (寛容パース・エントリ単位のフォールバック) は DipsApiClient 側
+      // (lib/dips/permissionsSchema.ts) の責務のため、Service は結果をそのまま返すだけで
+      // よい (このテストは apiClient をモックしているため実際の正規化は経由しない)
+      const response = { permissions: [], excludedCount: 0 };
       vi.mocked(apiClient.fetchPermissions).mockResolvedValue(response);
 
       const result = await service.fetchPermissions("user-1");
