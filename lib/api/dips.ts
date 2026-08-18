@@ -2,7 +2,7 @@
  * DIPS 連携のクライアント API ヘルパー
  */
 import { z } from "zod";
-import type { DipsOwnedAircraftDto } from "@/lib/dips/types";
+import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/dips/types";
 
 export interface DipsNotificationInput {
   flightPurpose: number[];
@@ -225,5 +225,67 @@ export async function fetchDipsOwnedAircrafts(
   return {
     aircrafts,
     excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 許可・承認情報取得 ─────────────────────────────────────────────────────
+
+/**
+ * DIPS 許可・承認情報。所有者・使用者等の個人情報は含まない。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける
+ * (機体情報一覧取得の DipsOwnedAircraftDto と同じ方針)。
+ */
+export type { DipsPermissionInfo };
+
+export interface FetchDipsPermissionsResult {
+  permissions: DipsPermissionInfo[];
+  /** サーバー側 (permissionsSchema.ts) がパースに失敗して除外した許可の件数 */
+  excludedCount: number;
+}
+
+/**
+ * DIPS ログイン済みアカウントの許可・承認情報一覧を取得する。
+ * トークン未取得・失効 (401 authRequired) の場合は DipsAuthRequiredClientError を投げる。
+ * アプリ自体のセッションが切れている場合は AppSessionExpiredClientError を投げる
+ * (fetchDipsOwnedAircrafts と同じ区別)。
+ *
+ * サーバー側 (lib/dips/permissionsSchema.ts) が境界で既に検証・正規化済みの JSON を
+ * 返すため、この関数はクライアント側での再検証は行わない (fetchDipsOwnedAircrafts と
+ * 異なり、この結果をフォーム自動入力等の下流処理には使わない単純な一覧表示専用のため。
+ * 下流でこの値を使って書き込み系の処理をする場合は、fetchDipsOwnedAircrafts の
+ * parseOwnedAircrafts のようなクライアント側検証の追加を検討すること)。
+ */
+export async function fetchDipsPermissions(): Promise<FetchDipsPermissionsResult> {
+  const res = await fetch("/api/dips/permissions");
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & {
+        permissions?: DipsPermissionInfo[];
+        excludedCount?: number;
+      })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "req");
+  }
+
+  if (res.status === 401) {
+    // requireFlightAccess() が返す素の 401 (英語 "Unauthorized") はアプリ自体のセッション
+    // 切れ。DIPS 再認可 (authRequired) とは別物のため専用エラーで区別する
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    // requireFlightAccess() が返す素の 403 (英語 "Forbidden") をそのまま表示しない
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS許可・承認情報の取得に失敗しました");
+  }
+
+  return {
+    permissions: body?.permissions ?? [],
+    excludedCount: typeof body?.excludedCount === "number" ? body.excludedCount : 0,
   };
 }

@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   fetchDipsOwnedAircrafts,
+  fetchDipsPermissions,
   unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
-import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
+import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/api/dips";
 
 const validAircraft: DipsOwnedAircraftDto = {
   registrationCode: "DUMMY0000001",
@@ -181,6 +182,105 @@ describe("fetchDipsOwnedAircrafts", () => {
     await expect(fetchDipsOwnedAircrafts()).rejects.toThrow(
       "DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です"
     );
+  });
+});
+
+const validPermission: DipsPermissionInfo = {
+  permissionNumber: "東空運航TEST01",
+  permissionNumber2: null,
+  receptionNumber: "P000000001",
+  permissionDate: "2026-01-01",
+  permissionPeriodStart: "2026-01-01",
+  permissionPeriodEnd: "2026-12-31",
+  flightLocation: "テスト県テスト市",
+  flightRoutes: [{ routeName: "テスト経路", routeLatlons: ["000000 0000000"] }],
+  aboveDenselyInhabitedDistricts: true,
+  moreThan150mAboveTheGround: false,
+  aroundAirports: false,
+  lessThan30m: false,
+  overEventSites: false,
+  nightOperation: false,
+  beyondVisualLineOfSight: false,
+  transportHazardousMaterials: false,
+  dropObjects: false,
+  uaInfos: [{ uaMaker: "テスト製造者", uaName: "テスト型式", regSymbol: "999999999999" }],
+};
+
+describe("fetchDipsPermissions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_fetchDipsPermissions_returns_permissions_on_success", async () => {
+    mockFetchJson({ permissions: [validPermission], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([validPermission]);
+  });
+
+  it("test_fetchDipsPermissions_propagates_excluded_count_from_response", async () => {
+    mockFetchJson({ permissions: [validPermission], excludedCount: 2 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(2);
+  });
+
+  it("test_fetchDipsPermissions_defaults_excluded_count_to_zero_when_omitted", async () => {
+    mockFetchJson({ permissions: [validPermission] });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_fetchDipsPermissions_defaults_permissions_to_empty_array_when_omitted", async () => {
+    mockFetchJson({});
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([]);
+  });
+
+  it("test_fetchDipsPermissions_throws_auth_required_error_with_req_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    await expect(fetchDipsPermissions()).rejects.toBeInstanceOf(DipsAuthRequiredClientError);
+  });
+
+  it("test_fetchDipsPermissions_auth_required_error_carries_realm_from_response", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    await fetchDipsPermissions().catch((err) => {
+      expect(err.realm).toBe("req");
+    });
+  });
+
+  it("test_fetchDipsPermissions_throws_app_session_expired_error_on_plain_401", async () => {
+    // requireFlightAccess() が返す素の 401 ({ error: "Unauthorized" }、authRequired なし) は
+    // DIPS の再認可ではなくアプリ自体のセッション切れ
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(fetchDipsPermissions()).rejects.toBeInstanceOf(AppSessionExpiredClientError);
+  });
+
+  it("test_fetchDipsPermissions_throws_japanese_message_on_403", async () => {
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("この操作を行う権限がありません");
+  });
+
+  it("test_fetchDipsPermissions_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "DIPS連携でエラーが発生しました" }, 502);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("DIPS連携でエラーが発生しました");
+  });
+
+  it("test_fetchDipsPermissions_throws_default_message_when_error_body_is_missing_on_failure", async () => {
+    mockFetchJson({}, 502);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("DIPS許可・承認情報の取得に失敗しました");
   });
 });
 
