@@ -42,9 +42,16 @@ route.ts (Controller)
 |---|---|
 | `POST /api/flight/plans/[id]/dips-notify` | 飛行計画を飛行計画通報受付 API へ通報 |
 | `GET /api/dips/aircrafts` | DIPS ログイン済みアカウントの所有機体一覧を取得 (機体情報一覧取得 API)。クエリ `includeInvalid=true` で抹消済み・期限切れも含める |
+| `GET /api/dips/permissions` | DIPS ログイン済みアカウントの許可・承認情報一覧を取得 (許可・承認情報取得 API, realm `req`)。UI は `/flight/dips-permissions` (ナビ未リンク。直接 URL でアクセス) |
 
 `requireFlightAccess` (ADMIN/PILOT)。`GET /api/dips/aircrafts` は所有者チェックの概念がなく、
 DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
+`GET /api/dips/permissions` も同様にアカウント単位で、特定の機体・飛行計画への紐付けはない。
+
+> **2026-08-18 追記**: 許可・承認情報取得 API (5-2) を実装した (上表参照)。実装の詳細・
+> 正規化方針の対応表は `req-009` の builder 報告 (`_orchestrator/results/req-009/builder.md`)
+> を参照。5-3 (許可・承認申請受付) / 5-4 (飛行計画情報取得) / 5-5 (飛行禁止エリア情報取得)
+> は未実装のまま (`lib/dips/endpoints.ts` に URL・realm の定義のみ存在)。
 
 > **訂正 (2026-07-28)**: 以前ここに記載していた `POST /api/flight/aircraft/[id]/verify-registration`
 > (機体の登録記号を機体情報一覧取得 API と照合するルート) は、Authorization Code Flow への
