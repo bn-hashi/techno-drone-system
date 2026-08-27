@@ -116,6 +116,104 @@ describe("normalizePermissionsWithDiagnostics", () => {
     expect(result.permissions[0].permissionNumber2).toBe("東空運航TEST02");
   });
 
+  it("test_parse_normalizes_empty_string_permission_number2_to_null", () => {
+    // B4 差し戻し: JSDoc は「空文字・null・キー欠落を null に正規化する」と書かれていたが、
+    // 実装は null/undefined しか変換していなかった (契約と実装の不一致)。実装を JSDoc に
+    // 合わせる
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ permissionNumber2: "" })],
+    });
+
+    expect(result.permissions[0].permissionNumber2).toBeNull();
+  });
+
+  // ─── boolean フラグの "1"/"0" 文字列受理 (B1 差し戻し) ───────────────────────
+
+  it("test_parse_accepts_string_1_as_true_for_boolean_flag", () => {
+    // このコードベースの DIPS boolean 慣習は "1"/"0" の文字列 (services/dipsService.ts が
+    // 送信時に boolean → "1"/"0" へ変換しているのと対称)。DIPS が "1"/"0" を返すと
+    // z.boolean() が全エントリを弾いていた
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ nightOperation: "1" })],
+    });
+
+    expect(result.permissions[0].nightOperation).toBe(true);
+  });
+
+  it("test_parse_accepts_string_0_as_false_for_boolean_flag", () => {
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ nightOperation: "0" })],
+    });
+
+    expect(result.permissions[0].nightOperation).toBe(false);
+  });
+
+  it("test_parse_does_not_exclude_entry_when_all_boolean_flags_are_string_1_or_0", () => {
+    // 回帰テスト: 修正前は9個のフラグ全てが "1"/"0" 文字列で返るエントリが必ず
+    // 除外され (worst case: 全エントリが該当するとアカウントごと 502 になる)、
+    // 修正後は除外されずそのまま含まれることを確認する
+    const allStringFlags = minimalValidPermission({
+      aboveDenselyInhabitedDistricts: "1",
+      moreThan150mAboveTheGround: "0",
+      aroundAirports: "1",
+      lessThan30m: "0",
+      overEventSites: "1",
+      nightOperation: "0",
+      beyondVisualLineOfSight: "1",
+      transportHazardousMaterials: "0",
+      dropObjects: "1",
+    });
+
+    const result = normalizePermissionsWithDiagnostics({ permissions: [allStringFlags] });
+
+    expect({
+      excludedCount: result.excludedCount,
+      aboveDenselyInhabitedDistricts: result.permissions[0]?.aboveDenselyInhabitedDistricts,
+      dropObjects: result.permissions[0]?.dropObjects,
+    }).toEqual({ excludedCount: 0, aboveDenselyInhabitedDistricts: true, dropObjects: true });
+  });
+
+  // ─── flightRoutes/uaInfos の null・欠落の空配列化 (B3 差し戻し) ────────────────
+
+  it("test_parse_treats_null_flight_routes_as_empty_array", () => {
+    // 包括申請で flightRoutes: null が返るとその許可が丸ごと落ちていた
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ flightRoutes: null })],
+    });
+
+    expect({
+      excludedCount: result.excludedCount,
+      flightRoutes: result.permissions[0]?.flightRoutes,
+    }).toEqual({ excludedCount: 0, flightRoutes: [] });
+  });
+
+  it("test_parse_treats_missing_ua_infos_key_as_empty_array", () => {
+    const entry = minimalValidPermission();
+    delete (entry as Record<string, unknown>).uaInfos;
+
+    const result = normalizePermissionsWithDiagnostics({ permissions: [entry] });
+
+    expect({
+      excludedCount: result.excludedCount,
+      uaInfos: result.permissions[0]?.uaInfos,
+    }).toEqual({ excludedCount: 0, uaInfos: [] });
+  });
+
+  // ─── permissions 本体の null・欠落の空配列化 (B2 差し戻し) ─────────────────────
+
+  it("test_parse_returns_empty_array_when_permissions_key_is_missing", () => {
+    // 空アカウントが {} を返すと、既存の空状態分岐に到達できず 502 になっていた
+    const result = normalizePermissionsWithDiagnostics({});
+
+    expect(result).toEqual({ permissions: [], excludedCount: 0 });
+  });
+
+  it("test_parse_returns_empty_array_when_permissions_is_explicitly_null", () => {
+    const result = normalizePermissionsWithDiagnostics({ permissions: null });
+
+    expect(result).toEqual({ permissions: [], excludedCount: 0 });
+  });
+
   // ─── 寛容パース: 未知フィールド・個人情報の遮断 ───────────────────────────────
 
   it("test_parse_ignores_unknown_top_level_key", () => {
@@ -145,10 +243,7 @@ describe("normalizePermissionsWithDiagnostics", () => {
   });
 
   // ─── レスポンス全体の形が不正 ─────────────────────────────────────────────────
-
-  it("test_parse_throws_when_response_has_no_permissions_key", () => {
-    expect(() => normalizePermissionsWithDiagnostics({})).toThrow(DipsApiError);
-  });
+  // (permissions キーの欠落・null は「許可情報なし」の空状態として扱う。B2 参照)
 
   it("test_parse_throws_when_permissions_is_not_an_array", () => {
     expect(() => normalizePermissionsWithDiagnostics({ permissions: "not-an-array" })).toThrow(
@@ -159,6 +254,15 @@ describe("normalizePermissionsWithDiagnostics", () => {
   it("test_parse_error_message_includes_received_type_when_response_is_not_an_object", () => {
     expect(() => normalizePermissionsWithDiagnostics(["unexpected-array"])).toThrow(
       /受信した型: array/
+    );
+  });
+
+  it("test_parse_error_message_includes_permissions_key_when_only_permissions_value_is_invalid", () => {
+    // C2 差し戻し: describeReceivedType(raw) はトップレベル (常に "object") にしか
+    // 適用されておらず、"permissions" キーの値だけが不正な場合は診断価値がなかった。
+    // Zod の issue (パス・コード) を含めることで、どのキーが原因か分かるようにする
+    expect(() => normalizePermissionsWithDiagnostics({ permissions: "not-an-array" })).toThrow(
+      /permissions/
     );
   });
 
@@ -290,6 +394,37 @@ describe("normalizePermissionsWithDiagnostics", () => {
 
     it("test_parse_log_does_not_contain_raw_invalid_value", () => {
       expect(JSON.stringify(context)).not.toContain("not-a-boolean");
+    });
+  });
+
+  describe("エントリ自体がオブジェクトでない場合のログ内容 (C1)", () => {
+    // Zod の issue.path はエントリ自体がオブジェクトでないとき空配列になり、
+    // 以前は issuePaths が [""] (空文字) になっていた。「対象キー: 」と空欄になり、
+    // IP 制限で再試行しにくい本番で何も手がかりが得られなかった
+    it("test_parse_log_issue_path_is_not_empty_when_entry_is_not_an_object", () => {
+      const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+      const valid = minimalValidPermission({ receptionNumber: "P000000001" });
+      const nonObjectEntry = "unexpected-string-entry";
+
+      normalizePermissionsWithDiagnostics({ permissions: [valid, nonObjectEntry] });
+
+      const [, , context] = spy.mock.calls[0] as [string, unknown, Record<string, unknown>];
+      const droppedEntries = context.droppedEntries as Array<{ issuePaths: string[] }>;
+
+      expect(droppedEntries[0].issuePaths).not.toEqual([""]);
+    });
+
+    it("test_parse_log_issue_path_includes_received_type_when_entry_is_not_an_object", () => {
+      const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+      const valid = minimalValidPermission({ receptionNumber: "P000000001" });
+      const nonObjectEntry = "unexpected-string-entry";
+
+      normalizePermissionsWithDiagnostics({ permissions: [valid, nonObjectEntry] });
+
+      const [, , context] = spy.mock.calls[0] as [string, unknown, Record<string, unknown>];
+      const droppedEntries = context.droppedEntries as Array<{ issuePaths: string[] }>;
+
+      expect(droppedEntries[0].issuePaths[0]).toContain("string");
     });
   });
 

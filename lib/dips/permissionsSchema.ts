@@ -29,21 +29,51 @@ import type { DipsPermissionInfo } from "@/lib/dips/types";
  * 全件が失敗した場合はレスポンス仕様そのものが変わった可能性が高いため、空配列を返さず
  * DipsApiError を投げる (詳細は normalizePermissionsWithDiagnostics のコメント参照)。
  *
- * null 寛容化は permissionNumber2 のみに限定している: レスポンスサンプルで唯一
- * 明示的に null 値が示されているフィールドのため。他のフィールドは検証環境への
- * 事前到達ができず実際の挙動が未確認なので、機体情報一覧取得 API のときのように
- * 「不正な値は落として安全な既定値に丸める」のではなく、まずは要求どおりの形を求め、
- * 想定外の値が来たエントリはエントリ単位のフォールバックで除外するに留める
- * (安全な既定値を捏造しない)。本番疎通確認で他のフィールドにも null 寛容化が必要と
- * わかった場合は、機体情報一覧取得 API (2026-08-10 差し戻し) のときと同じ要領で
- * 個別に広げること。
+ * null・欠落の寛容化 (2026-08-26 差し戻し B1〜B4 で拡張): 当初は permissionNumber2 のみに
+ * 限定していたが、実機検証で以下の3点が「アカウント全体が502で落ちる」実害につながる
+ * ことが分かったため、寛容化の対象を広げた:
+ * - **boolean フラグ9個**: このコードベースの DIPS boolean 慣習は `"1"`/`"0"` の文字列
+ *   (`lib/dips/types.ts` の `riskMitigationOnsiteControl: string`、
+ *   `services/dipsService.ts` が送信時に boolean → `"1"`/`"0"` へ変換している対称)。
+ *   DIPS が `"1"`/`"0"` を返すと `z.boolean()` が全エントリを弾いていたため、
+ *   boolean と `"1"`/`"0"` の両方を受理して boolean へ正規化する (`flexibleBoolean`)
+ * - **`permissions` 本体・`flightRoutes`・`uaInfos`**: null・キー欠落を空配列として扱う。
+ *   空アカウントが `{}` や `{ "permissions": null }` を返すと、既存の「許可・承認情報が
+ *   ありません」という正当な空状態の分岐に到達できず 502 になっていた
+ * - **`permissionNumber2`**: 空文字・null・キー欠落のいずれも null に正規化する
+ *   (以前は null/undefined しか変換しておらず、JSDoc の契約と実装がずれていた)
+ *
+ * それ以外のフィールド (受付番号・許可期間等の文字列) は検証環境への事前到達ができず
+ * 実際の挙動が未確認なので、機体情報一覧取得 API のときのように「不正な値は落として
+ * 安全な既定値に丸める」のではなく、まずは要求どおりの形を求め、想定外の値が来た
+ * エントリはエントリ単位のフォールバックで除外するに留める (安全な既定値を捏造しない)。
+ * 本番疎通確認でさらに寛容化が必要とわかった場合は、機体情報一覧取得 API
+ * (2026-08-10 差し戻し) のときと同じ要領で個別に広げること。
  */
 
 /** 空文字・null・キー欠落を null に正規化する (permissionNumber2 用) */
 const nullableString = z
   .string()
   .nullish()
-  .transform((value) => (value === null || value === undefined ? null : value));
+  .transform((value) => (value === null || value === undefined || value === "" ? null : value));
+
+/** null・キー欠落を空配列として扱う (permissions/flightRoutes/uaInfos 用) */
+function nullableArray<T extends z.ZodTypeAny>(itemSchema: T) {
+  return z
+    .array(itemSchema)
+    .nullish()
+    .transform((value) => value ?? []);
+}
+
+/**
+ * DIPS の boolean 慣習 (`"1"`/`"0"` の文字列) と素の boolean の両方を受理し、boolean へ
+ * 正規化する。`services/dipsService.ts` が送信時に boolean → `"1"`/`"0"` へ変換しているのと
+ * 対称的に、受信時も両方の形を受け付ける (B1 差し戻し: `"1"`/`"0"` を z.boolean() が
+ * 全エントリで弾き、アカウントごと 502 になっていた)。
+ */
+const flexibleBoolean = z
+  .union([z.boolean(), z.enum(["1", "0"])])
+  .transform((value) => (typeof value === "boolean" ? value : value === "1"));
 
 const FlightRouteSchema = z.object({
   routeName: z.string(),
@@ -64,22 +94,27 @@ const PermissionEntrySchema = z.object({
   permissionPeriodStart: z.string(),
   permissionPeriodEnd: z.string(),
   flightLocation: z.string(),
-  flightRoutes: z.array(FlightRouteSchema),
-  aboveDenselyInhabitedDistricts: z.boolean(),
-  moreThan150mAboveTheGround: z.boolean(),
-  aroundAirports: z.boolean(),
-  lessThan30m: z.boolean(),
-  overEventSites: z.boolean(),
-  nightOperation: z.boolean(),
-  beyondVisualLineOfSight: z.boolean(),
-  transportHazardousMaterials: z.boolean(),
-  dropObjects: z.boolean(),
-  uaInfos: z.array(UaInfoSchema),
+  flightRoutes: nullableArray(FlightRouteSchema),
+  aboveDenselyInhabitedDistricts: flexibleBoolean,
+  moreThan150mAboveTheGround: flexibleBoolean,
+  aroundAirports: flexibleBoolean,
+  lessThan30m: flexibleBoolean,
+  overEventSites: flexibleBoolean,
+  nightOperation: flexibleBoolean,
+  beyondVisualLineOfSight: flexibleBoolean,
+  transportHazardousMaterials: flexibleBoolean,
+  dropObjects: flexibleBoolean,
+  uaInfos: nullableArray(UaInfoSchema),
 });
 
-/** レスポンスは `{ permissions: [...] }` 形であることのみ確認する (中身は要素単位で検証する) */
+/**
+ * レスポンスは `{ permissions: [...] }` 形であることのみ確認する (中身は要素単位で検証する)。
+ * `permissions` 自体の null・キー欠落は「許可・承認情報なし」の正当な空状態として扱い、
+ * 空配列に正規化する (B2 差し戻し: 空アカウントが `{}` や `{ "permissions": null }` を
+ * 返すと、既存の空状態分岐に到達できず 502 になっていた)。
+ */
 const RawPermissionsResponseSchema = z.object({
-  permissions: z.array(z.unknown()),
+  permissions: nullableArray(z.unknown()),
 });
 
 type PermissionEntry = z.infer<typeof PermissionEntrySchema>;
@@ -103,9 +138,19 @@ export interface NormalizePermissionsResult {
   excludedCount: number;
 }
 
-/** Zod のパス (キー名) の一覧を返す。受信値そのものは一切含めない */
-function formatIssuePathList(error: z.ZodError): string[] {
-  return error.issues.map((issue) => issue.path.join("."));
+/**
+ * Zod のパス (キー名) の一覧を返す。受信値そのものは一切含めない。
+ *
+ * エントリ自体がオブジェクトでない場合 (例: 配列の要素が文字列や数値) は `issue.path` が
+ * 空配列になり、以前は `""` (空文字) を返していた。障害切り分け時に「対象キー: 」と
+ * 空欄になり、IP 制限で再試行しにくい本番で手がかりが得られなかったため (C1 差し戻し)、
+ * パスが空のときは受信した型と Zod のエラーコードで代替する。
+ */
+function formatIssuePathList(error: z.ZodError, rawEntry: unknown): string[] {
+  return error.issues.map((issue) => {
+    const path = issue.path.join(".");
+    return path || `(受信した型: ${describeReceivedType(rawEntry)}, code: ${issue.code})`;
+  });
 }
 
 /** レスポンスの実際の型名を返す (エラーメッセージの切り分け用。値そのものは含めない) */
@@ -132,7 +177,7 @@ function parsePermissionEntries(rawEntries: readonly unknown[]): {
     if (result.success) {
       entries.push(result.data);
     } else {
-      failures.push({ index, issuePaths: formatIssuePathList(result.error) });
+      failures.push({ index, issuePaths: formatIssuePathList(result.error, rawEntry) });
     }
   });
 
@@ -168,20 +213,27 @@ function logDroppedPermissionEntries(
  * エントリ単位でパースし、1件のパース失敗は他の許可を巻き込まない (パースできた
  * 許可だけを返し、失敗した許可はログに記録して除外する)。以下の場合は DipsApiError
  * を投げる:
- * - レスポンスが `{ permissions: [...] }` 形でない (API 仕様そのものが変わった可能性が高い)
+ * - レスポンスが `{ permissions: [...] }` 形でない (API 仕様そのものが変わった可能性が高い。
+ *   `permissions` が null・キー欠落の場合は「許可情報なし」の空状態として扱うため、
+ *   ここに該当するのは `permissions` が配列でも null でもない不正な値のときのみ)
  * - `permissions` に1件以上の要素があるにもかかわらず、全件のパースに失敗した (個々の
  *   異常値ではなく、レスポンス構造自体の変更を疑うべき状況のため、空配列を返さず
  *   502 で失敗を可視化する)
  *
  * 空配列 ([]) 自体は「許可情報なし」の正当な応答のため、そのまま [] を返す。
  * エラーメッセージには Zod のキー名または受信した型名のみを含め、受信値 (個人情報を
- * 含みうる) は一切含めない。
+ * 含みうる) は一切含めない。トップレベルの形状異常時は `describeReceivedType(raw)` が
+ * 常に "object" になり診断価値がないケース (`permissions` キーの値だけが不正な場合) が
+ * あるため、Zod の issue (パスとコード) も併せて含める (C2 差し戻し)。
  */
 export function normalizePermissionsWithDiagnostics(raw: unknown): NormalizePermissionsResult {
   const shapeResult = RawPermissionsResponseSchema.safeParse(raw);
   if (!shapeResult.success) {
+    const issueDetail = shapeResult.error.issues
+      .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.code}`)
+      .join(", ");
     throw new DipsApiError(
-      `DIPS許可・承認情報のレスポンス形式が不正です (受信した型: ${describeReceivedType(raw)})`
+      `DIPS許可・承認情報のレスポンス形式が不正です (受信した型: ${describeReceivedType(raw)}, 詳細: ${issueDetail})`
     );
   }
 
