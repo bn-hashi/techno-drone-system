@@ -1,7 +1,7 @@
 # DIPS 2.0 API 連携 (Phase 4)
 
-最終更新: 2026-08-10 (機体情報一覧取得API [DRS, realm utm] を実装。詳細は
-`docs/dips-drs-aircraft-list-api.md`)
+最終更新: 2026-08-28 (許可・承認情報取得API [5-2] の差し戻し対応: 寛容パース強化・
+UI不具合修正・realm ハードコード解消)
 
 ## 概要
 
@@ -48,10 +48,17 @@ route.ts (Controller)
 DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
 `GET /api/dips/permissions` も同様にアカウント単位で、特定の機体・飛行計画への紐付けはない。
 
-> **2026-08-18 追記**: 許可・承認情報取得 API (5-2) を実装した (上表参照)。実装の詳細・
-> 正規化方針の対応表は `req-009` の builder 報告 (`_orchestrator/results/req-009/builder.md`)
-> を参照。5-3 (許可・承認申請受付) / 5-4 (飛行計画情報取得) / 5-5 (飛行禁止エリア情報取得)
-> は未実装のまま (`lib/dips/endpoints.ts` に URL・realm の定義のみ存在)。
+> **2026-08-18 追記**: 許可・承認情報取得 API (5-2) を実装した (上表参照)。正規化方針・
+> 寛容パース (boolean の "1"/"0" 文字列受理、null 許容の範囲等) の詳細は
+> `lib/dips/permissionsSchema.ts` のファイル先頭コメントを参照。5-3 (許可・承認申請受付) /
+> 5-4 (飛行計画情報取得) / 5-5 (飛行禁止エリア情報取得) は未実装のまま
+> (`lib/dips/endpoints.ts` に URL・realm の定義のみ存在)。
+>
+> **2026-08-26 差し戻し**: 実機検証 (Playwright) で疎通確認 UI の不具合4件
+> (再マウント後の1回目クリックで fetch されない・意図しない自動再取得・不正な200が
+> 「0件」に化ける・失敗後も古いデータが残る) が判明し対応した。詳細は
+> `app/(flight)/flight/dips-permissions/DipsPermissionsPanel.tsx` と
+> `lib/api/dips.ts` の `fetchDipsPermissions()` のコメントを参照。
 
 > **訂正 (2026-07-28)**: 以前ここに記載していた `POST /api/flight/aircraft/[id]/verify-registration`
 > (機体の登録記号を機体情報一覧取得 API と照合するルート) は、Authorization Code Flow への

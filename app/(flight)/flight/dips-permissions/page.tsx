@@ -13,9 +13,13 @@ export const dynamic = "force-dynamic";
  * app/(flight)/layout.tsx でも呼ばれ二重にはなるが、機体管理ページ (flight/aircraft)
  * 等の既存ページも同様にページ単位で認可チェックを行っており、その規約に合わせている)。
  *
- * 現時点ではサイドナビ (lib/flightRoutes.ts) にリンクを追加していない (スコープを
- * 広げないための意図的な判断。詳細は req-009 builder 報告の「UI 導線」節を参照)。
- * 本番での疎通確認はこの URL に直接アクセスして行う。
+ * 現時点ではサイドナビ (lib/flightRoutes.ts) にリンクを追加していない。許可・承認情報は
+ * アカウント単位の情報で特定の機体・飛行計画に紐づかないため、既存ページ (機体管理・
+ * 飛行計画) に無理に組み込むより独立ページの方が自然、という判断に加え、
+ * lib/flightRoutes.ts は FlightLayout / AdminLayout 双方から参照される共有ファイルで
+ * あり影響範囲を広げないための意図的な判断でもある (5-2 が疎通確認専用から常用機能に
+ * 育つタイミングでナビ追加を検討すること)。本番での疎通確認はこの URL に直接
+ * アクセスして行う。
  */
 export default async function DipsPermissionsPage() {
   await requireFlightSession();
