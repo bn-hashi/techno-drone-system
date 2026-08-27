@@ -235,12 +235,67 @@ describe("fetchDipsPermissions", () => {
     expect(result.excludedCount).toBe(0);
   });
 
-  it("test_fetchDipsPermissions_defaults_permissions_to_empty_array_when_omitted", async () => {
+  it("test_fetchDipsPermissions_throws_when_response_shape_is_invalid", async () => {
+    // A3 差し戻し: 以前は permissions キーが省略された 200 応答 (キー名違い・非 JSON 応答
+    // の両方で起こりうる) を `?? []` で静かに「0件」扱いにしていた。fetchDipsOwnedAircrafts
+    // の parseOwnedAircrafts と同じ強度で、キー欠落もエラーとして表面化させる
     mockFetchJson({});
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_throws_when_permissions_is_not_an_array", async () => {
+    mockFetchJson({ permissions: "not-an-array" });
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_throws_when_response_body_is_not_json", async () => {
+    // 実機検証 (2026-08-19) 再現: 200 だが本文が非 JSON (<html>502...) のとき、
+    // res.json() が失敗して body が null になり、以前は「0件」として静かに成功していた
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+      })
+    );
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_drops_only_the_entry_that_fails_client_side_validation", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 0 });
 
     const result = await fetchDipsPermissions();
 
-    expect(result.permissions).toEqual([]);
+    expect(result.permissions).toEqual([validPermission]);
+  });
+
+  it("test_fetchDipsPermissions_counts_client_side_validation_failure_in_excluded_count", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(1);
+  });
+
+  it("test_fetchDipsPermissions_adds_client_side_excluded_count_to_server_side_excluded_count", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 2 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(3);
   });
 
   it("test_fetchDipsPermissions_throws_auth_required_error_with_req_realm_on_401", async () => {
@@ -252,9 +307,9 @@ describe("fetchDipsPermissions", () => {
   it("test_fetchDipsPermissions_auth_required_error_carries_realm_from_response", async () => {
     mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
 
-    await fetchDipsPermissions().catch((err) => {
-      expect(err.realm).toBe("req");
-    });
+    // D3 差し戻し: 以前は .catch() 内で expect していたため、promise が resolve すると
+    // アサーション0件のまま緑になっていた。他のテストと同じ rejects.toMatchObject に直す
+    await expect(fetchDipsPermissions()).rejects.toMatchObject({ realm: "req" });
   });
 
   it("test_fetchDipsPermissions_throws_app_session_expired_error_on_plain_401", async () => {
@@ -281,6 +336,19 @@ describe("fetchDipsPermissions", () => {
     mockFetchJson({}, 502);
 
     await expect(fetchDipsPermissions()).rejects.toThrow("DIPS許可・承認情報の取得に失敗しました");
+  });
+
+  it("test_fetchDipsPermissions_throws_japanese_message_when_fetch_itself_fails", async () => {
+    // D4 差し戻し: fetch() 自体がネットワーク断等で失敗すると、ブラウザの生の TypeError
+    // ("Failed to fetch") がそのまま画面に出ていた。日本語メッセージに正規化する
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))
+    );
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
   });
 });
 
