@@ -14,8 +14,11 @@ import { logger } from "@/lib/logger";
  * DIPS ログイン済みアカウントの許可・承認情報を取得する (許可・承認情報取得 API)。
  *
  * realm は `req` (機体情報一覧取得 (`GET /api/dips/aircrafts`) の `utm` とは別 realm)。
- * エラー分類・レスポンス形は app/api/dips/aircrafts/route.ts と同型にしている
- * (5-3/5-4/5-5 も同じ形を踏襲すること。詳細は req-009 builder 報告参照)。
+ * トークン未取得・失効時の realm は `DipsAuthRequiredError.realm` からそのまま返す
+ * (ハードコードしない。2026-08-26 差し戻し D1: realm をこのルート側で決め打ちすると、
+ * 実際に投げられた realm とずれた場合に UI が誤った realm でログイン誘導し無限ループに
+ * なる事故があった)。エラー分類・レスポンス形は app/api/dips/aircrafts/route.ts と同型
+ * にしている (5-3/5-4/5-5 も同じ形を踏襲すること)。
  */
 export async function GET(): Promise<NextResponse> {
   const auth = await requireFlightAccess();
@@ -32,7 +35,7 @@ export async function GET(): Promise<NextResponse> {
     // トークン未取得・失効: UI にログイン誘導させるため専用フラグを返す
     if (error instanceof DipsAuthRequiredError) {
       return NextResponse.json(
-        { error: error.message, authRequired: true, realm: "req" },
+        { error: error.message, authRequired: true, realm: error.realm },
         { status: 401 }
       );
     }

@@ -78,6 +78,20 @@ describe("GET /api/dips/permissions", () => {
     );
   });
 
+  it("test_get_returns_realm_from_auth_required_error_not_hardcoded", async () => {
+    // D1 差し戻し: 以前はルート側で realm: "req" をハードコードしており、
+    // DipsAuthRequiredError が実際に渡した realm を無視していた (ずれると無限
+    // ログインループになる)。ここでは意図的に異なる realm を投げ、レスポンスが
+    // それをそのまま反映することを確認する (ハードコードなら "req" のまま失敗するはず)
+    vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
+    mockFetchPermissions.mockRejectedValue(new DipsAuthRequiredError("req-drift-test"));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.realm).toBe("req-drift-test");
+  });
+
   it("test_get_returns_502_on_dips_api_error", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
     mockFetchPermissions.mockRejectedValue(new DipsApiError("failed"));
