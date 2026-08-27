@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { DipsPermissionsPanel } from "@/app/(flight)/flight/dips-permissions/DipsPermissionsPanel";
 import type { DipsPermissionInfo, FetchDipsPermissionsResult } from "@/lib/api/dips";
 
@@ -47,6 +47,12 @@ function renderWithQuery(ui: React.ReactElement) {
 describe("DipsPermissionsPanel", () => {
   beforeEach(() => {
     mockFetchDipsPermissions.mockReset();
+  });
+
+  afterEach(() => {
+    // onlineManager はモジュール単位のシングルトンのため、reconnect のテストで
+    // false にした場合は他のテストへ影響しないよう必ず online に戻す
+    onlineManager.setOnline(true);
   });
 
   it("test_panel_does_not_fetch_on_initial_render", () => {
@@ -192,5 +198,110 @@ describe("DipsPermissionsPanel", () => {
     await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
 
     expect(mockFetchDipsPermissions).toHaveBeenCalledTimes(2);
+  });
+
+  // ─── A1 差し戻し: 再マウント後の1回目のクリックで fetch が発生しない ─────────────
+
+  it("test_panel_fetches_again_on_first_click_after_remount_even_when_cache_is_fresh", async () => {
+    // 実機検証 (2026-08-19) の再現: QueryProvider.tsx の staleTime (60秒) 相当の
+    // フレッシュなキャッシュが残っていると、再マウント後の1回目のクリックで
+    // enabled: hasRequested のフリップだけに頼る実装では fetch が発生しなかった。
+    // 「ボタンを1回押す = DIPS を1回呼ぶ」を守るため、クリックは常に refetch() を
+    // 明示的に呼ぶ実装にした (staleTime の値に関わらず動作することの証明として、
+    // 本番と同じ 60秒を明示的に設定する)
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 60 * 1000 } },
+    });
+    mockFetchDipsPermissions.mockResolvedValue({ permissions: [], excludedCount: 0 });
+    const user = userEvent.setup();
+
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <DipsPermissionsPanel />
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+    await screen.findByText("許可・承認情報がありません");
+    unmount();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <DipsPermissionsPanel />
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+
+    expect(mockFetchDipsPermissions).toHaveBeenCalledTimes(2);
+  });
+
+  // ─── A2 差し戻し: クリックしていないのに再接続だけで呼ばれる ────────────────────
+
+  it("test_panel_does_not_refetch_on_network_reconnect", async () => {
+    // 実機検証 (2026-08-19) の再現: ネットワーク再接続だけで fetch 回数が 1→2 に増えた。
+    // IP 制限された検証環境を無操作で叩いてしまうため、refetchOnReconnect を明示的に
+    // false にする
+    mockFetchDipsPermissions.mockResolvedValue({ permissions: [], excludedCount: 0 });
+    const user = userEvent.setup();
+
+    renderWithQuery(<DipsPermissionsPanel />);
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+    await screen.findByText("許可・承認情報がありません");
+
+    // setOnline の呼び出し自体は同期だが、TanStack Query 内部の通知バッチが
+    // マイクロタスク経由の場合に備え、判定前に一巡フラッシュする
+    await act(async () => {
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mockFetchDipsPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  // ─── A4 差し戻し: 失敗後も古いデータが残る ─────────────────────────────────────
+
+  it("test_panel_hides_stale_permission_data_when_a_later_request_fails", async () => {
+    // 実機検証 (2026-08-19) の再現: 401 の直後に「DIPSへのログインが必要です」と
+    // 古い許可カードが同時に表示された。query.isError のときはデータブロックを
+    // 表示しないことで、古いデータが誤って「まだ有効」に見えるのを防ぐ
+    mockFetchDipsPermissions.mockResolvedValueOnce({
+      permissions: [validPermission],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+
+    renderWithQuery(<DipsPermissionsPanel />);
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+    await screen.findByText(/P000000001/);
+
+    mockFetchDipsPermissions.mockRejectedValueOnce(new DipsAuthRequiredClientError("req"));
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+
+    await screen.findByRole("link", { name: "DIPSにログインする" });
+    expect(screen.queryByText(/P000000001/)).not.toBeInTheDocument();
+  });
+
+  // ─── D4(a) 差し戻し: 許可期間が ISO 形式のまま生表示される ──────────────────────
+
+  it("test_panel_formats_iso_permission_period_end_instead_of_showing_raw_string", async () => {
+    const isoPeriodPermission: DipsPermissionInfo = {
+      ...validPermission,
+      permissionPeriodEnd: "2027-03-31T00:00:00+09:00",
+    };
+    mockFetchDipsPermissions.mockResolvedValue({
+      permissions: [isoPeriodPermission],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+
+    renderWithQuery(<DipsPermissionsPanel />);
+    await user.click(screen.getByRole("button", { name: "許可・承認情報を取得" }));
+
+    const formatted = new Date("2027-03-31T00:00:00+09:00").toLocaleDateString("ja-JP", {
+      timeZone: "Asia/Tokyo",
+    });
+    const escapedForRegex = formatted.replace(/\//g, "\\/");
+    expect(await screen.findByText(new RegExp(escapedForRegex))).toBeInTheDocument();
+    expect(screen.queryByText(/2027-03-31T00:00:00\+09:00/)).not.toBeInTheDocument();
   });
 });

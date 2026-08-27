@@ -8,7 +8,7 @@ import {
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
-import type { DipsPermissionInfo } from "@/lib/api/dips";
+import type { DipsPermissionInfo, FetchDipsPermissionsResult } from "@/lib/api/dips";
 
 /** DIPS 許可・承認情報の React Query キャッシュキー */
 const DIPS_PERMISSIONS_QUERY_KEY = ["dips-permissions"] as const;
@@ -33,6 +33,18 @@ function activeFlagLabels(permission: DipsPermissionInfo): string[] {
   );
 }
 
+/**
+ * DIPS の日付文字列 (YYYY-MM-DD または ISO 形式) を日本語表示用に整形する。
+ * `DipsVerifyButton.tsx` の `formatValidPeriodEnd()` と同じ考え方 (パース不能な値は
+ * そのまま返す)。DIPS が ISO 形式 (`2026-04-01T00:00:00+09:00`) を返すと生文字列のまま
+ * 表示されていた (D4 差し戻し)。
+ */
+function formatPermissionDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
+}
+
 interface PermissionCardProps {
   permission: DipsPermissionInfo;
 }
@@ -47,7 +59,8 @@ function PermissionCard({ permission }: PermissionCardProps) {
       </p>
       <p className="mt-1 text-sm text-gray-600">受付番号: {permission.receptionNumber}</p>
       <p className="text-sm text-gray-600">
-        許可期間: {permission.permissionPeriodStart} 〜 {permission.permissionPeriodEnd}
+        許可期間: {formatPermissionDate(permission.permissionPeriodStart)} 〜{" "}
+        {formatPermissionDate(permission.permissionPeriodEnd)}
       </p>
       <p className="text-sm text-gray-600">飛行場所: {permission.flightLocation}</p>
       {permission.uaInfos.length > 0 && (
@@ -62,17 +75,94 @@ function PermissionCard({ permission }: PermissionCardProps) {
   );
 }
 
+interface PermissionResultsProps {
+  data: FetchDipsPermissionsResult;
+}
+
+/**
+ * 取得成功時の結果表示 (除外件数の注記・0件メッセージ・一覧)。
+ * `role="status"` で非同期結果の更新をスクリーンリーダーへ通知する
+ * (`components/auth/LoginForm.tsx` のエラー表示と同じ考え方。D4 差し戻し)。
+ */
+function PermissionResults({ data }: PermissionResultsProps) {
+  return (
+    <div role="status" aria-live="polite">
+      {data.excludedCount > 0 && (
+        // 個人情報や除外理由の値そのものは含めず、件数のみ表示する
+        <p className="mt-4 text-sm text-amber-700">
+          {data.excludedCount}件の許可・承認情報を読み込めませんでした
+        </p>
+      )}
+
+      {data.permissions.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-500">許可・承認情報がありません</p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {data.permissions.map((permission, index) => (
+            // receptionNumber の一意性・非空はスキーマ上保証されないため index と
+            // 組み合わせて一意にする (重複時に1件消えるのを防ぐ。D2 差し戻し)
+            <PermissionCard key={`${permission.receptionNumber}-${index}`} permission={permission} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface PermissionFetchErrorProps {
+  error: unknown;
+}
+
+/** 取得失敗時の表示 (DIPS ログイン誘導 / アプリセッション切れ / 汎用エラー) */
+function PermissionFetchError({ error }: PermissionFetchErrorProps) {
+  if (error instanceof DipsAuthRequiredClientError) {
+    return (
+      <p className="mt-4 text-sm text-gray-700" role="status" aria-live="polite">
+        DIPSへのログインが必要です。
+        <a
+          href={dipsLoginUrl(
+            error.realm,
+            typeof window !== "undefined" ? window.location.pathname : undefined
+          )}
+          className="ml-1 text-blue-600 hover:underline"
+        >
+          DIPSにログインする
+        </a>
+      </p>
+    );
+  }
+
+  if (error instanceof AppSessionExpiredClientError) {
+    return (
+      <p className="mt-4 text-sm text-gray-700" role="status" aria-live="polite">
+        ログインが必要です。再度ログインしてください。
+        <a href="/login" className="ml-1 text-blue-600 hover:underline">
+          ログイン画面へ
+        </a>
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-4 text-sm text-red-600" role="alert" aria-live="polite">
+      {error instanceof Error ? error.message : "DIPS許可・承認情報の取得に失敗しました"}
+    </p>
+  );
+}
+
 /**
  * 「許可・承認情報を取得」ボタンの疎通確認パネル。
  *
- * 外部 API (IP 制限・他事業者共用の検証環境) をページ読み込み時に自動発火させたくない
- * ため、`enabled` をボタンクリックで true に切り替える手動トリガー方式にしている
- * (DipsVerifyButton/DipsNotifyButton と同じ「ボタン起点」の UX を踏襲)。
- *
- * データ取得は TanStack Query (useQuery) に統一する (.claude/rules/frontend.md の規約:
- * Client Component からのデータ取得は TanStack Query を使う)。DipsAircraftPickerModal
- * 等の生 fetch は既知の規約違反で req-006 にバックログ化済みのため、新規実装では
- * ここを手本にすること (5-3/5-4/5-5 の UI もこの形を踏襲する)。
+ * 外部 API (IP 制限・他事業者共用の検証環境) への呼び出しはボタンクリック以外で
+ * 発生させない (「ボタンを1回押す = DIPS を1回呼ぶ」がこの画面の約束。2026-08-26
+ * 差し戻し A1/A2)。そのため `enabled: false` で自動フェッチ・自動バックグラウンド
+ * 再取得 (invalidateQueries・マウント時・stale 時の自動再取得含む) を一律止め、
+ * クリック時は毎回 `refetch()` で明示的に取得する。`refetch()` は `enabled: false` でも
+ * 動作し、staleTime の影響を受けず必ずネットワーク越しに取得する (TanStack Query の
+ * 仕様。QueryProvider.tsx の staleTime 60秒とキャッシュが噛み合い、再マウント後の
+ * 1回目のクリックで fetch されない不具合があった)。`refetchOnWindowFocus` /
+ * `refetchOnReconnect` も明示的に false にする (IP 制限された検証環境を、フォーカス
+ * 復帰や再接続だけで無操作に叩いてしまうのを防ぐ)。
  */
 export function DipsPermissionsPanel() {
   const [hasRequested, setHasRequested] = useState(false);
@@ -80,24 +170,15 @@ export function DipsPermissionsPanel() {
   const query = useQuery({
     queryKey: DIPS_PERMISSIONS_QUERY_KEY,
     queryFn: fetchDipsPermissions,
-    enabled: hasRequested,
+    enabled: false,
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
-  const authRequiredRealm =
-    query.error instanceof DipsAuthRequiredClientError ? query.error.realm : null;
-  const isSessionExpired = query.error instanceof AppSessionExpiredClientError;
-  const genericErrorMessage =
-    query.error && !authRequiredRealm && !isSessionExpired
-      ? (query.error instanceof Error ? query.error.message : "DIPS許可・承認情報の取得に失敗しました")
-      : null;
-
   const handleClick = () => {
-    if (hasRequested) {
-      void query.refetch();
-    } else {
-      setHasRequested(true);
-    }
+    setHasRequested(true);
+    void query.refetch();
   };
 
   return (
@@ -114,50 +195,10 @@ export function DipsPermissionsPanel() {
         DIPSにログインしたアカウントの許可・承認情報を取得します
       </p>
 
-      {authRequiredRealm && (
-        <p className="mt-4 text-sm text-gray-700">
-          DIPSへのログインが必要です。
-          <a
-            href={dipsLoginUrl(
-              authRequiredRealm,
-              typeof window !== "undefined" ? window.location.pathname : undefined
-            )}
-            className="ml-1 text-blue-600 hover:underline"
-          >
-            DIPSにログインする
-          </a>
-        </p>
-      )}
-
-      {isSessionExpired && (
-        <p className="mt-4 text-sm text-gray-700">
-          ログインが必要です。再度ログインしてください。
-          <a href="/login" className="ml-1 text-blue-600 hover:underline">
-            ログイン画面へ
-          </a>
-        </p>
-      )}
-
-      {genericErrorMessage && <p className="mt-4 text-sm text-red-600">{genericErrorMessage}</p>}
-
-      {query.data && query.data.excludedCount > 0 && (
-        // 個人情報や除外理由の値そのものは含めず、件数のみ表示する
-        <p className="mt-4 text-sm text-amber-700">
-          {query.data.excludedCount}件の許可・承認情報を読み込めませんでした
-        </p>
-      )}
-
-      {query.data && query.data.permissions.length === 0 && (
-        <p className="mt-4 text-sm text-gray-500">許可・承認情報がありません</p>
-      )}
-
-      {query.data && query.data.permissions.length > 0 && (
-        <ul className="mt-4 space-y-3">
-          {query.data.permissions.map((permission) => (
-            <PermissionCard key={permission.receptionNumber} permission={permission} />
-          ))}
-        </ul>
-      )}
+      {hasRequested && query.isError && <PermissionFetchError error={query.error} />}
+      {/* 失敗直後は古いデータを表示しない (isError のときはデータブロックを出さない。
+          401 直後に「ログインが必要です」と古い許可カードが同時に出ていた D4 差し戻し) */}
+      {hasRequested && !query.isError && query.data && <PermissionResults data={query.data} />}
     </div>
   );
 }
