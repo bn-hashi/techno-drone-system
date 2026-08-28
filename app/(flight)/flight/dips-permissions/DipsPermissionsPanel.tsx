@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   fetchDipsPermissions,
   dipsLoginUrl,
@@ -88,9 +89,13 @@ function PermissionResults({ data }: PermissionResultsProps) {
   return (
     <div role="status" aria-live="polite">
       {data.excludedCount > 0 && (
-        // 個人情報や除外理由の値そのものは含めず、件数のみ表示する
+        // 個人情報や除外理由の値そのものは含めず、件数のみ表示する。除外があった以上
+        // 一覧が不完全である可能性を明示する (F7 差し戻し: DipsAircraftPickerModal.tsx の
+        // 文言水準に揃え、「解消しなければ問い合わせる」導線まで示す)
         <p className="mt-4 text-sm text-amber-700">
-          {data.excludedCount}件の許可・承認情報を読み込めませんでした
+          {data.excludedCount}
+          件の許可・承認情報を読み込めませんでした。表示されている許可・承認情報以外にも
+          情報がある可能性があります。解消しない場合はサポートへお問い合わせください
         </p>
       )}
 
@@ -143,11 +148,21 @@ function PermissionFetchError({ error }: PermissionFetchErrorProps) {
     );
   }
 
+  // role="alert" は本来 assertive (即時) な通知を意味する。aria-live="polite" を
+  // 併記すると polite に上書きされ、重大なエラーと通常結果の優先度が区別できなくなる
+  // ため付けない (F9 差し戻し。DipsNotifyButton.tsx の bannerElement と同じ判断)
   return (
-    <p className="mt-4 text-sm text-red-600" role="alert" aria-live="polite">
+    <p className="mt-4 text-sm text-red-600" role="alert">
       {error instanceof Error ? error.message : "DIPS許可・承認情報の取得に失敗しました"}
     </p>
   );
+}
+
+/** DIPS 認可コールバック (`?dips=...`) の処理結果。ボタンを押していない状態と
+ * 見分けがつくよう、成功・失敗を明示的なバナーとして表示する (F6 差し戻し) */
+interface OAuthReturnBanner {
+  type: "success" | "error";
+  message: string;
 }
 
 /**
@@ -163,9 +178,26 @@ function PermissionFetchError({ error }: PermissionFetchErrorProps) {
  * 1回目のクリックで fetch されない不具合があった)。`refetchOnWindowFocus` /
  * `refetchOnReconnect` も明示的に false にする (IP 制限された検証環境を、フォーカス
  * 復帰や再接続だけで無操作に叩いてしまうのを防ぐ)。
+ *
+ * `networkMode: "always"` (2026-08-28 差し戻し F3): 既定の `networkMode: "online"` だと、
+ * オフライン判定中の `refetch()` はクエリが `paused` になり、queryFn 自体が呼ばれないまま
+ * `isFetching` も false に戻る (＝クリックしても何も起きない「無反応ボタン」に見える)。
+ * さらに悪いことに、その paused フェッチは接続復帰時に自動で再開され、
+ * 「クリックしていないのに DIPS を叩く」という A2 で防いだはずの経路が別の形で復活する。
+ * 検討したもう一案 (`fetchStatus === "paused"` を表示する) は、クリック直後に一瞬だけ
+ * 出るローディング表示に加えて「オフラインのため保留中」という第三の表示を作り込む必要が
+ * あり、かつ paused フェッチの自動再開という A2 の問題そのものは解決しない。
+ * `networkMode: "always"` はオンライン状態に関わらず常に queryFn を呼ぶため、オフライン時は
+ * 素の `fetch()` が失敗し通常のエラー表示 (`fetchDipsPermissions` が日本語化した
+ * ネットワークエラーメッセージ) にそのまま乗る。paused という中間状態自体が存在しなくなる
+ * ため、無反応にもならず、再接続時に何かが自動再開することもない。
  */
 export function DipsPermissionsPanel() {
   const [hasRequested, setHasRequested] = useState(false);
+  const [oauthBanner, setOauthBanner] = useState<OAuthReturnBanner | null>(null);
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
 
   const query = useQuery({
     queryKey: DIPS_PERMISSIONS_QUERY_KEY,
@@ -174,6 +206,7 @@ export function DipsPermissionsPanel() {
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    networkMode: "always",
   });
 
   const handleClick = () => {
@@ -181,8 +214,51 @@ export function DipsPermissionsPanel() {
     void query.refetch();
   };
 
+  // DIPS 認可フローから戻ってきたとき (?dips=...) の処理 (F6 差し戻し)。
+  // `DipsNotifyButton.tsx` の同機構を踏襲する。認可失敗 (error/state_error) を
+  // 「未連携 (まだボタンを押していない)」状態と混同すると、runbook の切り分け表にある
+  // 「無限ログインループ」と見分けがつかなくなるため、明示的なバナーで区別する。
+  // 成功時 (linked) もこの画面では自動では取得しない (「ボタンを押す = DIPS を呼ぶ」の
+  // 契約を OAuth 復帰時にも一貫させるため)。ユーザーには改めてボタンを押してもらう。
+  useEffect(() => {
+    const dipsResult = searchParams.get("dips");
+    if (!dipsResult) return;
+
+    if (dipsResult === "linked") {
+      setOauthBanner({
+        type: "success",
+        message: "DIPS連携が完了しました。「許可・承認情報を取得」ボタンを押して取得してください。",
+      });
+    } else {
+      setOauthBanner({
+        type: "error",
+        message:
+          dipsResult === "state_error"
+            ? "DIPS連携の検証に失敗しました。もう一度お試しください。"
+            : "DIPS連携に失敗しました。もう一度お試しください。",
+      });
+    }
+
+    // リロード時の再処理と URL の汚れを防ぐため、他のクエリパラメータは保持したまま
+    // dips のみを取り除く
+    const remainingParams = new URLSearchParams(searchParams.toString());
+    remainingParams.delete("dips");
+    const newUrl = remainingParams.toString() ? `${pathname}?${remainingParams.toString()}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [searchParams, pathname, router]);
+
   return (
     <div>
+      {oauthBanner && (
+        <p
+          role={oauthBanner.type === "success" ? "status" : "alert"}
+          aria-live={oauthBanner.type === "success" ? "polite" : undefined}
+          className={`mb-3 text-sm ${oauthBanner.type === "success" ? "text-gray-700" : "text-red-600"}`}
+        >
+          {oauthBanner.message}
+        </p>
+      )}
+
       <button
         type="button"
         onClick={handleClick}
@@ -197,8 +273,12 @@ export function DipsPermissionsPanel() {
 
       {hasRequested && query.isError && <PermissionFetchError error={query.error} />}
       {/* 失敗直後は古いデータを表示しない (isError のときはデータブロックを出さない。
-          401 直後に「ログインが必要です」と古い許可カードが同時に出ていた D4 差し戻し) */}
-      {hasRequested && !query.isError && query.data && <PermissionResults data={query.data} />}
+          401 直後に「ログインが必要です」と古い許可カードが同時に出ていた D4 差し戻し)。
+          isFetching 中も表示しない (F2 差し戻し: 再マウント後にクリックすると、
+          refetch() が返るまでの間、別マウント時の古いキャッシュがそのまま描画されていた) */}
+      {hasRequested && !query.isError && !query.isFetching && query.data && (
+        <PermissionResults data={query.data} />
+      )}
     </div>
   );
 }
