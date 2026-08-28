@@ -29,8 +29,12 @@ export interface DipsPermissionInfo {
   permissionNumber2: string | null;
   /** 受付番号 (例: P221100011) */
   receptionNumber: string;
-  /** 許可日 (YYYY-MM-DD) */
-  permissionDate: string;
+  /**
+   * 許可日 (YYYY-MM-DD)。画面には表示しないフィールドのため、DIPS が想定外の型で
+   * 返した場合でも許可自体を落とさず null に丸める (2026-08-28 差し戻し F5。
+   * `lib/dips/permissionsSchema.ts` の unusedDisplayString 参照)
+   */
+  permissionDate: string | null;
   /** 許可期間開始日 (YYYY-MM-DD) */
   permissionPeriodStart: string;
   /** 許可期間終了日 (YYYY-MM-DD) */

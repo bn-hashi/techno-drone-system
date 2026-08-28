@@ -148,6 +148,24 @@ describe("normalizePermissionsWithDiagnostics", () => {
     expect(result.permissions[0].nightOperation).toBe(false);
   });
 
+  it("test_parse_accepts_number_1_as_true_for_boolean_flag", () => {
+    // F4 差し戻し: aircraftListSchema.ts の RAW_CODE は文字列・数値の両方を受理しているが、
+    // flexibleBoolean は "1"/"0" の文字列しか受理しておらず、数値で返る経路だけ弾かれていた
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ nightOperation: 1 })],
+    });
+
+    expect(result.permissions[0].nightOperation).toBe(true);
+  });
+
+  it("test_parse_accepts_number_0_as_false_for_boolean_flag", () => {
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ nightOperation: 0 })],
+    });
+
+    expect(result.permissions[0].nightOperation).toBe(false);
+  });
+
   it("test_parse_does_not_exclude_entry_when_all_boolean_flags_are_string_1_or_0", () => {
     // 回帰テスト: 修正前は9個のフラグ全てが "1"/"0" 文字列で返るエントリが必ず
     // 除外され (worst case: 全エントリが該当するとアカウントごと 502 になる)、
@@ -199,19 +217,86 @@ describe("normalizePermissionsWithDiagnostics", () => {
     }).toEqual({ excludedCount: 0, uaInfos: [] });
   });
 
-  // ─── permissions 本体の null・欠落の空配列化 (B2 差し戻し) ─────────────────────
+  // ─── permissions 本体の null は正当なゼロ件、キー欠落はエラー (F1 差し戻しで区別) ──
+  //
+  // 2026-08-26 (B2) は空アカウント ({} や { permissions: null }) の 502 化を防ぐため
+  // キー欠落も null と同じ「正当なゼロ件」として飲み込んだが、これは A3 でクライアント
+  // 境界を固めて潰したはずの「キー名変更・接続先誤りが0件として静かに成功する」失敗
+  // モードをサーバー境界で復活させていた。2026-08-28 (F1) でキー欠落とnull/[]を区別する。
 
-  it("test_parse_returns_empty_array_when_permissions_key_is_missing", () => {
-    // 空アカウントが {} を返すと、既存の空状態分岐に到達できず 502 になっていた
-    const result = normalizePermissionsWithDiagnostics({});
+  it("test_parse_throws_when_permissions_key_is_missing", () => {
+    // {} は「permissions というキー自体が存在しない」レスポンスであり、DIPS 側の
+    // キー名変更や接続先誤りの疑いがある。正当なゼロ件 (null/[]) とは区別してエラーにする
+    expect(() => normalizePermissionsWithDiagnostics({})).toThrow(DipsApiError);
+  });
+
+  it("test_parse_missing_permissions_key_error_message_mentions_the_key_name", () => {
+    expect(() => normalizePermissionsWithDiagnostics({})).toThrow(/permissions/);
+  });
+
+  it("test_parse_returns_empty_array_when_permissions_is_explicitly_null", () => {
+    // 空アカウントが { permissions: null } を返すのは正当なゼロ件であり、
+    // キー欠落 (仕様変更の疑い) とは区別してエラーにしない
+    const result = normalizePermissionsWithDiagnostics({ permissions: null });
 
     expect(result).toEqual({ permissions: [], excludedCount: 0 });
   });
 
-  it("test_parse_returns_empty_array_when_permissions_is_explicitly_null", () => {
-    const result = normalizePermissionsWithDiagnostics({ permissions: null });
+  it("test_parse_returns_empty_array_when_permissions_is_explicitly_empty_array", () => {
+    const result = normalizePermissionsWithDiagnostics({ permissions: [] });
 
     expect(result).toEqual({ permissions: [], excludedCount: 0 });
+  });
+
+  // ─── 画面に表示しないフィールドで許可を落とさない (F5 差し戻し) ────────────────
+
+  it("test_parse_does_not_drop_entry_when_permission_date_has_unexpected_type", () => {
+    // permissionDate は DipsPermissionsPanel.tsx が画面に表示しないフィールドのため、
+    // 想定外の型 (ここでは数値) が来ても許可自体を落とさない
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ permissionDate: 20260101 })],
+    });
+
+    expect({
+      excludedCount: result.excludedCount,
+      receptionNumber: result.permissions[0]?.receptionNumber,
+    }).toEqual({ excludedCount: 0, receptionNumber: "P000000001" });
+  });
+
+  it("test_parse_normalizes_unexpected_permission_date_type_to_null", () => {
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ permissionDate: 20260101 })],
+    });
+
+    expect(result.permissions[0]?.permissionDate).toBeNull();
+  });
+
+  it("test_parse_drops_only_the_invalid_route_when_one_flight_route_has_unexpected_route_name_type", () => {
+    // flightRoutes は画面に一切表示しないフィールドのため、1経路の型不正で許可全体を
+    // 落とすのは不釣り合い。パースできる経路だけを残し、許可自体は維持する
+    const validRoute = { routeName: "テスト経路", routeLatlons: ["000000 0000000"] };
+    const invalidRoute = { routeName: 12345, routeLatlons: ["111111 1111111"] };
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ flightRoutes: [validRoute, invalidRoute] })],
+    });
+
+    expect({
+      excludedCount: result.excludedCount,
+      flightRoutes: result.permissions[0]?.flightRoutes,
+    }).toEqual({ excludedCount: 0, flightRoutes: [validRoute] });
+  });
+
+  it("test_parse_does_not_drop_entry_when_all_flight_routes_have_invalid_route_latlons_type", () => {
+    const invalidRoute = { routeName: "テスト経路", routeLatlons: [12345] };
+    const result = normalizePermissionsWithDiagnostics({
+      permissions: [minimalValidPermission({ flightRoutes: [invalidRoute] })],
+    });
+
+    expect({
+      excludedCount: result.excludedCount,
+      receptionNumber: result.permissions[0]?.receptionNumber,
+      flightRoutes: result.permissions[0]?.flightRoutes,
+    }).toEqual({ excludedCount: 0, receptionNumber: "P000000001", flightRoutes: [] });
   });
 
   // ─── 寛容パース: 未知フィールド・個人情報の遮断 ───────────────────────────────
