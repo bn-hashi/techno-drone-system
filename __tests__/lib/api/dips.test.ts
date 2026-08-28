@@ -271,6 +271,18 @@ describe("fetchDipsPermissions", () => {
     );
   });
 
+  it("test_fetchDipsPermissions_keeps_permission_with_null_permission_date", async () => {
+    // F5 差し戻し: permissionDate は画面に表示しないフィールドのため、サーバー側が
+    // 想定外の型を null に丸めて返した場合に、クライアント側の再検証 (A3) が
+    // それを不正な値として弾いて除外してしまわないことを確認する
+    const permissionWithNullDate = { ...validPermission, permissionDate: null };
+    mockFetchJson({ permissions: [permissionWithNullDate], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([permissionWithNullDate]);
+  });
+
   it("test_fetchDipsPermissions_drops_only_the_entry_that_fails_client_side_validation", async () => {
     const invalidPermission = { ...validPermission, receptionNumber: 12345 };
     mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 0 });

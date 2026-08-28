@@ -275,7 +275,9 @@ const DipsPermissionInfoSchema = z.object({
   permissionNumber: z.string(),
   permissionNumber2: z.string().nullable(),
   receptionNumber: z.string(),
-  permissionDate: z.string(),
+  // 画面に表示しないフィールドのため null を許容する (サーバー側 permissionsSchema.ts の
+  // unusedDisplayString と同じ寛容度。2026-08-28 差し戻し F5)
+  permissionDate: z.string().nullable(),
   permissionPeriodStart: z.string(),
   permissionPeriodEnd: z.string(),
   flightLocation: z.string(),
