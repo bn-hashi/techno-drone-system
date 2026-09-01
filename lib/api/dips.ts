@@ -2,7 +2,47 @@
  * DIPS 連携のクライアント API ヘルパー
  */
 import { z } from "zod";
-import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/dips/types";
+import type {
+  DipsOwnedAircraftDto,
+  DipsPermissionInfo,
+  DipsFlightRoute,
+  DipsUaInfo,
+} from "@/lib/dips/types";
+
+/**
+ * サーバー正規化済み配列 (機体・許可情報とも) をクライアント境界で1件ずつ再検証する
+ * 共通処理。配列全体を safeParse すると1件の DTO 検証失敗で全件を失ってしまうため
+ * (2026-08-10 差し戻し。サーバー側 edcc694 のエントリ単位フォールバックがクライアント側
+ * では効いていなかった問題)、要素ごとに safeParse してパースできたエントリだけを返す。
+ * `rawEntries` 自体が配列でない (キー名違い・非 JSON 応答等) 場合はエラーを投げる
+ * (A3 差し戻し: 以前はここで `?? []` により静かに0件へフォールバックしていた)。
+ *
+ * `lib/api/dips.ts` の `parseOwnedAircrafts` と `parsePermissions` はこの処理を
+ * 識別子名・対象名以外まったく同一の形で複製していたため (2026-08-28 段階2共通化)、
+ * ここへ1本化する。エントリ単位のスキーマ・エラーメッセージ用の対象名 (`subject`) は
+ * 呼び出し側が渡す。
+ */
+function parseEntriesLeniently<T>(
+  rawEntries: unknown,
+  entrySchema: z.ZodType<T>,
+  subject: string
+): { entries: T[]; excludedCount: number } {
+  const arrayResult = z.array(z.unknown()).safeParse(rawEntries);
+  if (!arrayResult.success) {
+    throw new Error(`${subject}の取得に失敗しました: レスポンスの形式が不正です`);
+  }
+  const entries: T[] = [];
+  let excludedCount = 0;
+  for (const rawEntry of arrayResult.data) {
+    const result = entrySchema.safeParse(rawEntry);
+    if (result.success) {
+      entries.push(result.data);
+    } else {
+      excludedCount += 1;
+    }
+  }
+  return { entries, excludedCount };
+}
 
 export interface DipsNotificationInput {
   flightPurpose: number[];
@@ -122,6 +162,11 @@ export type { DipsOwnedAircraftDto };
  * 表示側は `lib/constants/dipsAircraftStatus.ts` の `dipsUaStatusLabel()` 等で未知値・
  * null を「不明」にフォールバック表示する。
  */
+// `satisfies z.ZodType<DipsOwnedAircraftDto>` で、このスキーマのフィールドが
+// `DipsOwnedAircraftDto` (サーバー側の DTO 型) からドリフトしていないかをコンパイル時に
+// 検証する。手書きの2重定義そのものはなくせない (サーバー側 DTO はビルド時の型情報でしか
+// なく、クライアント境界の実行時再検証には別途 Zod スキーマが要る) が、型を1つ追加し忘れた
+// 場合にビルドが失敗するようにして、静かな乖離を防ぐ (2026-08-28 段階2共通化)。
 const DipsOwnedAircraftDtoSchema = z.object({
   registrationCode: z.string(),
   manufacturer: z.string(),
@@ -134,7 +179,7 @@ const DipsOwnedAircraftDtoSchema = z.object({
   remoteIdType: z.number().nullable(),
   ownerCategory: z.number().nullable(),
   isSelectable: z.boolean(),
-});
+}) satisfies z.ZodType<DipsOwnedAircraftDto>;
 
 export interface FetchDipsOwnedAircraftsResult {
   aircrafts: DipsOwnedAircraftDto[];
@@ -154,32 +199,20 @@ interface ParseOwnedAircraftsResult {
 }
 
 /**
- * DIPS 所有機体の配列を1件ずつ検証する。配列全体を safeParse すると1機の DTO 検証失敗で
- * 全機を失ってしまうため (2026-08-10 差し戻し。サーバー側 edcc694 のエントリ単位
- * フォールバックがクライアント側では効いていなかった問題)、要素ごとに safeParse して
- * パースできた機体だけを返す。パースに失敗した機体は黙って除外するが、その件数は
- * 呼び出し側 (`fetchDipsOwnedAircrafts`) がサーバー側の `excludedCount` に合算できるよう
- * 返す (サーバー側が既にエントリ単位でフォールバック済みのため、ここで再び失敗するのは
- * クライアント/サーバー間のスキーマ齟齬か、JSON シリアライズで値が壊れた場合
- * (例: Infinity → JSON.stringify で null 化) に限られる想定だが、稀であっても
- * 利用者に「除外があった」ことは伝える必要がある)。
+ * DIPS 所有機体の配列を1件ずつ検証する。パースに失敗した機体は黙って除外するが、その
+ * 件数は呼び出し側 (`fetchDipsOwnedAircrafts`) がサーバー側の `excludedCount` に合算
+ * できるよう返す (サーバー側が既にエントリ単位でフォールバック済みのため、ここで再び
+ * 失敗するのはクライアント/サーバー間のスキーマ齟齬か、JSON シリアライズで値が壊れた
+ * 場合 (例: Infinity → JSON.stringify で null 化) に限られる想定だが、稀であっても
+ * 利用者に「除外があった」ことは伝える必要がある)。共通実装は `parseEntriesLeniently` 参照。
  */
 function parseOwnedAircrafts(rawAircrafts: unknown): ParseOwnedAircraftsResult {
-  const arrayResult = z.array(z.unknown()).safeParse(rawAircrafts);
-  if (!arrayResult.success) {
-    throw new Error("DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です");
-  }
-  const aircrafts: DipsOwnedAircraftDto[] = [];
-  let excludedCount = 0;
-  for (const rawEntry of arrayResult.data) {
-    const result = DipsOwnedAircraftDtoSchema.safeParse(rawEntry);
-    if (result.success) {
-      aircrafts.push(result.data);
-    } else {
-      excludedCount += 1;
-    }
-  }
-  return { aircrafts, excludedCount };
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawAircrafts,
+    DipsOwnedAircraftDtoSchema,
+    "DIPS機体情報"
+  );
+  return { aircrafts: entries, excludedCount };
 }
 
 /**
@@ -259,17 +292,24 @@ interface ParsePermissionsResult {
  * 再検証を省略していたことが A3 差し戻しの原因だった (キー名違い・非 JSON レスポンスの
  * 両方で、検証されないまま「0件」として静かに成功していた)。fetchDipsOwnedAircrafts の
  * parseOwnedAircrafts と同じ強度で、要素単位に safeParse する。
+ *
+ * サーバー側 `PermissionEntrySchema` (lib/dips/permissionsSchema.ts) の生入力パース
+ * (寛容: "1"/"0" や null も受理して正規化する) とは別物で、ここは正規化済み出力型
+ * (`DipsPermissionInfo`) をそのまま再検証する厳格なスキーマである。両者は目的が違う
+ * ため Zod スキーマそのものは共有できないが、20フィールドの手書き2重定義が
+ * `DipsPermissionInfo` からドリフトしないよう `satisfies z.ZodType<DipsPermissionInfo>`
+ * でコンパイル時に検証する (2026-08-28 段階2共通化。DipsOwnedAircraftDtoSchema と同じ方針)。
  */
 const FlightRouteDtoSchema = z.object({
   routeName: z.string(),
   routeLatlons: z.array(z.string()),
-});
+}) satisfies z.ZodType<DipsFlightRoute>;
 
 const UaInfoDtoSchema = z.object({
   uaMaker: z.string(),
   uaName: z.string(),
   regSymbol: z.string(),
-});
+}) satisfies z.ZodType<DipsUaInfo>;
 
 const DipsPermissionInfoSchema = z.object({
   permissionNumber: z.string(),
@@ -292,31 +332,18 @@ const DipsPermissionInfoSchema = z.object({
   transportHazardousMaterials: z.boolean(),
   dropObjects: z.boolean(),
   uaInfos: z.array(UaInfoDtoSchema),
-});
+}) satisfies z.ZodType<DipsPermissionInfo>;
 
 /**
- * DIPS 許可・承認情報の配列を1件ずつ検証する。配列全体を safeParse すると1件の DTO 検証
- * 失敗で全件を失ってしまうため (parseOwnedAircrafts と同じ理由)、要素ごとに safeParse して
- * パースできた許可だけを返す。`rawPermissions` 自体が配列でない (キー名違い・非 JSON 応答等)
- * 場合はエラーを投げる (A3 差し戻し: 以前はここで `?? []` により静かに0件へフォールバック
- * していた)。
+ * DIPS 許可・承認情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
  */
 function parsePermissions(rawPermissions: unknown): ParsePermissionsResult {
-  const arrayResult = z.array(z.unknown()).safeParse(rawPermissions);
-  if (!arrayResult.success) {
-    throw new Error("DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です");
-  }
-  const permissions: DipsPermissionInfo[] = [];
-  let excludedCount = 0;
-  for (const rawEntry of arrayResult.data) {
-    const result = DipsPermissionInfoSchema.safeParse(rawEntry);
-    if (result.success) {
-      permissions.push(result.data);
-    } else {
-      excludedCount += 1;
-    }
-  }
-  return { permissions, excludedCount };
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawPermissions,
+    DipsPermissionInfoSchema,
+    "DIPS許可・承認情報"
+  );
+  return { permissions: entries, excludedCount };
 }
 
 /**
