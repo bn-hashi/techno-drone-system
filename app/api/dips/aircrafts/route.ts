@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDipsService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
-import {
-  DipsDisabledError,
-  DipsConfigError,
-  DipsAuthError,
-  DipsApiError,
-  DipsAuthRequiredError,
-} from "@/lib/dips/errors";
-import { logger } from "@/lib/logger";
+import { handleDipsRouteError } from "@/lib/dips/handleRouteError";
 
 /**
  * DIPS ログイン済みアカウントが所有する機体一覧を取得する (機体情報一覧取得 API)。
@@ -16,6 +9,9 @@ import { logger } from "@/lib/logger";
  * ADMIN が代理登録する場合でも、DIPS へログインしたアカウント (= 自分自身) が
  * 所有する機体しか取得できない (DIPS 側の仕様上の制約。UI 側で明示する)。
  * クエリ `includeInvalid=true` で抹消済み・有効期限切れの機体も含める。
+ *
+ * エラー分類・レスポンス形は `handleDipsRouteError` (`lib/dips/handleRouteError.ts`) に
+ * 委譲する。`app/api/dips/permissions/route.ts` と同型 (5-3/5-4/5-5 も同じ形を踏襲すること)。
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const auth = await requireFlightAccess();
@@ -30,33 +26,6 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json({ aircrafts, excludedCount }, { status: 200 });
   } catch (error) {
-    if (error instanceof DipsDisabledError) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
-    }
-    // トークン未取得・失効: UI にログイン誘導させるため専用フラグを返す
-    if (error instanceof DipsAuthRequiredError) {
-      return NextResponse.json(
-        { error: error.message, authRequired: true, realm: "utm" },
-        { status: 401 }
-      );
-    }
-    // 自システムの環境変数不足 (DIPS 側の障害ではない)。DIPS 側障害の 502 と混同すると
-    // 運用時の切り分け表 (docs/production-operations-runbook.md) で誤誘導するため区別する
-    if (error instanceof DipsConfigError) {
-      logger.error("DIPS連携の設定が不足しています", error, {
-        route: "GET /api/dips/aircrafts",
-      });
-      return NextResponse.json({ error: "DIPS連携の設定が不足しています" }, { status: 503 });
-    }
-    if (error instanceof DipsAuthError || error instanceof DipsApiError) {
-      logger.error("DIPS機体情報一覧取得に失敗しました", error, {
-        route: "GET /api/dips/aircrafts",
-      });
-      return NextResponse.json({ error: "DIPS連携でエラーが発生しました" }, { status: 502 });
-    }
-    logger.error("機体情報一覧取得で内部エラーが発生しました", error, {
-      route: "GET /api/dips/aircrafts",
-    });
-    return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
+    return handleDipsRouteError(error, { route: "GET /api/dips/aircrafts", label: "機体情報一覧" });
   }
 }

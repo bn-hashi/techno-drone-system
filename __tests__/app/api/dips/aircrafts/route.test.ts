@@ -80,6 +80,22 @@ describe("GET /api/dips/aircrafts", () => {
     );
   });
 
+  it("test_get_returns_realm_from_auth_required_error_not_hardcoded", async () => {
+    // D1 差し戻し (段階2共通化での回帰テスト): 以前はこのルートだけ realm: "utm" を
+    // ハードコードしており、DipsAuthRequiredError が実際に渡した realm を無視していた
+    // (ずれると無限ログインループになる)。許可・承認情報取得側 (req-009) は既に
+    // 修正済みだったが、機体情報一覧取得側は素通りしていた事故の再発防止 (req-010)。
+    // ここでは意図的に異なる realm を投げ、レスポンスがそれをそのまま反映することを
+    // 確認する (ハードコードなら "utm" のまま失敗するはず)
+    vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
+    mockListOwnedAircrafts.mockRejectedValue(new DipsAuthRequiredError("utm-drift-test"));
+
+    const response = await GET(makeRequest());
+    const body = await response.json();
+
+    expect(body.realm).toBe("utm-drift-test");
+  });
+
   it("test_get_returns_502_on_dips_api_error", async () => {
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
     mockListOwnedAircrafts.mockRejectedValue(new DipsApiError("failed"));
