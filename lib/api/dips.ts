@@ -146,6 +146,37 @@ export function dipsLoginUrl(realm: string, returnPath?: string): string {
   return `/api/dips/auth/start?${params.toString()}`;
 }
 
+/**
+ * 2つの型が完全に一致する (フィールドの過不足がない) ことをコンパイル時に検証する型
+ * ユーティリティ。
+ *
+ * `satisfies z.ZodType<T>` (このファイルの各 DTO スキーマ定義末尾で使用) が保証するのは
+ * 「スキーマの出力型 → T」の一方向の代入可能性のみ。TypeScript の構造的部分型では、
+ * 余剰フィールドを持つ型はより要求の少ない型へそのまま代入できてしまうため、
+ * `satisfies` だけでは「T にフィールドを追加したのにスキーマの更新を忘れた」場合は
+ * 検知できるが、逆に「スキーマにフィールドを追加したのに T の更新を忘れた」場合は
+ * 検知できない (2026-09-01 stop-time review 差し戻し G1。サーバー側に寛容化を1つ足すと
+ * クライアントの検証がそれを弾き、対象が黙って除外される失敗経路)。
+ *
+ * ここではジェネリック関数の型としての比較を介して双方向の完全一致を判定する
+ * (TypeScript でよく使われる型等価判定イディオム。単純な相互 extends
+ * `A extends B ? B extends A ? ... : ...` は一部のケースで不安定なため使わない)。
+ */
+type IsExactType<Actual, Expected> = (<T>() => T extends Actual ? 1 : 2) extends (
+  <T>() => T extends Expected ? 1 : 2
+)
+  ? true
+  : false;
+
+/**
+ * `IsExactType` が `false` を返すと、この型エイリアスの型制約違反でビルドが失敗する
+ * (G1 双方向ドリフト検知の実体)。使い方: 各 DTO スキーマの直後に
+ * `type _AssertXxxSchemaExact = AssertExactType<IsExactType<z.infer<typeof XxxSchema>, XxxDto>>;`
+ * を置く。実行時には一切使われない型検査専用の宣言 (先頭の `_` は
+ * `.eslintrc.json` の `varsIgnorePattern` で意図的な未使用として許可される)。
+ */
+type AssertExactType<T extends true> = T;
+
 // ─── 機体情報一覧取得 (DIPS 所有機体) ─────────────────────────────────────────
 
 /**
@@ -167,6 +198,8 @@ export type { DipsOwnedAircraftDto };
 // 検証する。手書きの2重定義そのものはなくせない (サーバー側 DTO はビルド時の型情報でしか
 // なく、クライアント境界の実行時再検証には別途 Zod スキーマが要る) が、型を1つ追加し忘れた
 // 場合にビルドが失敗するようにして、静かな乖離を防ぐ (2026-08-28 段階2共通化)。
+// なお `satisfies` は一方向の検知に留まるため、直後の `AssertExactType` で逆方向
+// (スキーマ側の余剰フィールド) も検知できるようにする (2026-09-01 差し戻し G1)。
 const DipsOwnedAircraftDtoSchema = z.object({
   registrationCode: z.string(),
   manufacturer: z.string(),
@@ -180,6 +213,10 @@ const DipsOwnedAircraftDtoSchema = z.object({
   ownerCategory: z.number().nullable(),
   isSelectable: z.boolean(),
 }) satisfies z.ZodType<DipsOwnedAircraftDto>;
+
+type _AssertDipsOwnedAircraftDtoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsOwnedAircraftDtoSchema>, DipsOwnedAircraftDto>
+>;
 
 export interface FetchDipsOwnedAircraftsResult {
   aircrafts: DipsOwnedAircraftDto[];
@@ -299,17 +336,27 @@ interface ParsePermissionsResult {
  * ため Zod スキーマそのものは共有できないが、20フィールドの手書き2重定義が
  * `DipsPermissionInfo` からドリフトしないよう `satisfies z.ZodType<DipsPermissionInfo>`
  * でコンパイル時に検証する (2026-08-28 段階2共通化。DipsOwnedAircraftDtoSchema と同じ方針)。
+ * `satisfies` は一方向の検知に留まるため、各スキーマ定義の直後の `AssertExactType` で
+ * 逆方向 (スキーマ側の余剰フィールド) も検知できるようにする (2026-09-01 差し戻し G1)。
  */
 const FlightRouteDtoSchema = z.object({
   routeName: z.string(),
   routeLatlons: z.array(z.string()),
 }) satisfies z.ZodType<DipsFlightRoute>;
 
+type _AssertFlightRouteDtoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof FlightRouteDtoSchema>, DipsFlightRoute>
+>;
+
 const UaInfoDtoSchema = z.object({
   uaMaker: z.string(),
   uaName: z.string(),
   regSymbol: z.string(),
 }) satisfies z.ZodType<DipsUaInfo>;
+
+type _AssertUaInfoDtoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof UaInfoDtoSchema>, DipsUaInfo>
+>;
 
 const DipsPermissionInfoSchema = z.object({
   permissionNumber: z.string(),
@@ -333,6 +380,10 @@ const DipsPermissionInfoSchema = z.object({
   dropObjects: z.boolean(),
   uaInfos: z.array(UaInfoDtoSchema),
 }) satisfies z.ZodType<DipsPermissionInfo>;
+
+type _AssertDipsPermissionInfoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsPermissionInfoSchema>, DipsPermissionInfo>
+>;
 
 /**
  * DIPS 許可・承認情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
