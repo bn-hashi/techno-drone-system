@@ -3,12 +3,13 @@
 import { useState } from "react";
 import {
   fetchDipsOwnedAircrafts,
-  dipsLoginUrl,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 import { dipsUaStatusLabel, dipsDeregistrationReasonLabel } from "@/lib/constants/dipsAircraftStatus";
+import { DipsAuthPrompt } from "@/components/flight/DipsAuthPrompt";
+import { AppSessionExpiredPrompt } from "@/components/flight/AppSessionExpiredPrompt";
 
 interface DipsVerifyButtonProps {
   registrationNumber: string | null;
@@ -110,27 +111,15 @@ export function DipsVerifyButton({ registrationNumber }: DipsVerifyButtonProps) 
       )}
 
       {state.status === "authRequired" && (
-        <p className="mt-2 text-sm text-gray-700">
-          DIPSへのログインが必要です。
-          <a
-            href={dipsLoginUrl(
-              state.realm,
-              typeof window !== "undefined" ? window.location.pathname : undefined
-            )}
-            className="ml-1 text-blue-600 hover:underline"
-          >
-            DIPSにログインする
-          </a>
-        </p>
+        <DipsAuthPrompt
+          realm={state.realm}
+          returnPath={typeof window !== "undefined" ? window.location.pathname : undefined}
+          className="mt-2 text-sm text-gray-700"
+        />
       )}
 
       {state.status === "sessionExpired" && (
-        <p className="mt-2 text-sm text-gray-700">
-          ログインが必要です。再度ログインしてください。
-          <a href="/login" className="ml-1 text-blue-600 hover:underline">
-            ログイン画面へ
-          </a>
-        </p>
+        <AppSessionExpiredPrompt className="mt-2 text-sm text-gray-700" />
       )}
 
       {state.status === "error" && <p className="mt-2 text-sm text-red-600">{state.message}</p>}

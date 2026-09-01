@@ -5,11 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   fetchDipsPermissions,
-  dipsLoginUrl,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
 import type { DipsPermissionInfo, FetchDipsPermissionsResult } from "@/lib/api/dips";
+import { DipsAuthPrompt } from "@/components/flight/DipsAuthPrompt";
+import { AppSessionExpiredPrompt } from "@/components/flight/AppSessionExpiredPrompt";
 
 /** DIPS 許可・承認情報の React Query キャッシュキー */
 const DIPS_PERMISSIONS_QUERY_KEY = ["dips-permissions"] as const;
@@ -122,29 +123,19 @@ interface PermissionFetchErrorProps {
 function PermissionFetchError({ error }: PermissionFetchErrorProps) {
   if (error instanceof DipsAuthRequiredClientError) {
     return (
-      <p className="mt-4 text-sm text-gray-700" role="status" aria-live="polite">
-        DIPSへのログインが必要です。
-        <a
-          href={dipsLoginUrl(
-            error.realm,
-            typeof window !== "undefined" ? window.location.pathname : undefined
-          )}
-          className="ml-1 text-blue-600 hover:underline"
-        >
-          DIPSにログインする
-        </a>
-      </p>
+      <DipsAuthPrompt
+        realm={error.realm}
+        returnPath={typeof window !== "undefined" ? window.location.pathname : undefined}
+        className="mt-4 text-sm text-gray-700"
+        role="status"
+        ariaLive="polite"
+      />
     );
   }
 
   if (error instanceof AppSessionExpiredClientError) {
     return (
-      <p className="mt-4 text-sm text-gray-700" role="status" aria-live="polite">
-        ログインが必要です。再度ログインしてください。
-        <a href="/login" className="ml-1 text-blue-600 hover:underline">
-          ログイン画面へ
-        </a>
-      </p>
+      <AppSessionExpiredPrompt className="mt-4 text-sm text-gray-700" role="status" ariaLive="polite" />
     );
   }
 
