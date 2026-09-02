@@ -2,11 +2,17 @@ import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsRealm } from "@/lib/dips/config";
 import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
+import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
+import type { DipsFlightProhibitedAreaSearchInput } from "@/lib/dips/flightProhibitedAreaSearchInputSchema";
+import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
+import type { DipsFlightPlanSearchInput } from "@/lib/dips/flightPlanSearchInputSchema";
+import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 import type {
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
   DipsAircraftInfo,
   DipsOwnedAircraftDto,
+  DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
 import { DIPS_UA_STATUS_ACTIVE } from "@/lib/constants/dipsAircraftStatus";
@@ -116,6 +122,62 @@ export class DipsService {
    */
   async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
     return this.apiClient.fetchPermissions(userId);
+  }
+
+  /**
+   * 許可・承認申請受付 API へ検証環境向けのテスト申請を送信する。
+   *
+   * このシステムは疎通確認 (検証環境で任意の申請を送信し、申請受付番号が取得できることの
+   * 確認) のみを目的とし、申請内容を入力する UI・ドメインモデルとの紐付けは持たない
+   * (`buildPermissionApplicationTestPayload` が組み立てるガイドライン準拠のテスト申請を
+   * そのまま送信するのみ)。5-6 (notifyFlightPlan) と異なり、送信結果 (受付番号) を
+   * DB に保存する処理も現時点では行わない (保存は必要になってから追加する。
+   * 依頼書の受け入れ条件「DBスキーマは変更しない」)。
+   */
+  async applyPermissionTest(userId: string): Promise<DipsPermissionApplicationResult> {
+    return this.apiClient.applyPermission(userId, buildPermissionApplicationTestPayload());
+  }
+
+  /**
+   * 飛行計画情報を検索する (パススルー)。
+   *
+   * ⚠️ 検証環境へのサンプルデータは未投入のため、`onlyMine: false` (既定、全ユーザー検索)
+   * では検索結果が0件になる可能性が高い。設定通知書「検証環境での確認ポイント」
+   * (D36/E36) に「検証環境へのサンプルデータは未投入のため、予め『飛行計画通報受付API』
+   * (5-6) でデータ投入が必要」と明記されている。5-4 の疎通確認は 5-6 の成功が前提。
+   */
+  async searchFlightPlans(
+    userId: string,
+    input: DipsFlightPlanSearchInput
+  ): Promise<NormalizeFlightPlansResult> {
+    return this.apiClient.searchFlightPlans(userId, {
+      features: {
+        type: "Circle",
+        center: [input.centerLongitude, input.centerLatitude],
+        radius: input.radiusMeters,
+      },
+      allFlightPlan: input.onlyMine ? "1" : "0",
+    });
+  }
+
+  /**
+   * 飛行禁止エリア情報を検索する (パススルー)。
+   * 正規化 (寛容パース・エントリ単位のフォールバック) は DipsApiClient.searchFlightProhibitedAreas()
+   * が境界で行う。フォーム入力 (フラットな座標・種別コード配列) から DIPS のリクエスト形
+   * (features + flightProhibitedAreaTypeIds) への変換もここで行う。
+   */
+  async searchFlightProhibitedAreas(
+    userId: string,
+    input: DipsFlightProhibitedAreaSearchInput
+  ): Promise<NormalizeFlightProhibitedAreasResult> {
+    return this.apiClient.searchFlightProhibitedAreas(userId, {
+      features: {
+        type: "Circle",
+        center: [input.centerLongitude, input.centerLatitude],
+        radius: input.radiusMeters,
+      },
+      flightProhibitedAreaTypeIds: input.flightProhibitedAreaTypeIds,
+    });
   }
 
   /**

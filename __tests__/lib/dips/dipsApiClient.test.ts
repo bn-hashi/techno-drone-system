@@ -6,6 +6,7 @@ import type { DipsConfig } from "@/lib/dips/config";
 import type { DipsFlightPlanNotificationPayload } from "@/lib/dips/types";
 import { DipsConfigError } from "@/lib/dips/errors";
 import { accountAResponse } from "@/test-fixtures/dips/aircraftListFixtures";
+import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 
 const config: DipsConfig = {
   authBaseUrl: "https://auth.dips.example.test",
@@ -141,6 +142,179 @@ describe("DipsApiClient", () => {
       receptionNumbers: result.permissions.map((p) => p.receptionNumber),
       excludedCount: result.excludedCount,
     }).toEqual({ receptionNumbers: ["P000000001"], excludedCount: 1 });
+  });
+
+  // ─── searchFlightProhibitedAreas (fpl realm / fpr base) ──────────────────────
+
+  const validAreaEntry = {
+    flightProhibitedAreaId: "20221105_FISSikou0015",
+    name: "東京国際空港 空港の区域",
+    range: { type: "Polygon", coordinates: [[139.779031, 35.569748]], center: [], radius: 0 },
+    detail: "小型無人機等飛行禁止法に基づく飛行禁止空域",
+    url: "https://www.mlit.go.jp/koku/koku_tk2_000023.html",
+    flightProhibitedAreaTypeId: 5,
+    startTime: "2022-10-01T09:00:00",
+    finishTime: "9999-12-31T23:59:00",
+  };
+
+  const sampleAreaSearchRequest = {
+    features: { type: "Circle" as const, center: [139.7686, 35.6803] as [number, number], radius: 1000 },
+    flightProhibitedAreaTypeIds: [5, 6],
+  };
+
+  it("test_searchFlightProhibitedAreas_requests_fpr_prohibited_area_search_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://fpr-api.dips.example.test/api/flight-prohibited-area/search");
+  });
+
+  it("test_searchFlightProhibitedAreas_uses_fpl_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "fpl");
+  });
+
+  it("test_searchFlightProhibitedAreas_nests_area_type_ids_under_flightProhibitedAreaInfo", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      features: sampleAreaSearchRequest.features,
+      flightProhibitedAreaInfo: { flightProhibitedAreaTypeId: [5, 6] },
+    });
+  });
+
+  it("test_searchFlightProhibitedAreas_returns_normalized_areas", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [validAreaEntry] }));
+
+    const result = await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    expect(result).toEqual({
+      areas: [
+        {
+          areaId: "20221105_FISSikou0015",
+          name: "東京国際空港 空港の区域",
+          detail: "小型無人機等飛行禁止法に基づく飛行禁止空域",
+          url: "https://www.mlit.go.jp/koku/koku_tk2_000023.html",
+          areaTypeId: 5,
+          startTime: "2022-10-01T09:00:00",
+          finishTime: "9999-12-31T23:59:00",
+          range: validAreaEntry.range,
+        },
+      ],
+      excludedCount: 0,
+    });
+  });
+
+  // ─── searchFlightPlans (fpl realm / fpr base) ────────────────────────────────
+
+  const minimalFlightPlanEntry = {
+    flightPlanId: "PLAN-1",
+    startTime: "20261125 1130",
+    finishTime: "20261125 1230",
+    plannedMaxTime: 120,
+    plannedFlightTime: 60,
+    flightSpeed: 100,
+    flightAltitude: 120,
+    flyRoute: { type: "Circle", center: [139.4677, 35.6476], radius: 150 },
+  };
+
+  const sampleFlightPlanSearchRequest = {
+    features: { type: "Circle" as const, center: [139.4677, 35.6476] as [number, number], radius: 10000 },
+    allFlightPlan: "0" as const,
+  };
+
+  it("test_searchFlightPlans_requests_fpr_flight_plan_search_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://fpr-api.dips.example.test/api/flight-plan/search");
+  });
+
+  it("test_searchFlightPlans_uses_fpl_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "fpl");
+  });
+
+  it("test_searchFlightPlans_sends_request_body_as_is_without_extra_nesting", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual(sampleFlightPlanSearchRequest);
+  });
+
+  it("test_searchFlightPlans_returns_normalized_flight_plans", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [minimalFlightPlanEntry] }));
+
+    const result = await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    expect(result.flightPlans[0].flightPlanId).toBe("PLAN-1");
+    expect(result.excludedCount).toBe(0);
+  });
+
+  // ─── applyPermission (req realm / fpa base) ──────────────────────────────────
+
+  const samplePermissionApplicationPayload = buildPermissionApplicationTestPayload(
+    new Date("2026-09-02T00:00:00+09:00")
+  );
+
+  it("test_applyPermission_requests_fpa_permission_register_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://fpa-api.dips.example.test/req-pub/api/v1/appliers/me/permissionRegister"
+    );
+  });
+
+  it("test_applyPermission_uses_req_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "req");
+  });
+
+  it("test_applyPermission_sends_payload_as_body", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual(samplePermissionApplicationPayload);
+  });
+
+  it("test_applyPermission_returns_parsed_form_num", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    const result = await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    expect(result).toEqual({ formNum: "Q190100001" });
+  });
+
+  it("test_applyPermission_throws_dips_api_error_when_form_num_missing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}));
+
+    await expect(
+      makeClient().applyPermission("user-1", samplePermissionApplicationPayload)
+    ).rejects.toMatchObject({ name: "DipsApiError" });
   });
 
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────

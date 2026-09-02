@@ -2,11 +2,19 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   fetchDipsOwnedAircrafts,
   fetchDipsPermissions,
+  searchDipsFlightProhibitedAreas,
+  searchDipsFlightPlans,
+  applyDipsPermissionTest,
   unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
-import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/api/dips";
+import type {
+  DipsOwnedAircraftDto,
+  DipsPermissionInfo,
+  DipsFlightProhibitedAreaInfo,
+  DipsFlightPlanInfo,
+} from "@/lib/api/dips";
 
 const validAircraft: DipsOwnedAircraftDto = {
   registrationCode: "DUMMY0000001",
@@ -422,5 +430,274 @@ describe("unlinkDipsAccount", () => {
     mockFetchJson({}, 500);
 
     await expect(unlinkDipsAccount("utm")).rejects.toThrow("DIPS連携の解除に失敗しました");
+  });
+});
+
+const validArea: DipsFlightProhibitedAreaInfo = {
+  areaId: "20221105_FISSikou0015",
+  name: "東京国際空港 空港の区域",
+  detail: "小型無人機等飛行禁止法に基づく飛行禁止空域",
+  url: "https://www.mlit.go.jp/koku/koku_tk2_000023.html",
+  areaTypeId: 5,
+  startTime: "2022-10-01T09:00:00",
+  finishTime: "9999-12-31T23:59:00",
+  range: { type: "Polygon", center: [], radius: 0, coordinates: [[139.779031, 35.569748]] },
+};
+
+const searchInput = {
+  centerLongitude: 139.7686,
+  centerLatitude: 35.6803,
+  radiusMeters: 1000,
+  flightProhibitedAreaTypeIds: [5, 6],
+};
+
+describe("searchDipsFlightProhibitedAreas", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_posts_input_as_json_body", async () => {
+    mockFetchJson({ areas: [], excludedCount: 0 });
+
+    await searchDipsFlightProhibitedAreas(searchInput);
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(JSON.parse(init?.body as string)).toEqual(searchInput);
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_returns_areas_on_success", async () => {
+    mockFetchJson({ areas: [validArea], excludedCount: 0 });
+
+    const result = await searchDipsFlightProhibitedAreas(searchInput);
+
+    expect(result.areas).toEqual([validArea]);
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_defaults_excluded_count_to_zero_when_omitted", async () => {
+    mockFetchJson({ areas: [validArea] });
+
+    const result = await searchDipsFlightProhibitedAreas(searchInput);
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_throws_when_areas_is_not_an_array", async () => {
+    mockFetchJson({ areas: "not-an-array" });
+
+    await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toThrow(
+      "DIPS飛行禁止エリア情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_drops_only_the_entry_that_fails_client_side_validation", async () => {
+    const invalidArea = { ...validArea, areaTypeId: "not-a-number" };
+    mockFetchJson({ areas: [validArea, invalidArea], excludedCount: 0 });
+
+    const result = await searchDipsFlightProhibitedAreas(searchInput);
+
+    expect({ areas: result.areas, excludedCount: result.excludedCount }).toEqual({
+      areas: [validArea],
+      excludedCount: 1,
+    });
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_throws_auth_required_error_with_fpl_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "fpl" }, 401);
+
+    await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toMatchObject({
+      realm: "fpl",
+    });
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "fpl" }, 401);
+    await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toBeInstanceOf(
+      DipsAuthRequiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_throws_app_session_expired_error_on_plain_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toBeInstanceOf(
+      AppSessionExpiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightProhibitedAreas_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toThrow(
+      "DIPS飛行禁止エリア情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
+  });
+});
+
+const validFlightPlan: DipsFlightPlanInfo = {
+  flightPlanId: "PLAN-1",
+  name: null,
+  flightPurpose: null,
+  flightAirspace: null,
+  flightType: null,
+  assistantsNumber: null,
+  departurePoint: null,
+  destinationPoint: null,
+  startTime: "20261125 1130",
+  finishTime: "20261125 1230",
+  plannedMaxTime: 120,
+  plannedFlightTime: 60,
+  flightSpeed: 100,
+  flightAltitude: 120,
+  flyRoute: { type: "Circle", center: [139.4677, 35.6476], radius: 150, coordinates: [] },
+  riskMitigationOnsiteControl: null,
+  riskMitigationOnsiteControlL3: null,
+  riskMitigationOnsiteControlL35: null,
+  riskMitigationOnsiteControl2: null,
+  exceptionalConditionsMooring: null,
+  insuranceInformation: null,
+  otherInformation: null,
+  pilotInfo: null,
+  aircraftInfo: null,
+  flightPermitApplicationInfo: null,
+};
+
+const flightPlanSearchInput = { centerLongitude: 139.4677, centerLatitude: 35.6476, radiusMeters: 10000 };
+
+describe("searchDipsFlightPlans", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_searchDipsFlightPlans_posts_input_as_json_body", async () => {
+    mockFetchJson({ flightPlans: [], excludedCount: 0 });
+
+    await searchDipsFlightPlans(flightPlanSearchInput);
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(JSON.parse(init?.body as string)).toEqual(flightPlanSearchInput);
+  });
+
+  it("test_searchDipsFlightPlans_returns_flight_plans_on_success", async () => {
+    mockFetchJson({ flightPlans: [validFlightPlan], excludedCount: 0 });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect(result.flightPlans).toEqual([validFlightPlan]);
+  });
+
+  it("test_searchDipsFlightPlans_defaults_excluded_count_to_zero_when_omitted", async () => {
+    mockFetchJson({ flightPlans: [validFlightPlan] });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_searchDipsFlightPlans_throws_when_flight_plans_is_not_an_array", async () => {
+    mockFetchJson({ flightPlans: "not-an-array" });
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toThrow(
+      "DIPS飛行計画情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_searchDipsFlightPlans_drops_only_the_entry_that_fails_client_side_validation", async () => {
+    const invalidPlan = { ...validFlightPlan, flightSpeed: "not-a-number" };
+    mockFetchJson({ flightPlans: [validFlightPlan, invalidPlan], excludedCount: 0 });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect({ flightPlans: result.flightPlans, excludedCount: result.excludedCount }).toEqual({
+      flightPlans: [validFlightPlan],
+      excludedCount: 1,
+    });
+  });
+
+  it("test_searchDipsFlightPlans_throws_auth_required_error_with_fpl_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "fpl" }, 401);
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toBeInstanceOf(
+      DipsAuthRequiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightPlans_throws_app_session_expired_error_on_plain_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toBeInstanceOf(
+      AppSessionExpiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightPlans_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toThrow(
+      "DIPS飛行計画情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
+  });
+});
+
+describe("applyDipsPermissionTest", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_applyDipsPermissionTest_posts_without_a_body", async () => {
+    mockFetchJson({ result: { formNum: "Q190100001" } });
+
+    await applyDipsPermissionTest();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect({ url, method: init?.method, body: init?.body }).toEqual({
+      url: "/api/dips/permissions/apply",
+      method: "POST",
+      body: undefined,
+    });
+  });
+
+  it("test_applyDipsPermissionTest_returns_form_num_on_success", async () => {
+    mockFetchJson({ result: { formNum: "Q190100001" } });
+
+    const result = await applyDipsPermissionTest();
+
+    expect(result).toEqual({ formNum: "Q190100001" });
+  });
+
+  it("test_applyDipsPermissionTest_throws_when_result_shape_is_invalid", async () => {
+    mockFetchJson({ result: {} });
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow(
+      "DIPS許可・承認申請の送信に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_applyDipsPermissionTest_throws_auth_required_error_with_req_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    await expect(applyDipsPermissionTest()).rejects.toBeInstanceOf(DipsAuthRequiredClientError);
+  });
+
+  it("test_applyDipsPermissionTest_throws_app_session_expired_error_on_plain_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(applyDipsPermissionTest()).rejects.toBeInstanceOf(AppSessionExpiredClientError);
+  });
+
+  it("test_applyDipsPermissionTest_throws_japanese_message_on_403", async () => {
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow("この操作を行う権限がありません");
+  });
+
+  it("test_applyDipsPermissionTest_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "DIPS連携でエラーが発生しました" }, 502);
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow("DIPS連携でエラーが発生しました");
+  });
+
+  it("test_applyDipsPermissionTest_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow(
+      "DIPS許可・承認申請の送信に失敗しました。ネットワーク接続を確認してください"
+    );
   });
 });
