@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/Badge";
 import {
   fetchDipsOwnedAircrafts,
   unlinkDipsAccount,
-  dipsLoginUrl,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 import { dipsUaStatusLabel, dipsDeregistrationReasonLabel, dipsUaStatusBadgeVariant } from "@/lib/constants/dipsAircraftStatus";
+import { DipsAuthPrompt } from "@/components/flight/DipsAuthPrompt";
+import { AppSessionExpiredPrompt } from "@/components/flight/AppSessionExpiredPrompt";
 
 interface DipsAircraftPickerModalProps {
   isOpen: boolean;
@@ -156,25 +157,10 @@ export function DipsAircraftPickerModal({
         {state.status === "loading" && <p className="text-sm text-gray-500">読み込み中...</p>}
 
         {state.status === "authRequired" && (
-          <p className="text-sm text-gray-700">
-            DIPSへのログインが必要です。
-            <a
-              href={dipsLoginUrl(state.realm, returnPath)}
-              className="ml-1 text-blue-600 hover:underline"
-            >
-              DIPSにログインする
-            </a>
-          </p>
+          <DipsAuthPrompt realm={state.realm} returnPath={returnPath} />
         )}
 
-        {state.status === "sessionExpired" && (
-          <p className="text-sm text-gray-700">
-            ログインが必要です。再度ログインしてください。
-            <a href="/login" className="ml-1 text-blue-600 hover:underline">
-              ログイン画面へ
-            </a>
-          </p>
-        )}
+        {state.status === "sessionExpired" && <AppSessionExpiredPrompt />}
 
         {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
 

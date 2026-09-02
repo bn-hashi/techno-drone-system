@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { DipsApiError } from "@/lib/dips/errors";
-import { logger } from "@/lib/logger";
 import type { DipsPermissionInfo } from "@/lib/dips/types";
+import {
+  describeReceivedType,
+  normalizeEntriesWithDiagnostics,
+} from "@/lib/dips/normalizeEntriesWithDiagnostics";
 
 /**
  * 許可・承認情報取得 API (DIPS2.0 API(FPA) 接続システム向けガイドライン 2.3.6) の
  * 生レスポンスを検証・正規化する境界。`lib/dips/aircraftListSchema.ts` と同じ構造
- * (5-3/5-4/5-5 もこの2ファイルの形を踏襲すること)。
+ * (5-3/5-4/5-5 もこの2ファイルの形を踏襲すること)。エントリ単位のフォールバック・
+ * ログ・全件失敗時の DipsApiError は `lib/dips/normalizeEntriesWithDiagnostics.ts` の
+ * 共通エンジンへ委譲する (2026-08-28 段階2共通化)。
  *
  * キーのリネームが不要な理由: 機体情報一覧取得 API (DRS 系) は生キーが snake_case
  * (registration_code 等) で、正規化時に camelCase (regSymbol 等) へ変換していた。
@@ -20,14 +25,6 @@ import type { DipsPermissionInfo } from "@/lib/dips/types";
  * 現れないが、念のため z.object() の既定動作 (strip: 未定義キーを自動除去) に委ね、
  * .strict() は使わない。スキーマに書いていないキーは、将来レスポンスに追加されても
  * 自動的に破棄される。
- *
- * エントリ単位のフォールバック: レスポンスは複数許可の配列 (`permissions`) で返るが、
- * そのうち1件のパースが失敗しても他の許可の取得を妨げない (本番疎通確認は IP 制限で
- * 実質1回勝負のため、1件の異常値でアカウント全体が 502 になる事態を避ける)。配列全体
- * ではなくエントリ単位で safeParse し、パースできた許可だけを返す。落としたエントリは
- * 個人情報を含まない形 (配列内インデックスと Zod のパスのみ) で構造化ログに残す。
- * 全件が失敗した場合はレスポンス仕様そのものが変わった可能性が高いため、空配列を返さず
- * DipsApiError を投げる (詳細は normalizePermissionsWithDiagnostics のコメント参照)。
  *
  * null・欠落の寛容化 (2026-08-26 差し戻し B1〜B4 で拡張): 当初は permissionNumber2 のみに
  * 限定していたが、実機検証で以下の3点が「アカウント全体が502で落ちる」実害につながる
@@ -66,6 +63,14 @@ import type { DipsPermissionInfo } from "@/lib/dips/types";
  *   型なだけで許可1件が丸ごと除外されていた。表示に使う値 (受付番号・許可期間・
  *   飛行場所・機体情報・boolean フラグ) は従来どおり厳格に検証し、想定外の値が来た
  *   エントリはエントリ単位のフォールバックで除外する方針を維持する
+ *
+ * 2026-09-02 差し戻し (H1): F5 で `permissionDate`/`flightRoutes` を `z.unknown()` の
+ * まま `.transform()` していたが、Zod v4 は `z.object()` 内の `z.unknown()` のキーも
+ * (値が undefined を許容する型であっても) 必須キー扱いにするため、キー自体が無い
+ * レスポンスでは F5 が防ぐはずだった「許可が丸ごと除外される」失敗が再発していた
+ * (全許可が失敗するとアカウント全体が502になる)。`.nullish()` を `.transform()` の前に
+ * 挟み、`nullableArray` と同じ形に揃えた (詳細は `unusedDisplayString` / `flightRoutesField`
+ * のコメント参照)。
  */
 
 /** 空文字・null・キー欠落を null に正規化する (permissionNumber2 用) */
@@ -105,9 +110,21 @@ const flexibleBoolean = z
  * 除外されていた)。表示に使うフィールド (受付番号・許可期間・飛行場所) は
  * 引き続き z.string() で厳格に検証し、想定外の値が来たエントリはエントリ単位の
  * フォールバックで除外する方針を維持する。
+ *
+ * **`.nullish()` を `.transform()` の前に置く理由 (2026-09-02 差し戻し H1)**: Zod v4 は
+ * `z.object()` 内の `z.unknown()` のキーを (値が undefined を許容する型であっても)
+ * 必須キー扱いにするため、`z.unknown().transform(...)` のままだと DIPS が
+ * `permissionDate` キー自体を返さないレスポンスで `invalid_type: expected nonoptional`
+ * となり、F5 が防ぐはずだった「許可1件が丸ごと除外される」失敗モードがキー欠落の
+ * 経路でだけ再発していた (全許可が失敗すると `normalizeEntriesWithDiagnostics` が
+ * `DipsApiError` を投げ、アカウント全体が502になる)。`.nullish()` を挟むとキー自体を
+ * 省略可能にでき、かつ `.transform()` は値が `undefined` でも必ず呼ばれるため出力オブジェ
+ * クトにはキーが常に載る (`null` として)。下の `nullableArray` (`uaInfos` 用) も同じ形
+ * (`.nullish()` → `.transform()`) を既に使っており、ここもそれに揃える。
  */
 const unusedDisplayString = z
   .unknown()
+  .nullish()
   .transform((value) => (typeof value === "string" ? value : null));
 
 const FlightRouteSchema = z.object({
@@ -135,7 +152,10 @@ function parseFlightRoutesLeniently(value: unknown): z.infer<typeof FlightRouteS
   return routes;
 }
 
-const flightRoutesField = z.unknown().transform(parseFlightRoutesLeniently);
+// `.nullish()` を `.transform()` の前に置く理由は `unusedDisplayString` のコメント参照
+// (2026-09-02 差し戻し H1: Zod v4 は z.unknown() のキーも必須扱いにするため、
+// flightRoutes キー自体が無いレスポンスで許可が丸ごと除外されていた)。
+const flightRoutesField = z.unknown().nullish().transform(parseFlightRoutesLeniently);
 
 const UaInfoSchema = z.object({
   uaMaker: z.string(),
@@ -171,16 +191,6 @@ const PermissionEntrySchema = z.object({
  */
 const PermissionsValueSchema = z.array(z.unknown()).nullable();
 
-type PermissionEntry = z.infer<typeof PermissionEntrySchema>;
-
-/** 1エントリのパースに失敗した際の記録。個人情報を含みうる受信値そのものは持たない */
-interface DroppedPermissionEntry {
-  /** レスポンス配列内でのインデックス (何件目の許可か) */
-  readonly index: number;
-  /** 失敗原因となった Zod のパス (キー名) の一覧。値は含めない */
-  readonly issuePaths: string[];
-}
-
 /**
  * 正規化結果と、除外したエントリ件数をあわせて返す。件数だけを上位層 (API レスポンス →
  * UI) へ伝えることで、「許可情報0件」と「一部の許可情報が異常値で除外された」を UI 側で
@@ -190,28 +200,6 @@ export interface NormalizePermissionsResult {
   permissions: DipsPermissionInfo[];
   /** パースに失敗して除外した許可の件数 (個人情報を含む生の値は保持しない) */
   excludedCount: number;
-}
-
-/**
- * Zod のパス (キー名) の一覧を返す。受信値そのものは一切含めない。
- *
- * エントリ自体がオブジェクトでない場合 (例: 配列の要素が文字列や数値) は `issue.path` が
- * 空配列になり、以前は `""` (空文字) を返していた。障害切り分け時に「対象キー: 」と
- * 空欄になり、IP 制限で再試行しにくい本番で手がかりが得られなかったため (C1 差し戻し)、
- * パスが空のときは受信した型と Zod のエラーコードで代替する。
- */
-function formatIssuePathList(error: z.ZodError, rawEntry: unknown): string[] {
-  return error.issues.map((issue) => {
-    const path = issue.path.join(".");
-    return path || `(受信した型: ${describeReceivedType(rawEntry)}, code: ${issue.code})`;
-  });
-}
-
-/** レスポンスの実際の型名を返す (エラーメッセージの切り分け用。値そのものは含めない) */
-function describeReceivedType(value: unknown): string {
-  if (value === null) return "null";
-  if (Array.isArray(value)) return "array";
-  return typeof value;
 }
 
 /**
@@ -252,65 +240,11 @@ function extractPermissionsArray(raw: unknown): unknown[] {
 }
 
 /**
- * 生レスポンスの `permissions` 配列を1件ずつ検証する。配列全体を safeParse すると
- * 1件の失敗で全体が失敗扱いになるため、要素ごとに safeParse してパースできた
- * 許可だけを集める。
- */
-function parsePermissionEntries(rawEntries: readonly unknown[]): {
-  entries: PermissionEntry[];
-  failures: DroppedPermissionEntry[];
-} {
-  const entries: PermissionEntry[] = [];
-  const failures: DroppedPermissionEntry[] = [];
-
-  rawEntries.forEach((rawEntry, index) => {
-    const result = PermissionEntrySchema.safeParse(rawEntry);
-    if (result.success) {
-      entries.push(result.data);
-    } else {
-      failures.push({ index, issuePaths: formatIssuePathList(result.error, rawEntry) });
-    }
-  });
-
-  return { entries, failures };
-}
-
-/**
- * パースに失敗したエントリの情報を構造化ログに残す (本番疎通確認時の切り分け用)。
- * 個人情報の混入を防ぐため、受信値そのものは一切含めず、配列内のインデックスと
- * Zod のパス (キー名) のみを記録する。
- */
-function logDroppedPermissionEntries(
-  failures: readonly DroppedPermissionEntry[],
-  totalCount: number
-): void {
-  logger.error(
-    `DIPS許可・承認情報のパースで${failures.length}/${totalCount}件のエントリを除外しました`,
-    undefined,
-    {
-      route: "normalizePermissions",
-      droppedEntries: failures.map((failure) => ({
-        index: failure.index,
-        issuePaths: failure.issuePaths,
-      })),
-    }
-  );
-}
-
-/**
  * 許可・承認情報取得 API の生レスポンスを検証し、DipsPermissionInfo[] へ正規化する。
  * 除外した許可の件数も併せて返す (`excludedCount`)。
  *
- * エントリ単位でパースし、1件のパース失敗は他の許可を巻き込まない (パースできた
- * 許可だけを返し、失敗した許可はログに記録して除外する)。以下の場合は DipsApiError
- * を投げる:
- * - レスポンスがオブジェクトでない、または `permissions` キー自体が存在しない
- *   (API 仕様そのものが変わった・接続先を誤った可能性が高い。F1 差し戻し:
- *   キー欠落を「許可情報なし」の正当な空状態と混同しない)
- * - `permissions` が null・[] 以外で、かつ配列でもない不正な値
- * - `permissions` に1件以上の要素があるにもかかわらず、全件のパースに失敗した (個々の
- *   異常値ではなく、レスポンス構造自体の変更を疑うべき状況のため、空配列を返さず
- *   502 で失敗を可視化する)
+ * エントリ単位のフォールバック・ログ・全件失敗時の DipsApiError は共通エンジン
+ * (`normalizeEntriesWithDiagnostics`) に委譲する。
  *
  * `permissions` が明示的な `null` または `[]` の場合は「許可情報なし」の正当な応答のため、
  * そのまま [] を返す (キー欠落とは区別する。詳細は `extractPermissionsArray` 参照)。
@@ -318,20 +252,12 @@ function logDroppedPermissionEntries(
  * 含みうる) は一切含めない。
  */
 export function normalizePermissionsWithDiagnostics(raw: unknown): NormalizePermissionsResult {
-  const rawPermissions = extractPermissionsArray(raw);
+  const { entries, excludedCount } = normalizeEntriesWithDiagnostics(raw, {
+    entrySchema: PermissionEntrySchema,
+    extractArray: extractPermissionsArray,
+    subject: "DIPS許可・承認情報",
+    route: "normalizePermissions",
+  });
 
-  const { entries, failures } = parsePermissionEntries(rawPermissions);
-
-  if (failures.length > 0) {
-    logDroppedPermissionEntries(failures, rawPermissions.length);
-  }
-
-  if (entries.length === 0 && rawPermissions.length > 0) {
-    const failedKeys = Array.from(new Set(failures.flatMap((failure) => failure.issuePaths)));
-    throw new DipsApiError(
-      `DIPS許可・承認情報の全${rawPermissions.length}件のエントリでパースに失敗しました (対象キー: ${failedKeys.join(", ")})`
-    );
-  }
-
-  return { permissions: entries, excludedCount: failures.length };
+  return { permissions: entries, excludedCount };
 }

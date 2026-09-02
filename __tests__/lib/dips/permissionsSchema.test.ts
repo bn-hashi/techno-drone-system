@@ -271,6 +271,25 @@ describe("normalizePermissionsWithDiagnostics", () => {
     expect(result.permissions[0]?.permissionDate).toBeNull();
   });
 
+  it("test_parse_does_not_drop_entry_when_permission_date_key_is_missing", () => {
+    // 2026-09-02 差し戻し (H1): Zod v4 は z.object() 内の z.unknown() のキーも必須扱いに
+    // するため、permissionDate キー自体が無い (値が undefined ではなくキーがそもそも
+    // 存在しない) レスポンスは "invalid_type: expected nonoptional" で弾かれ、F5 の
+    // 「表示しないフィールドで許可を落とさない」が effectively 効いていなかった。
+    // DIPS が permissionDate を返さない実装だと全件がこの経路で落ち、アカウント全体が
+    // 502 になる実害があったため、値が null/型不正な場合 (上記2テスト) だけでなく
+    // キー自体が無い場合も許可を落とさないことを確認する。
+    const entry = minimalValidPermission();
+    delete (entry as Record<string, unknown>).permissionDate;
+
+    const result = normalizePermissionsWithDiagnostics({ permissions: [entry] });
+
+    expect({
+      excludedCount: result.excludedCount,
+      permissionDate: result.permissions[0]?.permissionDate,
+    }).toEqual({ excludedCount: 0, permissionDate: null });
+  });
+
   it("test_parse_drops_only_the_invalid_route_when_one_flight_route_has_unexpected_route_name_type", () => {
     // flightRoutes は画面に一切表示しないフィールドのため、1経路の型不正で許可全体を
     // 落とすのは不釣り合い。パースできる経路だけを残し、許可自体は維持する
@@ -297,6 +316,22 @@ describe("normalizePermissionsWithDiagnostics", () => {
       receptionNumber: result.permissions[0]?.receptionNumber,
       flightRoutes: result.permissions[0]?.flightRoutes,
     }).toEqual({ excludedCount: 0, receptionNumber: "P000000001", flightRoutes: [] });
+  });
+
+  it("test_parse_does_not_drop_entry_when_flight_routes_key_is_missing", () => {
+    // 2026-09-02 差し戻し (H1): flightRoutes も permissionDate と同じ z.unknown().transform()
+    // の形だったため、キー自体が無いレスポンスで同じ "invalid_type: expected nonoptional" が
+    // 発生し許可が丸ごと除外されていた。null 値 (test_parse_treats_null_flight_routes_as_
+    // empty_array) だけでなくキー欠落でも空配列に正規化され、許可自体は残ることを確認する。
+    const entry = minimalValidPermission();
+    delete (entry as Record<string, unknown>).flightRoutes;
+
+    const result = normalizePermissionsWithDiagnostics({ permissions: [entry] });
+
+    expect({
+      excludedCount: result.excludedCount,
+      flightRoutes: result.permissions[0]?.flightRoutes,
+    }).toEqual({ excludedCount: 0, flightRoutes: [] });
   });
 
   // ─── 寛容パース: 未知フィールド・個人情報の遮断 ───────────────────────────────
