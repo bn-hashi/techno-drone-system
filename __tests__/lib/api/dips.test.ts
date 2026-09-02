@@ -183,6 +183,18 @@ describe("fetchDipsOwnedAircrafts", () => {
       "DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です"
     );
   });
+
+  it("test_fetchDipsOwnedAircrafts_throws_japanese_message_when_fetch_itself_fails", async () => {
+    // 2026-09-02 差し戻し H4: fetch() 自体がネットワーク断等で失敗すると、ブラウザの生の
+    // TypeError ("Failed to fetch") がそのまま DipsAircraftPickerModal.tsx / DipsVerifyButton.tsx
+    // の画面に出てしまっていた。fetchDipsPermissions (D4 差し戻し) 側にしか try/catch による
+    // 日本語化が入っておらず、fetchDipsOwnedAircrafts 側は移行漏れだった。
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(fetchDipsOwnedAircrafts()).rejects.toThrow(
+      "DIPS機体情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
+  });
 });
 
 const validPermission: DipsPermissionInfo = {

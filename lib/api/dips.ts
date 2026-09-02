@@ -261,7 +261,17 @@ function parseOwnedAircrafts(rawAircrafts: unknown): ParseOwnedAircraftsResult {
 export async function fetchDipsOwnedAircrafts(
   includeInvalid = false
 ): Promise<FetchDipsOwnedAircraftsResult> {
-  const res = await fetch(`/api/dips/aircrafts?includeInvalid=${includeInvalid}`);
+  let res: Response;
+  try {
+    res = await fetch(`/api/dips/aircrafts?includeInvalid=${includeInvalid}`);
+  } catch {
+    // fetch() 自体が失敗した場合 (ネットワーク接続不可等) の TypeError は英語のまま
+    // 画面に出てしまう (2026-09-02 差し戻し H4: fetchDipsPermissions 側 (D4 差し戻し) に
+    // しか入っていなかった移行漏れ。DipsAircraftPickerModal.tsx / DipsVerifyButton.tsx が
+    // err.message をそのまま描画するため、オフライン時に英語の "Failed to fetch" が
+    // 5-1 の画面に出ていた)。ここで日本語メッセージに正規化する
+    throw new Error("DIPS機体情報の取得に失敗しました。ネットワーク接続を確認してください");
+  }
 
   const body = (await res.json().catch(() => null)) as
     | ({ authRequired?: boolean; realm?: string; error?: string } & {
