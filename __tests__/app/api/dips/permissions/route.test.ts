@@ -8,6 +8,7 @@ import {
   DipsApiError,
   DipsAuthRequiredError,
 } from "@/lib/dips/errors";
+import type { DipsRealm } from "@/lib/dips/config";
 
 vi.mock("@/lib/auth/requireFlightAccess", () => ({
   requireFlightAccess: vi.fn(),
@@ -82,9 +83,11 @@ describe("GET /api/dips/permissions", () => {
     // D1 差し戻し: 以前はルート側で realm: "req" をハードコードしており、
     // DipsAuthRequiredError が実際に渡した realm を無視していた (ずれると無限
     // ログインループになる)。ここでは意図的に異なる realm を投げ、レスポンスが
-    // それをそのまま反映することを確認する (ハードコードなら "req" のまま失敗するはず)
+    // それをそのまま反映することを確認する (ハードコードなら "req" のまま失敗するはず)。
+    // `as DipsRealm` は本テストの意図のためだけの型キャストで、2026-09-02 差し戻し H3 で
+    // `DipsAuthRequiredError` の realm を `DipsRealm` に絞ったことに伴う
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockFetchPermissions.mockRejectedValue(new DipsAuthRequiredError("req-drift-test"));
+    mockFetchPermissions.mockRejectedValue(new DipsAuthRequiredError("req-drift-test" as DipsRealm));
 
     const response = await GET();
     const body = await response.json();
