@@ -6,6 +6,7 @@ import type { DipsConfig } from "@/lib/dips/config";
 import type { DipsFlightPlanNotificationPayload } from "@/lib/dips/types";
 import { DipsConfigError } from "@/lib/dips/errors";
 import { accountAResponse } from "@/test-fixtures/dips/aircraftListFixtures";
+import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 
 const config: DipsConfig = {
   authBaseUrl: "https://auth.dips.example.test",
@@ -264,6 +265,56 @@ describe("DipsApiClient", () => {
 
     expect(result.flightPlans[0].flightPlanId).toBe("PLAN-1");
     expect(result.excludedCount).toBe(0);
+  });
+
+  // ─── applyPermission (req realm / fpa base) ──────────────────────────────────
+
+  const samplePermissionApplicationPayload = buildPermissionApplicationTestPayload(
+    new Date("2026-09-02T00:00:00+09:00")
+  );
+
+  it("test_applyPermission_requests_fpa_permission_register_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://fpa-api.dips.example.test/req-pub/api/v1/appliers/me/permissionRegister"
+    );
+  });
+
+  it("test_applyPermission_uses_req_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "req");
+  });
+
+  it("test_applyPermission_sends_payload_as_body", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual(samplePermissionApplicationPayload);
+  });
+
+  it("test_applyPermission_returns_parsed_form_num", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    const result = await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+
+    expect(result).toEqual({ formNum: "Q190100001" });
+  });
+
+  it("test_applyPermission_throws_dips_api_error_when_form_num_missing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}));
+
+    await expect(
+      makeClient().applyPermission("user-1", samplePermissionApplicationPayload)
+    ).rejects.toMatchObject({ name: "DipsApiError" });
   });
 
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────

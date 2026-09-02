@@ -4,6 +4,7 @@ import {
   fetchDipsPermissions,
   searchDipsFlightProhibitedAreas,
   searchDipsFlightPlans,
+  applyDipsPermissionTest,
   unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
@@ -630,6 +631,73 @@ describe("searchDipsFlightPlans", () => {
 
     await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toThrow(
       "DIPS飛行計画情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
+  });
+});
+
+describe("applyDipsPermissionTest", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_applyDipsPermissionTest_posts_without_a_body", async () => {
+    mockFetchJson({ result: { formNum: "Q190100001" } });
+
+    await applyDipsPermissionTest();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect({ url, method: init?.method, body: init?.body }).toEqual({
+      url: "/api/dips/permissions/apply",
+      method: "POST",
+      body: undefined,
+    });
+  });
+
+  it("test_applyDipsPermissionTest_returns_form_num_on_success", async () => {
+    mockFetchJson({ result: { formNum: "Q190100001" } });
+
+    const result = await applyDipsPermissionTest();
+
+    expect(result).toEqual({ formNum: "Q190100001" });
+  });
+
+  it("test_applyDipsPermissionTest_throws_when_result_shape_is_invalid", async () => {
+    mockFetchJson({ result: {} });
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow(
+      "DIPS許可・承認申請の送信に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_applyDipsPermissionTest_throws_auth_required_error_with_req_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    await expect(applyDipsPermissionTest()).rejects.toBeInstanceOf(DipsAuthRequiredClientError);
+  });
+
+  it("test_applyDipsPermissionTest_throws_app_session_expired_error_on_plain_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(applyDipsPermissionTest()).rejects.toBeInstanceOf(AppSessionExpiredClientError);
+  });
+
+  it("test_applyDipsPermissionTest_throws_japanese_message_on_403", async () => {
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow("この操作を行う権限がありません");
+  });
+
+  it("test_applyDipsPermissionTest_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "DIPS連携でエラーが発生しました" }, 502);
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow("DIPS連携でエラーが発生しました");
+  });
+
+  it("test_applyDipsPermissionTest_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(applyDipsPermissionTest()).rejects.toThrow(
+      "DIPS許可・承認申請の送信に失敗しました。ネットワーク接続を確認してください"
     );
   });
 });

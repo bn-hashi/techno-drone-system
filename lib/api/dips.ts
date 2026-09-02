@@ -752,3 +752,57 @@ export async function searchDipsFlightPlans(
     excludedCount: serverExcludedCount + clientExcludedCount,
   };
 }
+
+// ─── 許可・承認申請受付 ───────────────────────────────────────────────────────
+
+export interface DipsPermissionApplicationResult {
+  /** 申請受付番号 */
+  formNum: string;
+}
+
+const DipsPermissionApplicationResultSchema = z.object({
+  formNum: z.string(),
+}) satisfies z.ZodType<DipsPermissionApplicationResult>;
+
+/**
+ * 許可・承認申請受付 API (5-3) へ検証環境向けのテスト申請を送信する。申請内容は
+ * サーバー側 (`buildPermissionApplicationTestPayload`) がガイドライン準拠で組み立てる
+ * ため、このクライアント関数は引数を取らない。トークン未取得・失効 (401 authRequired)
+ * の場合は DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている
+ * 場合は AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ */
+export async function applyDipsPermissionTest(): Promise<DipsPermissionApplicationResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/dips/permissions/apply", { method: "POST" });
+  } catch {
+    throw new Error("DIPS許可・承認申請の送信に失敗しました。ネットワーク接続を確認してください");
+  }
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & { result?: unknown })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "req");
+  }
+
+  if (res.status === 401) {
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS許可・承認申請の送信に失敗しました");
+  }
+
+  const parsed = DipsPermissionApplicationResultSchema.safeParse(body?.result);
+  if (!parsed.success) {
+    throw new Error("DIPS許可・承認申請の送信に失敗しました: レスポンスの形式が不正です");
+  }
+
+  return parsed.data;
+}

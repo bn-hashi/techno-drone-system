@@ -63,6 +63,7 @@ const mockApiClient = (): DipsApiClient =>
     fetchAircraftList: vi.fn(),
     searchFlightProhibitedAreas: vi.fn(),
     searchFlightPlans: vi.fn(),
+    applyPermission: vi.fn(),
   }) as unknown as DipsApiClient;
 
 const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
@@ -353,6 +354,23 @@ describe("DipsService", () => {
 
       expect(result).toEqual(response);
       expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
+    });
+  });
+
+  // ─── applyPermissionTest ─────────────────────────────────────────────────────
+
+  describe("applyPermissionTest", () => {
+    it("test_delegates_to_api_client_with_a_generated_test_payload", async () => {
+      const response = { formNum: "Q190100001" };
+      vi.mocked(apiClient.applyPermission).mockResolvedValue(response);
+
+      const result = await service.applyPermissionTest("user-1");
+
+      expect(result).toEqual(response);
+      expect(apiClient.applyPermission).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ formKind: "1", category: "2" })
+      );
     });
   });
 

@@ -12,11 +12,14 @@ import { normalizeFlightProhibitedAreasWithDiagnostics } from "@/lib/dips/flight
 import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
 import { normalizeFlightPlansWithDiagnostics } from "@/lib/dips/flightPlanSchema";
 import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
+import { normalizePermissionApplicationResult } from "@/lib/dips/permissionApplicationSchema";
 import type {
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
   DipsFlightProhibitedAreaSearchRequest,
   DipsFlightPlanSearchRequest,
+  DipsPermissionApplicationPayload,
+  DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 
 /** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
@@ -106,6 +109,20 @@ export class DipsApiClient {
   ): Promise<NormalizeFlightPlansResult> {
     const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.flightPlanSearch, params);
     return normalizeFlightPlansWithDiagnostics(raw);
+  }
+
+  /**
+   * 許可・承認申請受付 (req realm)。5-6 (notifyFlightPlan) と同型の POST。レスポンスは
+   * `{ formNum: string }` のみのシンプルな形状のため、境界の検証は
+   * `normalizePermissionApplicationResult` に委譲する (共通エンジンではなく専用検証。
+   * lib/dips/permissionApplicationSchema.ts のコメント参照)。
+   */
+  async applyPermission(
+    userId: string,
+    payload: DipsPermissionApplicationPayload
+  ): Promise<DipsPermissionApplicationResult> {
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.permissionRegister, payload);
+    return normalizePermissionApplicationResult(raw);
   }
 
   private baseUrlFor(endpoint: DipsEndpoint): string {

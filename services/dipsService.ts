@@ -6,11 +6,13 @@ import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProh
 import type { DipsFlightProhibitedAreaSearchInput } from "@/lib/dips/flightProhibitedAreaSearchInputSchema";
 import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
 import type { DipsFlightPlanSearchInput } from "@/lib/dips/flightPlanSearchInputSchema";
+import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 import type {
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
   DipsAircraftInfo,
   DipsOwnedAircraftDto,
+  DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
 import { DIPS_UA_STATUS_ACTIVE } from "@/lib/constants/dipsAircraftStatus";
@@ -120,6 +122,20 @@ export class DipsService {
    */
   async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
     return this.apiClient.fetchPermissions(userId);
+  }
+
+  /**
+   * 許可・承認申請受付 API へ検証環境向けのテスト申請を送信する。
+   *
+   * このシステムは疎通確認 (検証環境で任意の申請を送信し、申請受付番号が取得できることの
+   * 確認) のみを目的とし、申請内容を入力する UI・ドメインモデルとの紐付けは持たない
+   * (`buildPermissionApplicationTestPayload` が組み立てるガイドライン準拠のテスト申請を
+   * そのまま送信するのみ)。5-6 (notifyFlightPlan) と異なり、送信結果 (受付番号) を
+   * DB に保存する処理も現時点では行わない (保存は必要になってから追加する。
+   * 依頼書の受け入れ条件「DBスキーマは変更しない」)。
+   */
+  async applyPermissionTest(userId: string): Promise<DipsPermissionApplicationResult> {
+    return this.apiClient.applyPermission(userId, buildPermissionApplicationTestPayload());
   }
 
   /**
