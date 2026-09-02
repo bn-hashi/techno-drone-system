@@ -63,6 +63,14 @@ import {
  *   型なだけで許可1件が丸ごと除外されていた。表示に使う値 (受付番号・許可期間・
  *   飛行場所・機体情報・boolean フラグ) は従来どおり厳格に検証し、想定外の値が来た
  *   エントリはエントリ単位のフォールバックで除外する方針を維持する
+ *
+ * 2026-09-02 差し戻し (H1): F5 で `permissionDate`/`flightRoutes` を `z.unknown()` の
+ * まま `.transform()` していたが、Zod v4 は `z.object()` 内の `z.unknown()` のキーも
+ * (値が undefined を許容する型であっても) 必須キー扱いにするため、キー自体が無い
+ * レスポンスでは F5 が防ぐはずだった「許可が丸ごと除外される」失敗が再発していた
+ * (全許可が失敗するとアカウント全体が502になる)。`.nullish()` を `.transform()` の前に
+ * 挟み、`nullableArray` と同じ形に揃えた (詳細は `unusedDisplayString` / `flightRoutesField`
+ * のコメント参照)。
  */
 
 /** 空文字・null・キー欠落を null に正規化する (permissionNumber2 用) */
@@ -102,9 +110,21 @@ const flexibleBoolean = z
  * 除外されていた)。表示に使うフィールド (受付番号・許可期間・飛行場所) は
  * 引き続き z.string() で厳格に検証し、想定外の値が来たエントリはエントリ単位の
  * フォールバックで除外する方針を維持する。
+ *
+ * **`.nullish()` を `.transform()` の前に置く理由 (2026-09-02 差し戻し H1)**: Zod v4 は
+ * `z.object()` 内の `z.unknown()` のキーを (値が undefined を許容する型であっても)
+ * 必須キー扱いにするため、`z.unknown().transform(...)` のままだと DIPS が
+ * `permissionDate` キー自体を返さないレスポンスで `invalid_type: expected nonoptional`
+ * となり、F5 が防ぐはずだった「許可1件が丸ごと除外される」失敗モードがキー欠落の
+ * 経路でだけ再発していた (全許可が失敗すると `normalizeEntriesWithDiagnostics` が
+ * `DipsApiError` を投げ、アカウント全体が502になる)。`.nullish()` を挟むとキー自体を
+ * 省略可能にでき、かつ `.transform()` は値が `undefined` でも必ず呼ばれるため出力オブジェ
+ * クトにはキーが常に載る (`null` として)。下の `nullableArray` (`uaInfos` 用) も同じ形
+ * (`.nullish()` → `.transform()`) を既に使っており、ここもそれに揃える。
  */
 const unusedDisplayString = z
   .unknown()
+  .nullish()
   .transform((value) => (typeof value === "string" ? value : null));
 
 const FlightRouteSchema = z.object({
@@ -132,7 +152,10 @@ function parseFlightRoutesLeniently(value: unknown): z.infer<typeof FlightRouteS
   return routes;
 }
 
-const flightRoutesField = z.unknown().transform(parseFlightRoutesLeniently);
+// `.nullish()` を `.transform()` の前に置く理由は `unusedDisplayString` のコメント参照
+// (2026-09-02 差し戻し H1: Zod v4 は z.unknown() のキーも必須扱いにするため、
+// flightRoutes キー自体が無いレスポンスで許可が丸ごと除外されていた)。
+const flightRoutesField = z.unknown().nullish().transform(parseFlightRoutesLeniently);
 
 const UaInfoSchema = z.object({
   uaMaker: z.string(),
