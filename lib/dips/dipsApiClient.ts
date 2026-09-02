@@ -8,9 +8,12 @@ import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSch
 import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
 import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchema";
 import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
+import { normalizeFlightProhibitedAreasWithDiagnostics } from "@/lib/dips/flightProhibitedAreaSchema";
+import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
 import type {
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
+  DipsFlightProhibitedAreaSearchRequest,
 } from "@/lib/dips/types";
 
 /** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
@@ -66,6 +69,26 @@ export class DipsApiClient {
   async fetchAircraftList(userId: string): Promise<NormalizeAircraftListResult> {
     const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.aircraftList);
     return normalizeAircraftListWithDiagnostics(raw);
+  }
+
+  /**
+   * 飛行禁止エリア情報取得 (fpl realm)。DIPS のワイヤーフォーマットは検索条件を
+   * `flightProhibitedAreaInfo.flightProhibitedAreaTypeId` にネストするため、ここで
+   * ドメイン層のフラットな `DipsFlightProhibitedAreaSearchRequest` から変換する
+   * (FPRガイドライン v1.9 2.3.7 ①リクエストボディ参照)。レスポンスは境界で検証・
+   * 正規化してから返す (fetchPermissions と同じ構造)。
+   */
+  async searchFlightProhibitedAreas(
+    userId: string,
+    params: DipsFlightProhibitedAreaSearchRequest
+  ): Promise<NormalizeFlightProhibitedAreasResult> {
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.flightProhibitedAreaSearch, {
+      features: params.features,
+      flightProhibitedAreaInfo: {
+        flightProhibitedAreaTypeId: params.flightProhibitedAreaTypeIds,
+      },
+    });
+    return normalizeFlightProhibitedAreasWithDiagnostics(raw);
   }
 
   private baseUrlFor(endpoint: DipsEndpoint): string {

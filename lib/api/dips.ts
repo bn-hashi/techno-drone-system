@@ -7,6 +7,8 @@ import type {
   DipsPermissionInfo,
   DipsFlightRoute,
   DipsUaInfo,
+  DipsFlightProhibitedAreaInfo,
+  DipsAreaGeometry,
 } from "@/lib/dips/types";
 
 /**
@@ -459,6 +461,120 @@ export async function fetchDipsPermissions(): Promise<FetchDipsPermissionsResult
 
   return {
     permissions,
+    excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 飛行禁止エリア情報取得 ───────────────────────────────────────────────────
+
+/**
+ * DIPS 飛行禁止エリア情報。地理情報・エリア種別・名称のみで個人情報を含まない。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける。
+ */
+export type { DipsFlightProhibitedAreaInfo };
+
+export interface DipsFlightProhibitedAreaSearchInput {
+  centerLongitude: number;
+  centerLatitude: number;
+  radiusMeters: number;
+  flightProhibitedAreaTypeIds: number[];
+}
+
+export interface FetchDipsFlightProhibitedAreasResult {
+  areas: DipsFlightProhibitedAreaInfo[];
+  /** サーバー側でパースに失敗した件数とクライアント側の DTO 検証で落とした件数の合算
+   * (fetchDipsOwnedAircrafts/fetchDipsPermissions と同じ合算方針) */
+  excludedCount: number;
+}
+
+const AreaGeometryDtoSchema = z.object({
+  type: z.enum(["Circle", "Polygon"]),
+  center: z.array(z.number()),
+  radius: z.number(),
+  coordinates: z.array(z.array(z.number())),
+}) satisfies z.ZodType<DipsAreaGeometry>;
+
+type _AssertAreaGeometryDtoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof AreaGeometryDtoSchema>, DipsAreaGeometry>
+>;
+
+const DipsFlightProhibitedAreaInfoSchema = z.object({
+  areaId: z.string(),
+  name: z.string(),
+  detail: z.string(),
+  url: z.string(),
+  areaTypeId: z.number(),
+  startTime: z.string(),
+  finishTime: z.string(),
+  range: AreaGeometryDtoSchema,
+}) satisfies z.ZodType<DipsFlightProhibitedAreaInfo>;
+
+type _AssertDipsFlightProhibitedAreaInfoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsFlightProhibitedAreaInfoSchema>, DipsFlightProhibitedAreaInfo>
+>;
+
+/**
+ * DIPS 飛行禁止エリア情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
+ */
+function parseProhibitedAreas(rawAreas: unknown): {
+  areas: DipsFlightProhibitedAreaInfo[];
+  excludedCount: number;
+} {
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawAreas,
+    DipsFlightProhibitedAreaInfoSchema,
+    "DIPS飛行禁止エリア情報"
+  );
+  return { areas: entries, excludedCount };
+}
+
+/**
+ * DIPS 飛行禁止エリア情報を検索する (5-5)。トークン未取得・失効 (401 authRequired) の
+ * 場合は DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている場合は
+ * AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ */
+export async function searchDipsFlightProhibitedAreas(
+  input: DipsFlightProhibitedAreaSearchInput
+): Promise<FetchDipsFlightProhibitedAreasResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/dips/flight-prohibited-areas/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new Error("DIPS飛行禁止エリア情報の取得に失敗しました。ネットワーク接続を確認してください");
+  }
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & {
+        areas?: unknown;
+        excludedCount?: number;
+      })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "fpl");
+  }
+
+  if (res.status === 401) {
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS飛行禁止エリア情報の取得に失敗しました");
+  }
+
+  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
+  const { areas, excludedCount: clientExcludedCount } = parseProhibitedAreas(body?.areas);
+
+  return {
+    areas,
     excludedCount: serverExcludedCount + clientExcludedCount,
   };
 }

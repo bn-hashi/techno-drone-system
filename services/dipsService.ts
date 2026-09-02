@@ -2,6 +2,8 @@ import type { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsRealm } from "@/lib/dips/config";
 import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
+import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
+import type { DipsFlightProhibitedAreaSearchInput } from "@/lib/dips/flightProhibitedAreaSearchInputSchema";
 import type {
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
@@ -116,6 +118,26 @@ export class DipsService {
    */
   async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
     return this.apiClient.fetchPermissions(userId);
+  }
+
+  /**
+   * 飛行禁止エリア情報を検索する (パススルー)。
+   * 正規化 (寛容パース・エントリ単位のフォールバック) は DipsApiClient.searchFlightProhibitedAreas()
+   * が境界で行う。フォーム入力 (フラットな座標・種別コード配列) から DIPS のリクエスト形
+   * (features + flightProhibitedAreaTypeIds) への変換もここで行う。
+   */
+  async searchFlightProhibitedAreas(
+    userId: string,
+    input: DipsFlightProhibitedAreaSearchInput
+  ): Promise<NormalizeFlightProhibitedAreasResult> {
+    return this.apiClient.searchFlightProhibitedAreas(userId, {
+      features: {
+        type: "Circle",
+        center: [input.centerLongitude, input.centerLatitude],
+        radius: input.radiusMeters,
+      },
+      flightProhibitedAreaTypeIds: input.flightProhibitedAreaTypeIds,
+    });
   }
 
   /**

@@ -51,6 +51,7 @@ route.ts (Controller)
 | `POST /api/flight/plans/[id]/dips-notify` | 飛行計画を飛行計画通報受付 API へ通報 |
 | `GET /api/dips/aircrafts` | DIPS ログイン済みアカウントの所有機体一覧を取得 (機体情報一覧取得 API)。クエリ `includeInvalid=true` で抹消済み・期限切れも含める |
 | `GET /api/dips/permissions` | DIPS ログイン済みアカウントの許可・承認情報一覧を取得 (許可・承認情報取得 API, realm `req`)。UI は `/flight/dips-permissions` (ナビ未リンク。直接 URL でアクセス) |
+| `POST /api/dips/flight-prohibited-areas/search` | 飛行禁止エリア情報を検索 (飛行禁止エリア情報取得 API, realm `fpl`)。中心点・半径 (Circle) とエリア種別で検索。UI は `/flight/dips-flight-prohibited-areas` (ナビ未リンク) |
 
 `requireFlightAccess` (ADMIN/PILOT)。`GET /api/dips/aircrafts` は所有者チェックの概念がなく、
 DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
@@ -61,6 +62,15 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 > `lib/dips/permissionsSchema.ts` のファイル先頭コメントを参照。5-3 (許可・承認申請受付) /
 > 5-4 (飛行計画情報取得) / 5-5 (飛行禁止エリア情報取得) は未実装のまま
 > (`lib/dips/endpoints.ts` に URL・realm の定義のみ存在)。
+>
+> **2026-09-02 追記**: 飛行禁止エリア情報取得 API (5-5) を実装した (上表参照)。DIPS 本体は
+> POST + 検索条件ボディ (features: Circle/Polygon のジオメトリ, flightProhibitedAreaInfo:
+> エリア種別配列) のため、本システムの内部ルートも POST とした。本システムは Circle
+> (中心点+半径) のみサポートする (Polygon は構成点配列の入力が UI 上複雑になるため
+> 意図的に対象外。詳細は `lib/dips/types.ts` の `DipsCircleSearchFeature` コメント参照)。
+> 個人情報を一切含まないレスポンスのため PII 遮断のための寛容化は不要。5-3/5-4 は
+> 引き続き未実装 (ガイドライン本体は取得済み。`lib/dips/types.ts` に型定義のみ先行して
+> 追加済み)。
 >
 > **2026-08-26 差し戻し**: 実機検証 (Playwright) で疎通確認 UI の不具合4件
 > (再マウント後の1回目クリックで fetch されない・意図しない自動再取得・不正な200が
@@ -107,7 +117,12 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 
 1. **エンドポイントパス** (`lib/dips/endpoints.ts`) — 全パスが暫定値
 2. **飛行計画通報のペイロード形式** (`lib/dips/types.ts` の `DipsFlightPlanNotificationPayload`)
-3. **飛行計画情報取得・飛行禁止エリアのレスポンス型** — 現状 `unknown`
+
+> **2026-09-02 追記**: 「飛行計画情報取得・飛行禁止エリアのレスポンス型が `unknown`」だった
+> 項目は解消した。DIPS2.0 API(FPR) ガイドライン v1.9 本体 (公開 PDF) を取得し §2.3.6/2.3.7
+> の全項目を突合して `lib/dips/types.ts` の `DipsFlightPlanInfo` / `DipsFlightProhibitedAreaInfo`
+> を定義した (5-5 は実装済み。5-4 は型定義のみ先行)。エンドポイントパス
+> (`lib/dips/endpoints.ts`) も同ガイドラインの実パスと一致することを確認済み。
 
 > **訂正 (2026-07-28)**: 以前ここにあった「OIDC グラント種別 (`lib/dips/oidcClient.ts`) —
 > `client_credentials` を仮定」は誤りだったため上記リストから除外した。3本の公開ガイドライン

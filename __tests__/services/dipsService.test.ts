@@ -61,6 +61,7 @@ const mockApiClient = (): DipsApiClient =>
     fetchPermissions: vi.fn(),
     notifyFlightPlan: vi.fn(),
     fetchAircraftList: vi.fn(),
+    searchFlightProhibitedAreas: vi.fn(),
   }) as unknown as DipsApiClient;
 
 const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
@@ -351,6 +352,28 @@ describe("DipsService", () => {
 
       expect(result).toEqual(response);
       expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
+    });
+  });
+
+  // ─── searchFlightProhibitedAreas ────────────────────────────────────────────
+
+  describe("searchFlightProhibitedAreas", () => {
+    it("test_maps_flat_form_input_into_circle_feature_and_area_type_ids", async () => {
+      const response = { areas: [], excludedCount: 0 };
+      vi.mocked(apiClient.searchFlightProhibitedAreas).mockResolvedValue(response);
+
+      const result = await service.searchFlightProhibitedAreas("user-1", {
+        centerLongitude: 139.7686,
+        centerLatitude: 35.6803,
+        radiusMeters: 1000,
+        flightProhibitedAreaTypeIds: [5, 6],
+      });
+
+      expect(result).toEqual(response);
+      expect(apiClient.searchFlightProhibitedAreas).toHaveBeenCalledWith("user-1", {
+        features: { type: "Circle", center: [139.7686, 35.6803], radius: 1000 },
+        flightProhibitedAreaTypeIds: [5, 6],
+      });
     });
   });
 

@@ -143,6 +143,76 @@ describe("DipsApiClient", () => {
     }).toEqual({ receptionNumbers: ["P000000001"], excludedCount: 1 });
   });
 
+  // ─── searchFlightProhibitedAreas (fpl realm / fpr base) ──────────────────────
+
+  const validAreaEntry = {
+    flightProhibitedAreaId: "20221105_FISSikou0015",
+    name: "東京国際空港 空港の区域",
+    range: { type: "Polygon", coordinates: [[139.779031, 35.569748]], center: [], radius: 0 },
+    detail: "小型無人機等飛行禁止法に基づく飛行禁止空域",
+    url: "https://www.mlit.go.jp/koku/koku_tk2_000023.html",
+    flightProhibitedAreaTypeId: 5,
+    startTime: "2022-10-01T09:00:00",
+    finishTime: "9999-12-31T23:59:00",
+  };
+
+  const sampleAreaSearchRequest = {
+    features: { type: "Circle" as const, center: [139.7686, 35.6803] as [number, number], radius: 1000 },
+    flightProhibitedAreaTypeIds: [5, 6],
+  };
+
+  it("test_searchFlightProhibitedAreas_requests_fpr_prohibited_area_search_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://fpr-api.dips.example.test/api/flight-prohibited-area/search");
+  });
+
+  it("test_searchFlightProhibitedAreas_uses_fpl_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "fpl");
+  });
+
+  it("test_searchFlightProhibitedAreas_nests_area_type_ids_under_flightProhibitedAreaInfo", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [] }));
+
+    await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      features: sampleAreaSearchRequest.features,
+      flightProhibitedAreaInfo: { flightProhibitedAreaTypeId: [5, 6] },
+    });
+  });
+
+  it("test_searchFlightProhibitedAreas_returns_normalized_areas", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightProhibitedAreaInfo: [validAreaEntry] }));
+
+    const result = await makeClient().searchFlightProhibitedAreas("user-1", sampleAreaSearchRequest);
+
+    expect(result).toEqual({
+      areas: [
+        {
+          areaId: "20221105_FISSikou0015",
+          name: "東京国際空港 空港の区域",
+          detail: "小型無人機等飛行禁止法に基づく飛行禁止空域",
+          url: "https://www.mlit.go.jp/koku/koku_tk2_000023.html",
+          areaTypeId: 5,
+          startTime: "2022-10-01T09:00:00",
+          finishTime: "9999-12-31T23:59:00",
+          range: validAreaEntry.range,
+        },
+      ],
+      excludedCount: 0,
+    });
+  });
+
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────
 
   it("test_notifyFlightPlan_requests_fpr_register_url", async () => {
