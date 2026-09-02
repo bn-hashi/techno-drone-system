@@ -8,6 +8,7 @@ import {
   DipsApiError,
   DipsAuthRequiredError,
 } from "@/lib/dips/errors";
+import type { DipsRealm } from "@/lib/dips/config";
 
 vi.mock("@/lib/auth/requireFlightAccess", () => ({
   requireFlightAccess: vi.fn(),
@@ -86,9 +87,14 @@ describe("GET /api/dips/aircrafts", () => {
     // (ずれると無限ログインループになる)。許可・承認情報取得側 (req-009) は既に
     // 修正済みだったが、機体情報一覧取得側は素通りしていた事故の再発防止 (req-010)。
     // ここでは意図的に異なる realm を投げ、レスポンスがそれをそのまま反映することを
-    // 確認する (ハードコードなら "utm" のまま失敗するはず)
+    // 確認する (ハードコードなら "utm" のまま失敗するはず)。
+    // `as DipsRealm` は本テストの意図 (DipsRealm 以外の値でもハードコードされず素通りする
+    // ことの確認) のためだけの型キャストで、2026-09-02 差し戻し H3 で
+    // `DipsAuthRequiredError` の realm を `DipsRealm` に絞ったことに伴う
     vi.mocked(requireFlightAccess).mockResolvedValue(authorized);
-    mockListOwnedAircrafts.mockRejectedValue(new DipsAuthRequiredError("utm-drift-test"));
+    mockListOwnedAircrafts.mockRejectedValue(
+      new DipsAuthRequiredError("utm-drift-test" as DipsRealm)
+    );
 
     const response = await GET(makeRequest());
     const body = await response.json();

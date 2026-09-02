@@ -1,3 +1,5 @@
+import type { DipsRealm } from "@/lib/dips/config";
+
 /** DIPS 連携が無効 (DIPS_ENABLED !== "true") の状態で連携機能を呼び出した */
 export class DipsDisabledError extends Error {
   constructor() {
@@ -21,9 +23,17 @@ export class DipsConfigError extends Error {
  * コンストラクタ引数のまま握りつぶしていたため、呼び出し元の API ルートが自前で
  * realm をハードコードしてしまい、realm がずれると無限ログインループになる事故が
  * あった)。呼び出し元は `error.realm` を使うこと。
+ *
+ * `realm` の型を `string` ではなく `DipsRealm` に絞る (2026-09-02 差し戻し H3):
+ * `/api/dips/auth/start` の `parseRealmParam` は未知の realm を黙って既定値 `fpl` に
+ * フォールバックする (`isDipsRealm` によるガードがあるため安全) が、`realm: string` の
+ * ままだと将来別の呼び出し元がガードを経ずに未検証の文字列 (タイポ・新ルート追加時の
+ * 実装ミス等) をそのまま渡してもコンパイルが通ってしまい、D1 と同種の無限ログイン
+ * ループがビルドを通ったまま再現しうる。`DipsRealm` に絞ることで、`isDipsRealm` 等の
+ * 型ガードを経ていない文字列を渡すコードをコンパイル時に検出できるようにする。
  */
 export class DipsAuthRequiredError extends Error {
-  constructor(readonly realm: string) {
+  constructor(readonly realm: DipsRealm) {
     super(`DIPSへのログインが必要です (realm: ${realm})`);
     this.name = "DipsAuthRequiredError";
   }

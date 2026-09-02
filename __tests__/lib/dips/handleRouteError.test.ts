@@ -8,6 +8,7 @@ import {
   DipsApiError,
   DipsAuthRequiredError,
 } from "@/lib/dips/errors";
+import type { DipsRealm } from "@/lib/dips/config";
 import { logger } from "@/lib/logger";
 
 /**
@@ -43,11 +44,16 @@ describe("handleDipsRouteError", () => {
   it("test_never_overrides_realm_with_a_hardcoded_value", async () => {
     // D1 差し戻しの回帰テスト: realm は必ず error.realm を使い、呼び出し側の label/route が
     // 何であっても realm を決め打ちしない (機体情報一覧取得側が realm: "utm" を
-    // ハードコードしていた事故の再発防止)
-    const response = handleDipsRouteError(new DipsAuthRequiredError("any-realm-value"), {
-      route: "GET /api/dips/aircrafts",
-      label: "機体情報一覧",
-    });
+    // ハードコードしていた事故の再発防止)。
+    // `as DipsRealm` は本テストの意図のためだけの型キャストで、2026-09-02 差し戻し H3 で
+    // `DipsAuthRequiredError` の realm を `DipsRealm` に絞ったことに伴う
+    const response = handleDipsRouteError(
+      new DipsAuthRequiredError("any-realm-value" as DipsRealm),
+      {
+        route: "GET /api/dips/aircrafts",
+        label: "機体情報一覧",
+      }
+    );
     const body = await response.json();
 
     expect(body.realm).toBe("any-realm-value");
