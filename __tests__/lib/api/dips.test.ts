@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   fetchDipsOwnedAircrafts,
+  fetchDipsPermissions,
   unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
-import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
+import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/api/dips";
 
 const validAircraft: DipsOwnedAircraftDto = {
   registrationCode: "DUMMY0000001",
@@ -180,6 +181,185 @@ describe("fetchDipsOwnedAircrafts", () => {
 
     await expect(fetchDipsOwnedAircrafts()).rejects.toThrow(
       "DIPS機体情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+});
+
+const validPermission: DipsPermissionInfo = {
+  permissionNumber: "東空運航TEST01",
+  permissionNumber2: null,
+  receptionNumber: "P000000001",
+  permissionDate: "2026-01-01",
+  permissionPeriodStart: "2026-01-01",
+  permissionPeriodEnd: "2026-12-31",
+  flightLocation: "テスト県テスト市",
+  flightRoutes: [{ routeName: "テスト経路", routeLatlons: ["000000 0000000"] }],
+  aboveDenselyInhabitedDistricts: true,
+  moreThan150mAboveTheGround: false,
+  aroundAirports: false,
+  lessThan30m: false,
+  overEventSites: false,
+  nightOperation: false,
+  beyondVisualLineOfSight: false,
+  transportHazardousMaterials: false,
+  dropObjects: false,
+  uaInfos: [{ uaMaker: "テスト製造者", uaName: "テスト型式", regSymbol: "999999999999" }],
+};
+
+describe("fetchDipsPermissions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_fetchDipsPermissions_returns_permissions_on_success", async () => {
+    mockFetchJson({ permissions: [validPermission], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([validPermission]);
+  });
+
+  it("test_fetchDipsPermissions_propagates_excluded_count_from_response", async () => {
+    mockFetchJson({ permissions: [validPermission], excludedCount: 2 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(2);
+  });
+
+  it("test_fetchDipsPermissions_defaults_excluded_count_to_zero_when_omitted", async () => {
+    mockFetchJson({ permissions: [validPermission] });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_fetchDipsPermissions_throws_when_response_shape_is_invalid", async () => {
+    // A3 差し戻し: 以前は permissions キーが省略された 200 応答 (キー名違い・非 JSON 応答
+    // の両方で起こりうる) を `?? []` で静かに「0件」扱いにしていた。fetchDipsOwnedAircrafts
+    // の parseOwnedAircrafts と同じ強度で、キー欠落もエラーとして表面化させる
+    mockFetchJson({});
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_throws_when_permissions_is_not_an_array", async () => {
+    mockFetchJson({ permissions: "not-an-array" });
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_throws_when_response_body_is_not_json", async () => {
+    // 実機検証 (2026-08-19) 再現: 200 だが本文が非 JSON (<html>502...) のとき、
+    // res.json() が失敗して body が null になり、以前は「0件」として静かに成功していた
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+      })
+    );
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_fetchDipsPermissions_keeps_permission_with_null_permission_date", async () => {
+    // F5 差し戻し: permissionDate は画面に表示しないフィールドのため、サーバー側が
+    // 想定外の型を null に丸めて返した場合に、クライアント側の再検証 (A3) が
+    // それを不正な値として弾いて除外してしまわないことを確認する
+    const permissionWithNullDate = { ...validPermission, permissionDate: null };
+    mockFetchJson({ permissions: [permissionWithNullDate], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([permissionWithNullDate]);
+  });
+
+  it("test_fetchDipsPermissions_drops_only_the_entry_that_fails_client_side_validation", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.permissions).toEqual([validPermission]);
+  });
+
+  it("test_fetchDipsPermissions_counts_client_side_validation_failure_in_excluded_count", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 0 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(1);
+  });
+
+  it("test_fetchDipsPermissions_adds_client_side_excluded_count_to_server_side_excluded_count", async () => {
+    const invalidPermission = { ...validPermission, receptionNumber: 12345 };
+    mockFetchJson({ permissions: [validPermission, invalidPermission], excludedCount: 2 });
+
+    const result = await fetchDipsPermissions();
+
+    expect(result.excludedCount).toBe(3);
+  });
+
+  it("test_fetchDipsPermissions_throws_auth_required_error_with_req_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    await expect(fetchDipsPermissions()).rejects.toBeInstanceOf(DipsAuthRequiredClientError);
+  });
+
+  it("test_fetchDipsPermissions_auth_required_error_carries_realm_from_response", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "req" }, 401);
+
+    // D3 差し戻し: 以前は .catch() 内で expect していたため、promise が resolve すると
+    // アサーション0件のまま緑になっていた。他のテストと同じ rejects.toMatchObject に直す
+    await expect(fetchDipsPermissions()).rejects.toMatchObject({ realm: "req" });
+  });
+
+  it("test_fetchDipsPermissions_throws_app_session_expired_error_on_plain_401", async () => {
+    // requireFlightAccess() が返す素の 401 ({ error: "Unauthorized" }、authRequired なし) は
+    // DIPS の再認可ではなくアプリ自体のセッション切れ
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(fetchDipsPermissions()).rejects.toBeInstanceOf(AppSessionExpiredClientError);
+  });
+
+  it("test_fetchDipsPermissions_throws_japanese_message_on_403", async () => {
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("この操作を行う権限がありません");
+  });
+
+  it("test_fetchDipsPermissions_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "DIPS連携でエラーが発生しました" }, 502);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("DIPS連携でエラーが発生しました");
+  });
+
+  it("test_fetchDipsPermissions_throws_default_message_when_error_body_is_missing_on_failure", async () => {
+    mockFetchJson({}, 502);
+
+    await expect(fetchDipsPermissions()).rejects.toThrow("DIPS許可・承認情報の取得に失敗しました");
+  });
+
+  it("test_fetchDipsPermissions_throws_japanese_message_when_fetch_itself_fails", async () => {
+    // D4 差し戻し: fetch() 自体がネットワーク断等で失敗すると、ブラウザの生の TypeError
+    // ("Failed to fetch") がそのまま画面に出ていた。日本語メッセージに正規化する
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))
+    );
+
+    await expect(fetchDipsPermissions()).rejects.toThrow(
+      "DIPS許可・承認情報の取得に失敗しました。ネットワーク接続を確認してください"
     );
   });
 });

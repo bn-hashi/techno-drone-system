@@ -2,7 +2,7 @@
  * DIPS 連携のクライアント API ヘルパー
  */
 import { z } from "zod";
-import type { DipsOwnedAircraftDto } from "@/lib/dips/types";
+import type { DipsOwnedAircraftDto, DipsPermissionInfo } from "@/lib/dips/types";
 
 export interface DipsNotificationInput {
   flightPurpose: number[];
@@ -224,6 +224,153 @@ export async function fetchDipsOwnedAircrafts(
 
   return {
     aircrafts,
+    excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 許可・承認情報取得 ─────────────────────────────────────────────────────
+
+/**
+ * DIPS 許可・承認情報。所有者・使用者等の個人情報は含まない。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける
+ * (機体情報一覧取得の DipsOwnedAircraftDto と同じ方針)。
+ */
+export type { DipsPermissionInfo };
+
+export interface FetchDipsPermissionsResult {
+  permissions: DipsPermissionInfo[];
+  /**
+   * 除外された許可の件数。サーバー側 (permissionsSchema.ts) でパースに失敗した件数と、
+   * クライアント側の DTO 検証で落とした件数の合算 (fetchDipsOwnedAircrafts の
+   * excludedCount と同じ合算方針。2026-08-10 差し戻しの教訓を踏襲)
+   */
+  excludedCount: number;
+}
+
+interface ParsePermissionsResult {
+  permissions: DipsPermissionInfo[];
+  /** クライアント側の DTO 検証で落とした件数 */
+  excludedCount: number;
+}
+
+/**
+ * DIPS 許可・承認情報の DTO 検証スキーマ (クライアント境界)。サーバー側
+ * (lib/dips/permissionsSchema.ts) が正規化済みの JSON を返す前提だが、そこを信頼しきって
+ * 再検証を省略していたことが A3 差し戻しの原因だった (キー名違い・非 JSON レスポンスの
+ * 両方で、検証されないまま「0件」として静かに成功していた)。fetchDipsOwnedAircrafts の
+ * parseOwnedAircrafts と同じ強度で、要素単位に safeParse する。
+ */
+const FlightRouteDtoSchema = z.object({
+  routeName: z.string(),
+  routeLatlons: z.array(z.string()),
+});
+
+const UaInfoDtoSchema = z.object({
+  uaMaker: z.string(),
+  uaName: z.string(),
+  regSymbol: z.string(),
+});
+
+const DipsPermissionInfoSchema = z.object({
+  permissionNumber: z.string(),
+  permissionNumber2: z.string().nullable(),
+  receptionNumber: z.string(),
+  // 画面に表示しないフィールドのため null を許容する (サーバー側 permissionsSchema.ts の
+  // unusedDisplayString と同じ寛容度。2026-08-28 差し戻し F5)
+  permissionDate: z.string().nullable(),
+  permissionPeriodStart: z.string(),
+  permissionPeriodEnd: z.string(),
+  flightLocation: z.string(),
+  flightRoutes: z.array(FlightRouteDtoSchema),
+  aboveDenselyInhabitedDistricts: z.boolean(),
+  moreThan150mAboveTheGround: z.boolean(),
+  aroundAirports: z.boolean(),
+  lessThan30m: z.boolean(),
+  overEventSites: z.boolean(),
+  nightOperation: z.boolean(),
+  beyondVisualLineOfSight: z.boolean(),
+  transportHazardousMaterials: z.boolean(),
+  dropObjects: z.boolean(),
+  uaInfos: z.array(UaInfoDtoSchema),
+});
+
+/**
+ * DIPS 許可・承認情報の配列を1件ずつ検証する。配列全体を safeParse すると1件の DTO 検証
+ * 失敗で全件を失ってしまうため (parseOwnedAircrafts と同じ理由)、要素ごとに safeParse して
+ * パースできた許可だけを返す。`rawPermissions` 自体が配列でない (キー名違い・非 JSON 応答等)
+ * 場合はエラーを投げる (A3 差し戻し: 以前はここで `?? []` により静かに0件へフォールバック
+ * していた)。
+ */
+function parsePermissions(rawPermissions: unknown): ParsePermissionsResult {
+  const arrayResult = z.array(z.unknown()).safeParse(rawPermissions);
+  if (!arrayResult.success) {
+    throw new Error("DIPS許可・承認情報の取得に失敗しました: レスポンスの形式が不正です");
+  }
+  const permissions: DipsPermissionInfo[] = [];
+  let excludedCount = 0;
+  for (const rawEntry of arrayResult.data) {
+    const result = DipsPermissionInfoSchema.safeParse(rawEntry);
+    if (result.success) {
+      permissions.push(result.data);
+    } else {
+      excludedCount += 1;
+    }
+  }
+  return { permissions, excludedCount };
+}
+
+/**
+ * DIPS ログイン済みアカウントの許可・承認情報一覧を取得する。
+ * トークン未取得・失効 (401 authRequired) の場合は DipsAuthRequiredClientError を投げる。
+ * アプリ自体のセッションが切れている場合は AppSessionExpiredClientError を投げる
+ * (fetchDipsOwnedAircrafts と同じ区別)。
+ *
+ * レスポンスはサーバー側 (lib/dips/permissionsSchema.ts) が既に検証・正規化済みだが、
+ * それを信頼しきってクライアント側の再検証を省略していたことが A3 差し戻しの原因
+ * だったため (キー名違い・非 JSON レスポンスの両方で「0件」として静かに成功していた)、
+ * fetchDipsOwnedAircrafts の parseOwnedAircrafts と同じ強度で境界検証する。
+ */
+export async function fetchDipsPermissions(): Promise<FetchDipsPermissionsResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/dips/permissions");
+  } catch {
+    // fetch() 自体が失敗した場合 (ネットワーク接続不可等) の TypeError は英語のまま
+    // 画面に出てしまう (D4 差し戻し)。ここで日本語メッセージに正規化する
+    throw new Error("DIPS許可・承認情報の取得に失敗しました。ネットワーク接続を確認してください");
+  }
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & {
+        permissions?: unknown;
+        excludedCount?: number;
+      })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "req");
+  }
+
+  if (res.status === 401) {
+    // requireFlightAccess() が返す素の 401 (英語 "Unauthorized") はアプリ自体のセッション
+    // 切れ。DIPS 再認可 (authRequired) とは別物のため専用エラーで区別する
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    // requireFlightAccess() が返す素の 403 (英語 "Forbidden") をそのまま表示しない
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS許可・承認情報の取得に失敗しました");
+  }
+
+  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
+  const { permissions, excludedCount: clientExcludedCount } = parsePermissions(body?.permissions);
+
+  return {
+    permissions,
     excludedCount: serverExcludedCount + clientExcludedCount,
   };
 }

@@ -6,8 +6,9 @@ import type { DipsEndpoint } from "@/lib/dips/endpoints";
 import { DipsApiError } from "@/lib/dips/errors";
 import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
 import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
+import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchema";
+import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
 import type {
-  DipsPermissionsResponse,
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
 } from "@/lib/dips/types";
@@ -34,9 +35,15 @@ export class DipsApiClient {
     private readonly fetchFn: typeof fetch = fetch
   ) {}
 
-  /** 許可・承認情報取得 (req realm) */
-  async fetchPermissions(userId: string): Promise<DipsPermissionsResponse> {
-    return this.request<DipsPermissionsResponse>(userId, DIPS_ENDPOINTS.permissionList);
+  /**
+   * 許可・承認情報取得 (req realm)。レスポンスは境界で検証・正規化してから返す
+   * (機体情報一覧取得 (fetchAircraftList) と同じ構造。lib/dips/permissionsSchema.ts 参照)。
+   * `excludedCount` はパースに失敗して除外した許可の件数 (機体情報一覧取得の C3 対応と
+   * 同じ考え方。UI が「除外があったのに0件と表示する」誤表示を避けるために使う)。
+   */
+  async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.permissionList);
+    return normalizePermissionsWithDiagnostics(raw);
   }
 
   /** 飛行計画通報受付 (fpl realm) */

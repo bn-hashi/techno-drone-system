@@ -14,9 +14,16 @@ export class DipsConfigError extends Error {
   }
 }
 
-/** DIPS へのユーザーログイン (認可コードフロー) が必要。UI はログイン誘導を表示する */
+/**
+ * DIPS へのユーザーログイン (認可コードフロー) が必要。UI はログイン誘導を表示する。
+ *
+ * `realm` を `readonly` プロパティとして保持する (2026-08-26 差し戻し D1: 以前は
+ * コンストラクタ引数のまま握りつぶしていたため、呼び出し元の API ルートが自前で
+ * realm をハードコードしてしまい、realm がずれると無限ログインループになる事故が
+ * あった)。呼び出し元は `error.realm` を使うこと。
+ */
 export class DipsAuthRequiredError extends Error {
-  constructor(realm: string) {
+  constructor(readonly realm: string) {
     super(`DIPSへのログインが必要です (realm: ${realm})`);
     this.name = "DipsAuthRequiredError";
   }
