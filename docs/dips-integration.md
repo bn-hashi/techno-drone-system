@@ -34,7 +34,15 @@ route.ts (Controller)
 
 - `DIPS_ENABLED !== "true"` の場合、`getDipsService()` は `DipsDisabledError` を投げ、
   API ルートは **503** を返す (ローカル開発のデフォルト状態)
-- DIPS 由来のエラー (`DipsAuthError` / `DipsApiError` / `DipsConfigError`) は **502**
+- `DipsConfigError` (自システムの環境変数不足。DIPS 側の障害ではない) は **503** を返す
+- DIPS 側のエラー (`DipsAuthError` / `DipsApiError`) は **502** を返す
+- 2026-09-02 差し戻し (H2) までは本項に「`DipsAuthError` / `DipsApiError` /
+  `DipsConfigError` は502」と誤って一括で記載していた。実装 (`lib/dips/handleRouteError.ts`)
+  は当初から `DipsConfigError` を503・`DipsAuthError`/`DipsApiError` を502と区別しており
+  (docs/production-operations-runbook.md の切り分け表 1-8/1-9 と一致)、本項の記載が古かった。
+  なお H2 で `app/api/flight/plans/[id]/dips-notify/route.ts` (飛行計画通報) も同じ共通
+  ハンドラへ移行し、この区別を全 DIPS 連携ルートで統一した (移行前はこのルートだけ
+  `DipsConfigError` を502で返しており、本項の誤記載と実際に一致してしまっていた)
 
 ## API ルート
 

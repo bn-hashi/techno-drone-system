@@ -2,15 +2,8 @@ import { NextResponse } from "next/server";
 import { getDipsService } from "@/lib/serviceFactory";
 import { requireFlightAccess } from "@/lib/auth/requireFlightAccess";
 import { AircraftNotFoundError, FlightPlanNotFoundError, BusinessError } from "@/services/errors";
-import {
-  DipsDisabledError,
-  DipsConfigError,
-  DipsAuthError,
-  DipsApiError,
-  DipsAuthRequiredError,
-} from "@/lib/dips/errors";
 import { DipsNotifyInputSchema } from "@/lib/dips/notifyInputSchema";
-import { logger } from "@/lib/logger";
+import { handleDipsRouteError } from "@/lib/dips/handleRouteError";
 
 interface RouteContext {
   params: { id: string };
@@ -36,37 +29,23 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     });
     return NextResponse.json({ result }, { status: 200 });
   } catch (error) {
-    if (error instanceof DipsDisabledError) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
-    }
-    // トークン未取得・失効: UI にログイン誘導させるため専用フラグを返す
-    if (error instanceof DipsAuthRequiredError) {
-      return NextResponse.json(
-        { error: error.message, authRequired: true, realm: "fpl" },
-        { status: 401 }
-      );
-    }
     if (error instanceof FlightPlanNotFoundError || error instanceof AircraftNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
     if (error instanceof BusinessError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    if (
-      error instanceof DipsConfigError ||
-      error instanceof DipsAuthError ||
-      error instanceof DipsApiError
-    ) {
-      logger.error("DIPS飛行計画通報に失敗しました", error, {
-        route: "POST /api/flight/plans/[id]/dips-notify",
-        id,
-      });
-      return NextResponse.json({ error: "DIPS連携でエラーが発生しました" }, { status: 502 });
-    }
-    logger.error("飛行計画通報で内部エラーが発生しました", error, {
+    // DIPS 連携由来のエラー (Disabled/AuthRequired/Config/Auth/Api) とそれ以外の内部エラーは
+    // 共通ハンドラへ委譲する (2026-09-02 差し戻し H2: このルートだけ独自 catch ブロックの
+    // コピーが残っており、`DipsConfigError` を502で返す・realmを"fpl"にハードコードする等
+    // 共通ハンドラ (aircrafts/permissions が既に移行済み) と分岐そのものが乖離していた)。
+    // `actionVerb: ""` と `extraContext: { id }` で、移行前と同じログ文言
+    // ("DIPS飛行計画通報に失敗しました" 等) と飛行計画 ID の記録を維持する。
+    return handleDipsRouteError(error, {
       route: "POST /api/flight/plans/[id]/dips-notify",
-      id,
+      label: "飛行計画通報",
+      actionVerb: "",
+      extraContext: { id },
     });
-    return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
   }
 }

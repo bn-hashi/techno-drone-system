@@ -103,6 +103,34 @@ describe("handleDipsRouteError", () => {
     });
   });
 
+  it("test_omits_the_default_action_verb_when_action_verb_is_overridden_with_empty_string", async () => {
+    // 2026-09-02 差し戻し H2: 飛行計画通報ルート (POST) は「取得」がなじまないため、
+    // actionVerb: "" で動詞なしのログ文言 (移行前と同じ "DIPS飛行計画通報に失敗しました")
+    // にできることを確認する
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed");
+
+    handleDipsRouteError(error, { route: "POST /api/example", label: "サンプル通報", actionVerb: "" });
+
+    expect(spy).toHaveBeenCalledWith("DIPSサンプル通報に失敗しました", error, {
+      route: "POST /api/example",
+    });
+  });
+
+  it("test_merges_extra_context_into_the_logged_context", async () => {
+    // extraContext (例: 飛行計画通報ルートの飛行計画 ID) がログの context に含まれ、
+    // route を上書きしないことを確認する
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed");
+
+    handleDipsRouteError(error, { ...options, extraContext: { id: "plan-1" } });
+
+    expect(spy).toHaveBeenCalledWith(expect.any(String), error, {
+      route: options.route,
+      id: "plan-1",
+    });
+  });
+
   it("test_client_facing_error_body_never_contains_the_label", async () => {
     // 対象名 (label) はログ専用で、クライアントに返す error メッセージには含めない
     // (機体一覧取得/許可情報取得の既存レスポンス文言 "DIPS連携でエラーが発生しました" 等を

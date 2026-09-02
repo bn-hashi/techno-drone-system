@@ -17,16 +17,37 @@ import { logger } from "@/lib/logger";
  * (2026-08-28 段階2共通化)。新しい DIPS API ルートを追加するときは、この関数へ
  * `route` (構造化ログの route フィールド) と `label` (エラーメッセージ用の対象名) を
  * 渡すだけで済む。
+ *
+ * 2026-09-02 差し戻し (H2): `app/api/flight/plans/[id]/dips-notify/route.ts` (飛行計画通報)
+ * の catch ブロックが段階2共通化の移行漏れで独自コピーのまま残っており、
+ * `DipsConfigError` を502で返す・realmを"fpl"にハードコードするなど分岐そのものが
+ * 乖離していた ("片方だけ直る" 事故そのもの)。ここへ移行し、`actionVerb` /
+ * `extraContext` オプションで POST 系ルート特有の文言・ログ項目 (飛行計画 ID) を維持できる
+ * ようにした。
  */
 export interface HandleDipsRouteErrorOptions {
   /** 構造化ログの route フィールド (例: "GET /api/dips/aircrafts") */
   route: string;
   /**
    * エラーメッセージに使う対象名 ("DIPS" 接頭辞は含めない。例: "機体情報一覧" /
-   * "許可・承認情報")。`DIPS${label}取得に失敗しました` / `${label}取得で内部エラーが
-   * 発生しました` の2箇所に埋め込む。
+   * "許可・承認情報")。`DIPS${label}${actionVerb}に失敗しました` /
+   * `${label}${actionVerb}で内部エラーが発生しました` の2箇所に埋め込む。
    */
   label: string;
+  /**
+   * ログメッセージに使う動詞 (既定: "取得")。`GET /api/dips/*` 系は情報取得なので既定の
+   * ままでよいが、飛行計画通報のような POST 系ルートでは「取得」がなじまない
+   * (2026-09-02 差し戻し H2: 飛行計画通報ルートを共通ハンドラへ移行する際、既定のままだと
+   * "DIPS飛行計画通報取得に失敗しました" という不自然な文言になり、
+   * docs/production-operations-runbook.md が参照する既存ログ文言
+   * ("DIPS飛行計画通報に失敗しました") とも一致しなくなる)。空文字を渡すと動詞なしになる。
+   */
+  actionVerb?: string;
+  /**
+   * ログの context に追加で含めるフィールド (例: 飛行計画通報ルートの飛行計画 ID)。
+   * `route` と同じく PII を含めないこと。
+   */
+  extraContext?: Record<string, unknown>;
 }
 
 /**
@@ -48,8 +69,10 @@ export interface HandleDipsRouteErrorOptions {
  */
 export function handleDipsRouteError(
   error: unknown,
-  { route, label }: HandleDipsRouteErrorOptions
+  { route, label, actionVerb = "取得", extraContext }: HandleDipsRouteErrorOptions
 ): NextResponse {
+  const context = { route, ...extraContext };
+
   if (error instanceof DipsDisabledError) {
     return NextResponse.json({ error: error.message }, { status: 503 });
   }
@@ -62,15 +85,15 @@ export function handleDipsRouteError(
   }
 
   if (error instanceof DipsConfigError) {
-    logger.error("DIPS連携の設定が不足しています", error, { route });
+    logger.error("DIPS連携の設定が不足しています", error, context);
     return NextResponse.json({ error: "DIPS連携の設定が不足しています" }, { status: 503 });
   }
 
   if (error instanceof DipsAuthError || error instanceof DipsApiError) {
-    logger.error(`DIPS${label}取得に失敗しました`, error, { route });
+    logger.error(`DIPS${label}${actionVerb}に失敗しました`, error, context);
     return NextResponse.json({ error: "DIPS連携でエラーが発生しました" }, { status: 502 });
   }
 
-  logger.error(`${label}取得で内部エラーが発生しました`, error, { route });
+  logger.error(`${label}${actionVerb}で内部エラーが発生しました`, error, context);
   return NextResponse.json({ error: "内部エラーが発生しました" }, { status: 500 });
 }
