@@ -10,10 +10,13 @@ import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchem
 import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
 import { normalizeFlightProhibitedAreasWithDiagnostics } from "@/lib/dips/flightProhibitedAreaSchema";
 import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
+import { normalizeFlightPlansWithDiagnostics } from "@/lib/dips/flightPlanSchema";
+import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
 import type {
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
   DipsFlightProhibitedAreaSearchRequest,
+  DipsFlightPlanSearchRequest,
 } from "@/lib/dips/types";
 
 /** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
@@ -89,6 +92,20 @@ export class DipsApiClient {
       },
     });
     return normalizeFlightProhibitedAreasWithDiagnostics(raw);
+  }
+
+  /**
+   * 飛行計画情報取得 (fpl realm)。DIPS のワイヤーフォーマットはドメイン層のリクエスト型と
+   * 完全に一致するため (5-5 と異なりネスト変換は不要)、そのまま渡す
+   * (FPRガイドライン v1.9 2.3.6 ①リクエストボディ参照)。レスポンスは境界で検証・
+   * 正規化してから返す。
+   */
+  async searchFlightPlans(
+    userId: string,
+    params: DipsFlightPlanSearchRequest
+  ): Promise<NormalizeFlightPlansResult> {
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.flightPlanSearch, params);
+    return normalizeFlightPlansWithDiagnostics(raw);
   }
 
   private baseUrlFor(endpoint: DipsEndpoint): string {

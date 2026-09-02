@@ -52,6 +52,7 @@ route.ts (Controller)
 | `GET /api/dips/aircrafts` | DIPS ログイン済みアカウントの所有機体一覧を取得 (機体情報一覧取得 API)。クエリ `includeInvalid=true` で抹消済み・期限切れも含める |
 | `GET /api/dips/permissions` | DIPS ログイン済みアカウントの許可・承認情報一覧を取得 (許可・承認情報取得 API, realm `req`)。UI は `/flight/dips-permissions` (ナビ未リンク。直接 URL でアクセス) |
 | `POST /api/dips/flight-prohibited-areas/search` | 飛行禁止エリア情報を検索 (飛行禁止エリア情報取得 API, realm `fpl`)。中心点・半径 (Circle) とエリア種別で検索。UI は `/flight/dips-flight-prohibited-areas` (ナビ未リンク) |
+| `POST /api/dips/flight-plans/search` | 飛行計画情報を検索 (飛行計画情報取得 API, realm `fpl`)。中心点・半径 (Circle) と「自分のみ/全ユーザー」で検索。UI は `/flight/dips-flight-plans` (ナビ未リンク)。**⚠️ 検証環境へのサンプルデータは未投入のため、疎通確認は5-6 (飛行計画通報受付) の成功が前提** |
 
 `requireFlightAccess` (ADMIN/PILOT)。`GET /api/dips/aircrafts` は所有者チェックの概念がなく、
 DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
@@ -68,9 +69,18 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 > エリア種別配列) のため、本システムの内部ルートも POST とした。本システムは Circle
 > (中心点+半径) のみサポートする (Polygon は構成点配列の入力が UI 上複雑になるため
 > 意図的に対象外。詳細は `lib/dips/types.ts` の `DipsCircleSearchFeature` コメント参照)。
-> 個人情報を一切含まないレスポンスのため PII 遮断のための寛容化は不要。5-3/5-4 は
-> 引き続き未実装 (ガイドライン本体は取得済み。`lib/dips/types.ts` に型定義のみ先行して
-> 追加済み)。
+> 個人情報を一切含まないレスポンスのため PII 遮断のための寛容化は不要。
+>
+> 続けて飛行計画情報取得 API (5-4) も実装した (上表参照)。FPRガイドライン 2.3.6 は
+> レスポンス項目を「○ = 全ユーザーの飛行計画で出力」「● = 自アカウントの飛行計画のみ
+> 出力」に分類しており、● の項目 (名称・操縦者情報・機体情報・許可申請情報等) は
+> `DipsFlightPlanInfo` (lib/dips/types.ts) で `| null` にし、他ユーザーの飛行計画検索
+> (allFlightPlan 省略時の既定) で省略されても除外されないようにした。通報者・操縦者・
+> 許可申請者の連絡先 (氏名・住所・電話番号・メールアドレス) はスキーマに定義せず
+> 個人情報を型として保持しない (5-1 と同じ方針)。**検証環境へのサンプルデータは未投入
+> のため、疎通確認は5-6 (飛行計画通報受付) の成功が前提**であり、この実装単体では
+> 実データでの動作確認ができていない。5-3 (許可・承認申請受付) は引き続き未実装
+> (ガイドライン本体は取得済み。`lib/dips/types.ts` に型定義のみ先行して追加済み)。
 >
 > **2026-08-26 差し戻し**: 実機検証 (Playwright) で疎通確認 UI の不具合4件
 > (再マウント後の1回目クリックで fetch されない・意図しない自動再取得・不正な200が
@@ -121,8 +131,8 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 > **2026-09-02 追記**: 「飛行計画情報取得・飛行禁止エリアのレスポンス型が `unknown`」だった
 > 項目は解消した。DIPS2.0 API(FPR) ガイドライン v1.9 本体 (公開 PDF) を取得し §2.3.6/2.3.7
 > の全項目を突合して `lib/dips/types.ts` の `DipsFlightPlanInfo` / `DipsFlightProhibitedAreaInfo`
-> を定義した (5-5 は実装済み。5-4 は型定義のみ先行)。エンドポイントパス
-> (`lib/dips/endpoints.ts`) も同ガイドラインの実パスと一致することを確認済み。
+> を定義した (5-4/5-5 とも実装済み)。エンドポイントパス (`lib/dips/endpoints.ts`) も
+> 同ガイドラインの実パスと一致することを確認済み。
 
 > **訂正 (2026-07-28)**: 以前ここにあった「OIDC グラント種別 (`lib/dips/oidcClient.ts`) —
 > `client_credentials` を仮定」は誤りだったため上記リストから除外した。3本の公開ガイドライン

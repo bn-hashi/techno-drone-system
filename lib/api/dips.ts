@@ -9,6 +9,11 @@ import type {
   DipsUaInfo,
   DipsFlightProhibitedAreaInfo,
   DipsAreaGeometry,
+  DipsFlightPlanInfo,
+  DipsFlightPlanInsuranceInfo,
+  DipsFlightPlanPilotInfo,
+  DipsFlightPlanAircraftInfo,
+  DipsFlightPlanPermitApplicationInfo,
 } from "@/lib/dips/types";
 
 /**
@@ -575,6 +580,175 @@ export async function searchDipsFlightProhibitedAreas(
 
   return {
     areas,
+    excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 飛行計画情報取得 ─────────────────────────────────────────────────────────
+
+/**
+ * DIPS 飛行計画情報。通報者・操縦者・許可申請者の氏名・住所・電話番号・メールアドレスは
+ * 含まない (サーバー側 `lib/dips/flightPlanSchema.ts` が既に除去済み)。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける。
+ */
+export type { DipsFlightPlanInfo };
+
+export interface DipsFlightPlanSearchInput {
+  centerLongitude: number;
+  centerLatitude: number;
+  radiusMeters: number;
+  /** true: 自アカウントの飛行計画のみ, false/省略: 全ユーザー */
+  onlyMine?: boolean;
+}
+
+export interface FetchDipsFlightPlansResult {
+  flightPlans: DipsFlightPlanInfo[];
+  /** サーバー側でパースに失敗した件数とクライアント側の DTO 検証で落とした件数の合算 */
+  excludedCount: number;
+}
+
+const FlightPlanGeometryDtoSchema = z.object({
+  type: z.enum(["Circle", "Polygon"]),
+  center: z.array(z.number()),
+  radius: z.number(),
+  coordinates: z.array(z.array(z.number())),
+}) satisfies z.ZodType<DipsAreaGeometry>;
+
+const FlightPlanInsuranceInfoDtoSchema = z.object({
+  insuranceCompany: z.string(),
+  insuranceProduct: z.string(),
+  interPerson: z.number(),
+  interObject: z.number(),
+  insuranceAbility: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanInsuranceInfo>;
+
+const FlightPlanPilotInfoDtoSchema = z.object({
+  pilotId: z.number(),
+  skillCertificationNumber: z.string(),
+  firstClass: z.string(),
+  secondClass: z.string(),
+  privateLicense: z.string(),
+  maker: z.string(),
+  model: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanPilotInfo>;
+
+const FlightPlanAircraftInfoDtoSchema = z.object({
+  aircraftId: z.number(),
+  type: z.string(),
+  certificationNum: z.string(),
+  symbol: z.string(),
+  model: z.string(),
+  maker: z.string(),
+  certification1: z.string(),
+  certification2: z.string(),
+  maxWeight: z.number(),
+}) satisfies z.ZodType<DipsFlightPlanAircraftInfo>;
+
+const FlightPlanPermitApplicationInfoDtoSchema = z.object({
+  flightPermitApplicationNumber: z.string(),
+  permitDate: z.string(),
+  startDate: z.string(),
+  finishDate: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanPermitApplicationInfo>;
+
+const DipsFlightPlanInfoSchema = z.object({
+  flightPlanId: z.string(),
+  name: z.string().nullable(),
+  flightPurpose: z.array(z.number()).nullable(),
+  flightAirspace: z.array(z.number()).nullable(),
+  flightType: z.array(z.number()).nullable(),
+  assistantsNumber: z.number().nullable(),
+  departurePoint: z.string().nullable(),
+  destinationPoint: z.string().nullable(),
+  startTime: z.string(),
+  finishTime: z.string(),
+  plannedMaxTime: z.number(),
+  plannedFlightTime: z.number(),
+  flightSpeed: z.number(),
+  flightAltitude: z.number(),
+  flyRoute: FlightPlanGeometryDtoSchema,
+  riskMitigationOnsiteControl: z.string().nullable(),
+  riskMitigationOnsiteControlL3: z.string().nullable(),
+  riskMitigationOnsiteControlL35: z.string().nullable(),
+  riskMitigationOnsiteControl2: z.string().nullable(),
+  exceptionalConditionsMooring: z.string().nullable(),
+  insuranceInformation: FlightPlanInsuranceInfoDtoSchema.nullable(),
+  otherInformation: z.string().nullable(),
+  pilotInfo: z.array(FlightPlanPilotInfoDtoSchema).nullable(),
+  aircraftInfo: z.array(FlightPlanAircraftInfoDtoSchema).nullable(),
+  flightPermitApplicationInfo: FlightPlanPermitApplicationInfoDtoSchema.nullable(),
+}) satisfies z.ZodType<DipsFlightPlanInfo>;
+
+type _AssertDipsFlightPlanInfoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsFlightPlanInfoSchema>, DipsFlightPlanInfo>
+>;
+
+/**
+ * DIPS 飛行計画情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
+ */
+function parseFlightPlans(rawFlightPlans: unknown): {
+  flightPlans: DipsFlightPlanInfo[];
+  excludedCount: number;
+} {
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawFlightPlans,
+    DipsFlightPlanInfoSchema,
+    "DIPS飛行計画情報"
+  );
+  return { flightPlans: entries, excludedCount };
+}
+
+/**
+ * DIPS 飛行計画情報を検索する (5-4)。トークン未取得・失効 (401 authRequired) の場合は
+ * DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている場合は
+ * AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ *
+ * ⚠️ 検証環境へのサンプルデータは未投入のため、`onlyMine` を指定しない (全ユーザー検索)
+ * 場合は検索結果が0件になる可能性が高い。事前に「飛行計画通報受付API」(5-6) でデータ
+ * 投入が必要 (設定通知書「検証環境での確認ポイント」D36/E36 参照)。
+ */
+export async function searchDipsFlightPlans(
+  input: DipsFlightPlanSearchInput
+): Promise<FetchDipsFlightPlansResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/dips/flight-plans/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new Error("DIPS飛行計画情報の取得に失敗しました。ネットワーク接続を確認してください");
+  }
+
+  const body = (await res.json().catch(() => null)) as
+    | ({ authRequired?: boolean; realm?: string; error?: string } & {
+        flightPlans?: unknown;
+        excludedCount?: number;
+      })
+    | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? "fpl");
+  }
+
+  if (res.status === 401) {
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? "DIPS飛行計画情報の取得に失敗しました");
+  }
+
+  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
+  const { flightPlans, excludedCount: clientExcludedCount } = parseFlightPlans(body?.flightPlans);
+
+  return {
+    flightPlans,
     excludedCount: serverExcludedCount + clientExcludedCount,
   };
 }

@@ -3,6 +3,7 @@ import {
   fetchDipsOwnedAircrafts,
   fetchDipsPermissions,
   searchDipsFlightProhibitedAreas,
+  searchDipsFlightPlans,
   unlinkDipsAccount,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
@@ -11,6 +12,7 @@ import type {
   DipsOwnedAircraftDto,
   DipsPermissionInfo,
   DipsFlightProhibitedAreaInfo,
+  DipsFlightPlanInfo,
 } from "@/lib/api/dips";
 
 const validAircraft: DipsOwnedAircraftDto = {
@@ -523,6 +525,111 @@ describe("searchDipsFlightProhibitedAreas", () => {
 
     await expect(searchDipsFlightProhibitedAreas(searchInput)).rejects.toThrow(
       "DIPS飛行禁止エリア情報の取得に失敗しました。ネットワーク接続を確認してください"
+    );
+  });
+});
+
+const validFlightPlan: DipsFlightPlanInfo = {
+  flightPlanId: "PLAN-1",
+  name: null,
+  flightPurpose: null,
+  flightAirspace: null,
+  flightType: null,
+  assistantsNumber: null,
+  departurePoint: null,
+  destinationPoint: null,
+  startTime: "20261125 1130",
+  finishTime: "20261125 1230",
+  plannedMaxTime: 120,
+  plannedFlightTime: 60,
+  flightSpeed: 100,
+  flightAltitude: 120,
+  flyRoute: { type: "Circle", center: [139.4677, 35.6476], radius: 150, coordinates: [] },
+  riskMitigationOnsiteControl: null,
+  riskMitigationOnsiteControlL3: null,
+  riskMitigationOnsiteControlL35: null,
+  riskMitigationOnsiteControl2: null,
+  exceptionalConditionsMooring: null,
+  insuranceInformation: null,
+  otherInformation: null,
+  pilotInfo: null,
+  aircraftInfo: null,
+  flightPermitApplicationInfo: null,
+};
+
+const flightPlanSearchInput = { centerLongitude: 139.4677, centerLatitude: 35.6476, radiusMeters: 10000 };
+
+describe("searchDipsFlightPlans", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_searchDipsFlightPlans_posts_input_as_json_body", async () => {
+    mockFetchJson({ flightPlans: [], excludedCount: 0 });
+
+    await searchDipsFlightPlans(flightPlanSearchInput);
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(JSON.parse(init?.body as string)).toEqual(flightPlanSearchInput);
+  });
+
+  it("test_searchDipsFlightPlans_returns_flight_plans_on_success", async () => {
+    mockFetchJson({ flightPlans: [validFlightPlan], excludedCount: 0 });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect(result.flightPlans).toEqual([validFlightPlan]);
+  });
+
+  it("test_searchDipsFlightPlans_defaults_excluded_count_to_zero_when_omitted", async () => {
+    mockFetchJson({ flightPlans: [validFlightPlan] });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_searchDipsFlightPlans_throws_when_flight_plans_is_not_an_array", async () => {
+    mockFetchJson({ flightPlans: "not-an-array" });
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toThrow(
+      "DIPS飛行計画情報の取得に失敗しました: レスポンスの形式が不正です"
+    );
+  });
+
+  it("test_searchDipsFlightPlans_drops_only_the_entry_that_fails_client_side_validation", async () => {
+    const invalidPlan = { ...validFlightPlan, flightSpeed: "not-a-number" };
+    mockFetchJson({ flightPlans: [validFlightPlan, invalidPlan], excludedCount: 0 });
+
+    const result = await searchDipsFlightPlans(flightPlanSearchInput);
+
+    expect({ flightPlans: result.flightPlans, excludedCount: result.excludedCount }).toEqual({
+      flightPlans: [validFlightPlan],
+      excludedCount: 1,
+    });
+  });
+
+  it("test_searchDipsFlightPlans_throws_auth_required_error_with_fpl_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "fpl" }, 401);
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toBeInstanceOf(
+      DipsAuthRequiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightPlans_throws_app_session_expired_error_on_plain_401", async () => {
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toBeInstanceOf(
+      AppSessionExpiredClientError
+    );
+  });
+
+  it("test_searchDipsFlightPlans_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(searchDipsFlightPlans(flightPlanSearchInput)).rejects.toThrow(
+      "DIPS飛行計画情報の取得に失敗しました。ネットワーク接続を確認してください"
     );
   });
 });

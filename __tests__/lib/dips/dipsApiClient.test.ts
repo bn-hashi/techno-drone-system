@@ -213,6 +213,59 @@ describe("DipsApiClient", () => {
     });
   });
 
+  // ─── searchFlightPlans (fpl realm / fpr base) ────────────────────────────────
+
+  const minimalFlightPlanEntry = {
+    flightPlanId: "PLAN-1",
+    startTime: "20261125 1130",
+    finishTime: "20261125 1230",
+    plannedMaxTime: 120,
+    plannedFlightTime: 60,
+    flightSpeed: 100,
+    flightAltitude: 120,
+    flyRoute: { type: "Circle", center: [139.4677, 35.6476], radius: 150 },
+  };
+
+  const sampleFlightPlanSearchRequest = {
+    features: { type: "Circle" as const, center: [139.4677, 35.6476] as [number, number], radius: 10000 },
+    allFlightPlan: "0" as const,
+  };
+
+  it("test_searchFlightPlans_requests_fpr_flight_plan_search_url", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://fpr-api.dips.example.test/api/flight-plan/search");
+  });
+
+  it("test_searchFlightPlans_uses_fpl_realm_token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    expect(oidcClient.getAccessToken).toHaveBeenCalledWith("user-1", "fpl");
+  });
+
+  it("test_searchFlightPlans_sends_request_body_as_is_without_extra_nesting", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [] }));
+
+    await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual(sampleFlightPlanSearchRequest);
+  });
+
+  it("test_searchFlightPlans_returns_normalized_flight_plans", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanInfo: [minimalFlightPlanEntry] }));
+
+    const result = await makeClient().searchFlightPlans("user-1", sampleFlightPlanSearchRequest);
+
+    expect(result.flightPlans[0].flightPlanId).toBe("PLAN-1");
+    expect(result.excludedCount).toBe(0);
+  });
+
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────
 
   it("test_notifyFlightPlan_requests_fpr_register_url", async () => {

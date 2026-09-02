@@ -62,6 +62,7 @@ const mockApiClient = (): DipsApiClient =>
     notifyFlightPlan: vi.fn(),
     fetchAircraftList: vi.fn(),
     searchFlightProhibitedAreas: vi.fn(),
+    searchFlightPlans: vi.fn(),
   }) as unknown as DipsApiClient;
 
 const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
@@ -352,6 +353,46 @@ describe("DipsService", () => {
 
       expect(result).toEqual(response);
       expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
+    });
+  });
+
+  // ─── searchFlightPlans ───────────────────────────────────────────────────────
+
+  describe("searchFlightPlans", () => {
+    it("test_maps_flat_form_input_into_circle_feature_and_all_flight_plan_flag", async () => {
+      const response = { flightPlans: [], excludedCount: 0 };
+      vi.mocked(apiClient.searchFlightPlans).mockResolvedValue(response);
+
+      const result = await service.searchFlightPlans("user-1", {
+        centerLongitude: 139.4677,
+        centerLatitude: 35.6476,
+        radiusMeters: 10000,
+        onlyMine: true,
+      });
+
+      expect(result).toEqual(response);
+      expect(apiClient.searchFlightPlans).toHaveBeenCalledWith("user-1", {
+        features: { type: "Circle", center: [139.4677, 35.6476], radius: 10000 },
+        allFlightPlan: "1",
+      });
+    });
+
+    it("test_defaults_to_all_users_search_when_only_mine_is_omitted", async () => {
+      vi.mocked(apiClient.searchFlightPlans).mockResolvedValue({
+        flightPlans: [],
+        excludedCount: 0,
+      });
+
+      await service.searchFlightPlans("user-1", {
+        centerLongitude: 139.4677,
+        centerLatitude: 35.6476,
+        radiusMeters: 10000,
+      });
+
+      expect(apiClient.searchFlightPlans).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ allFlightPlan: "0" })
+      );
     });
   });
 

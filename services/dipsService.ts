@@ -4,6 +4,8 @@ import type { DipsRealm } from "@/lib/dips/config";
 import type { NormalizePermissionsResult } from "@/lib/dips/permissionsSchema";
 import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProhibitedAreaSchema";
 import type { DipsFlightProhibitedAreaSearchInput } from "@/lib/dips/flightProhibitedAreaSearchInputSchema";
+import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
+import type { DipsFlightPlanSearchInput } from "@/lib/dips/flightPlanSearchInputSchema";
 import type {
   DipsFlightPlanNotificationResult,
   DipsNotificationUserInput,
@@ -118,6 +120,28 @@ export class DipsService {
    */
   async fetchPermissions(userId: string): Promise<NormalizePermissionsResult> {
     return this.apiClient.fetchPermissions(userId);
+  }
+
+  /**
+   * 飛行計画情報を検索する (パススルー)。
+   *
+   * ⚠️ 検証環境へのサンプルデータは未投入のため、`onlyMine: false` (既定、全ユーザー検索)
+   * では検索結果が0件になる可能性が高い。設定通知書「検証環境での確認ポイント」
+   * (D36/E36) に「検証環境へのサンプルデータは未投入のため、予め『飛行計画通報受付API』
+   * (5-6) でデータ投入が必要」と明記されている。5-4 の疎通確認は 5-6 の成功が前提。
+   */
+  async searchFlightPlans(
+    userId: string,
+    input: DipsFlightPlanSearchInput
+  ): Promise<NormalizeFlightPlansResult> {
+    return this.apiClient.searchFlightPlans(userId, {
+      features: {
+        type: "Circle",
+        center: [input.centerLongitude, input.centerLatitude],
+        radius: input.radiusMeters,
+      },
+      allFlightPlan: input.onlyMine ? "1" : "0",
+    });
   }
 
   /**
