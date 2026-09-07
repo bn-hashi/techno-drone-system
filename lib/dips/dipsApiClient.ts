@@ -3,7 +3,7 @@ import { requireApiBaseUrl } from "@/lib/dips/config";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DIPS_ENDPOINTS } from "@/lib/dips/endpoints";
 import type { DipsEndpoint } from "@/lib/dips/endpoints";
-import { DipsApiError } from "@/lib/dips/errors";
+import { DipsApiError, DipsPossiblyAcceptedTimeoutError } from "@/lib/dips/errors";
 import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
 import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
 import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchema";
@@ -22,14 +22,33 @@ import type {
   DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 
-/** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ */
+/** DIPS API の応答待ちタイムアウト (ms)。無期限ブロックを防ぐ (冪等な GET/検索系向け) */
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * 非冪等な登録系 POST (許可・承認申請受付 / 飛行計画通報受付。`DipsEndpoint.isNonIdempotentWrite`
+ * が true のエンドポイント) のタイムアウト (ms)。134項目に及ぶ許可・承認申請登録は
+ * REQUEST_TIMEOUT_MS (10秒) を超える可能性が高く、タイムアウトで中断すると DIPS 側では
+ * 受理済みの可能性があるにもかかわらず「送信に失敗しました」としか伝わらず、運用者が
+ * 再送して共用検証環境DBに重複登録する実害があった (2026-09-06 レビュー I1)。
+ * REQUEST_TIMEOUT_MS の3倍を目安に余裕を持たせつつ、無期限待機は避ける。
+ */
+const NON_IDEMPOTENT_WRITE_TIMEOUT_MS = 30_000;
 
 /**
  * エラーレスポンス本文をログ・例外メッセージへ格納する際の最大長。
  * DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、全文は保持しない。
  */
 const RESPONSE_BODY_PREVIEW_LENGTH = 200;
+
+/**
+ * `AbortSignal.timeout()` によるタイムアウトで fetch が中断されたかを判定する。
+ * 仕様上、この場合の abort reason (= fetch の reject 値) は `name: "TimeoutError"` の
+ * DOMException になる (ネットワーク切断等の TypeError とは区別できる)。
+ */
+function isRequestTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
 
 /**
  * DIPS 2.0 API クライアント
@@ -132,6 +151,9 @@ export class DipsApiClient {
   private async request<T>(userId: string, endpoint: DipsEndpoint, body?: unknown): Promise<T> {
     const token = await this.oidcClient.getAccessToken(userId, endpoint.realm);
     const url = new URL(endpoint.path, this.baseUrlFor(endpoint)).toString();
+    const timeoutMs = endpoint.isNonIdempotentWrite
+      ? NON_IDEMPOTENT_WRITE_TIMEOUT_MS
+      : REQUEST_TIMEOUT_MS;
 
     let response: Response;
     try {
@@ -143,9 +165,18 @@ export class DipsApiClient {
           ...(body !== undefined ? { "content-type": "application/json;charset=UTF-8" } : {}),
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
+      if (endpoint.isNonIdempotentWrite && isRequestTimeoutError(error)) {
+        // I1: 非冪等な登録系 POST がタイムアウトした場合、DIPS 側では受理済みの可能性が
+        // あるため、通常の DipsApiError (「送信に失敗しました」) とは区別し、
+        // handleDipsRouteError が専用の案内文を返せるようにする
+        throw new DipsPossiblyAcceptedTimeoutError(
+          `DIPS API への接続がタイムアウトしました。受理済みの可能性があります (${endpoint.method} ${endpoint.path})`,
+          error
+        );
+      }
       throw new DipsApiError(
         `DIPS API への接続に失敗しました (${endpoint.method} ${endpoint.path})`,
         undefined,

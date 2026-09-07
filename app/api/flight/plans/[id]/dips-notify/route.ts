@@ -46,6 +46,8 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       label: "飛行計画通報",
       actionVerb: "",
       extraContext: { id },
+      // I1: タイムアウト時、どの画面で登録状況を確認すればよいかを案内する
+      timeoutRecoveryHint: "再送する前に飛行計画情報取得の画面で登録状況を確認してください",
     });
   }
 }

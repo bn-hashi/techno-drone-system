@@ -24,6 +24,8 @@ export async function POST(): Promise<NextResponse> {
       route: "POST /api/dips/permissions/apply",
       label: "許可・承認申請",
       actionVerb: "送信",
+      // I1: タイムアウト時、どの画面で登録状況を確認すればよいかを案内する
+      timeoutRecoveryHint: "再送する前に許可・承認情報取得の画面で登録状況を確認してください",
     });
   }
 }

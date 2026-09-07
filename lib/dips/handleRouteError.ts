@@ -5,6 +5,7 @@ import {
   DipsAuthError,
   DipsApiError,
   DipsAuthRequiredError,
+  DipsPossiblyAcceptedTimeoutError,
 } from "@/lib/dips/errors";
 import { logger } from "@/lib/logger";
 
@@ -48,6 +49,12 @@ export interface HandleDipsRouteErrorOptions {
    * `route` と同じく PII を含めないこと。
    */
   extraContext?: Record<string, unknown>;
+  /**
+   * `DipsPossiblyAcceptedTimeoutError` (I1) 発生時、クライアントへの案内文に含める
+   * 「登録状況を確認できる画面」の案内。呼び出し元 (許可・承認申請受付/飛行計画通報受付)
+   * ごとに確認先の API が異なるため、ルート側から渡す。省略時は汎用文言になる。
+   */
+  timeoutRecoveryHint?: string;
 }
 
 /**
@@ -64,12 +71,24 @@ export interface HandleDipsRouteErrorOptions {
  * - `DipsConfigError`: 自システムの環境変数不足 (DIPS 側の障害ではない)。DIPS 側障害の
  *   502 と混同すると運用時の切り分け表 (docs/production-operations-runbook.md) で
  *   誤誘導するため区別し、503 を返す
+ * - `DipsPossiblyAcceptedTimeoutError`: 非冪等な登録系 POST がタイムアウトした
+ *   (2026-09-06 レビュー I1)。DIPS 側で受理済みの可能性があるため、通常の
+ *   `DipsApiError` (502・生成的な「エラーが発生しました」) とは別に、
+ *   `possiblyAccepted: true` と「再送前に確認してください」の専用文言を返す。
+ *   `DipsApiError` のサブクラスのため、このチェックは下の `DipsAuthError || DipsApiError`
+ *   より前に置く必要がある
  * - `DipsAuthError` / `DipsApiError`: DIPS 側のエラー。502
  * - それ以外: 自システムの内部エラー。500
  */
 export function handleDipsRouteError(
   error: unknown,
-  { route, label, actionVerb = "取得", extraContext }: HandleDipsRouteErrorOptions
+  {
+    route,
+    label,
+    actionVerb = "取得",
+    extraContext,
+    timeoutRecoveryHint,
+  }: HandleDipsRouteErrorOptions
 ): NextResponse {
   const context = { route, ...extraContext };
 
@@ -87,6 +106,18 @@ export function handleDipsRouteError(
   if (error instanceof DipsConfigError) {
     logger.error("DIPS連携の設定が不足しています", error, context);
     return NextResponse.json({ error: "DIPS連携の設定が不足しています" }, { status: 503 });
+  }
+
+  if (error instanceof DipsPossiblyAcceptedTimeoutError) {
+    logger.error(`DIPS${label}${actionVerb}がタイムアウトしました (受理済みの可能性があります)`, error, context);
+    const hint = timeoutRecoveryHint ?? "再送する前に登録状況を確認してください";
+    return NextResponse.json(
+      {
+        error: `${label}${actionVerb}がタイムアウトしました。DIPS側で受理済みの可能性があります。${hint}`,
+        possiblyAccepted: true,
+      },
+      { status: 502 }
+    );
   }
 
   if (error instanceof DipsAuthError || error instanceof DipsApiError) {

@@ -4,7 +4,7 @@ import { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsConfig } from "@/lib/dips/config";
 import type { DipsFlightPlanNotificationPayload } from "@/lib/dips/types";
-import { DipsConfigError } from "@/lib/dips/errors";
+import { DipsConfigError, DipsPossiblyAcceptedTimeoutError } from "@/lib/dips/errors";
 import { accountAResponse } from "@/test-fixtures/dips/aircraftListFixtures";
 import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 
@@ -483,6 +483,92 @@ describe("DipsApiClient", () => {
 
   it("test_request_wraps_malformed_json_response_in_DipsApiError", async () => {
     fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeClient().fetchPermissions("user-1")).rejects.toMatchObject({
+      name: "DipsApiError",
+    });
+  });
+
+  // ─── I1: 非冪等な登録系 POST のタイムアウト (2026-09-06 レビュー差し戻し) ─────────
+  //
+  // 134項目に及ぶ許可・承認申請登録 (applyPermission) や飛行計画通報 (notifyFlightPlan)
+  // が10秒のタイムアウトで中断されると、DIPS 側では申請が受理済みの可能性があるにも
+  // かかわらず「送信に失敗しました」としか伝わらず、運用者が再送して共用検証環境DBに
+  // 重複登録する実害があった。以下は「壊れている状態」(修正前は両方失敗する) を再現する
+  // 回帰テスト。
+
+  it("test_applyPermission_requests_a_longer_timeout_than_read_requests", async () => {
+    // 非冪等な登録系 POST (permissionRegister) は、冪等な GET/検索系より長いタイムアウトを
+    // 取る必要がある。AbortSignal.timeout() に渡された値を検証する
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    fetchMock.mockResolvedValue(jsonResponse({ formNum: "Q190100001" }));
+
+    await makeClient().applyPermission("user-1", samplePermissionApplicationPayload);
+    const writeTimeoutMs = timeoutSpy.mock.calls[0][0];
+
+    timeoutSpy.mockClear();
+    fetchMock.mockResolvedValue(jsonResponse({ permissions: [] }));
+    await makeClient().fetchPermissions("user-1");
+    const readTimeoutMs = timeoutSpy.mock.calls[0][0];
+
+    expect(writeTimeoutMs).toBeGreaterThan(readTimeoutMs);
+    timeoutSpy.mockRestore();
+  });
+
+  it("test_notifyFlightPlan_requests_a_longer_timeout_than_read_requests", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+
+    await makeClient().notifyFlightPlan("user-1", samplePayload);
+    const writeTimeoutMs = timeoutSpy.mock.calls[0][0];
+
+    timeoutSpy.mockClear();
+    fetchMock.mockResolvedValue(jsonResponse({ permissions: [] }));
+    await makeClient().fetchPermissions("user-1");
+    const readTimeoutMs = timeoutSpy.mock.calls[0][0];
+
+    expect(writeTimeoutMs).toBeGreaterThan(readTimeoutMs);
+    timeoutSpy.mockRestore();
+  });
+
+  it("test_applyPermission_throws_possibly_accepted_timeout_error_on_timeout", async () => {
+    // AbortSignal.timeout() が発火すると fetch は "TimeoutError" という名前の
+    // DOMException で reject する (仕様・undici 実装とも共通)
+    fetchMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    await expect(
+      makeClient().applyPermission("user-1", samplePermissionApplicationPayload)
+    ).rejects.toBeInstanceOf(DipsPossiblyAcceptedTimeoutError);
+  });
+
+  it("test_applyPermission_timeout_error_message_mentions_possible_acceptance", async () => {
+    fetchMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    await expect(
+      makeClient().applyPermission("user-1", samplePermissionApplicationPayload)
+    ).rejects.toThrow(/受理済み/);
+  });
+
+  it("test_notifyFlightPlan_throws_possibly_accepted_timeout_error_on_timeout", async () => {
+    fetchMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    await expect(makeClient().notifyFlightPlan("user-1", samplePayload)).rejects.toBeInstanceOf(
+      DipsPossiblyAcceptedTimeoutError
+    );
+  });
+
+  it("test_fetchPermissions_throws_plain_api_error_on_timeout_not_possibly_accepted", async () => {
+    // 冪等な GET (許可・承認情報取得) は再送しても重複登録の懸念がないため、
+    // タイムアウトしても通常の DipsApiError のままでよい (専用エラーへ格上げしない)
+    fetchMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
 
     await expect(makeClient().fetchPermissions("user-1")).rejects.toMatchObject({
       name: "DipsApiError",

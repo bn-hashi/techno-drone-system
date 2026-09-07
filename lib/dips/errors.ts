@@ -71,3 +71,20 @@ export class DipsApiError extends Error {
     this.name = "DipsApiError";
   }
 }
+
+/**
+ * 非冪等な登録系 POST (許可・承認申請受付 / 飛行計画通報受付) がタイムアウトで中断した。
+ *
+ * `DipsApiClient.request()` の `AbortSignal.timeout()` が発火すると、DIPS 側では申請が
+ * 既に受理済みの可能性があるにもかかわらず、通常の `DipsApiError` と同じ「送信に
+ * 失敗しました」に丸められてしまい、運用者が再送して共用検証環境DBに重複登録する実害が
+ * あった (2026-09-06 レビュー I1)。`DipsApiError` のサブクラスとして区別し、
+ * `handleDipsRouteError` が専用の文言 (「受理済みの可能性があります。再送前に確認して
+ * ください」) と `possiblyAccepted: true` を返せるようにする。
+ */
+export class DipsPossiblyAcceptedTimeoutError extends DipsApiError {
+  constructor(message: string, cause?: unknown) {
+    super(message, undefined, undefined, cause);
+    this.name = "DipsPossiblyAcceptedTimeoutError";
+  }
+}
