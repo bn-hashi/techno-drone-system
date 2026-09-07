@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { z } from "zod";
 import {
   describeReceivedType,
+  extractArrayByKey,
   normalizeEntriesWithDiagnostics,
 } from "@/lib/dips/normalizeEntriesWithDiagnostics";
 import { DipsApiError } from "@/lib/dips/errors";
@@ -145,6 +146,75 @@ describe("normalizeEntriesWithDiagnostics", () => {
         /対象キー: \(受信した型: string, code: \w+\)/
       );
     });
+  });
+});
+
+describe("normalizeEntriesWithDiagnostics with arrayKey option", () => {
+  // I6 (2026-09-06 レビュー): flightPlanSchema.ts / flightProhibitedAreaSchema.ts /
+  // permissionsSchema.ts が「オブジェクトの特定キーの下に配列がある」形の extractArray を
+  // 対象キー名以外まったく同じ実装で3コピー複製していた。既定実装として `arrayKey`
+  // オプションだけで済ませられることを確認する
+  const arrayKeyOptions = {
+    entrySchema: EntrySchema,
+    arrayKey: "items",
+    subject: "テスト対象",
+    route: "normalizeTestEntries",
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("test_arrayKey_extracts_entries_from_the_named_key", () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    const result = normalizeEntriesWithDiagnostics<Entry>({ items: [{ id: "a" }] }, arrayKeyOptions);
+
+    expect(result).toEqual({ entries: [{ id: "a" }], excludedCount: 0 });
+  });
+
+  it("test_arrayKey_treats_explicit_null_as_a_valid_zero_entry_response", () => {
+    const result = normalizeEntriesWithDiagnostics<Entry>({ items: null }, arrayKeyOptions);
+
+    expect(result).toEqual({ entries: [], excludedCount: 0 });
+  });
+
+  it("test_arrayKey_throws_when_the_key_itself_is_missing", () => {
+    expect(() => normalizeEntriesWithDiagnostics<Entry>({}, arrayKeyOptions)).toThrow(
+      /items キーが存在しません/
+    );
+  });
+
+  it("test_arrayKey_throws_when_the_value_is_neither_an_array_nor_null", () => {
+    expect(() =>
+      normalizeEntriesWithDiagnostics<Entry>({ items: "not-an-array" }, arrayKeyOptions)
+    ).toThrow(/items の値が不正です/);
+  });
+});
+
+describe("extractArrayByKey", () => {
+  it("test_returns_the_array_at_the_named_key", () => {
+    const extract = extractArrayByKey("permissions", "テスト対象");
+
+    expect(extract({ permissions: [{ id: "a" }] })).toEqual([{ id: "a" }]);
+  });
+
+  it("test_returns_empty_array_when_value_is_explicit_null", () => {
+    const extract = extractArrayByKey("permissions", "テスト対象");
+
+    expect(extract({ permissions: null })).toEqual([]);
+  });
+
+  it("test_throws_dips_api_error_when_key_is_missing", () => {
+    const extract = extractArrayByKey("permissions", "テスト対象");
+
+    expect(() => extract({})).toThrow(DipsApiError);
+  });
+
+  it("test_throws_dips_api_error_when_top_level_is_not_an_object", () => {
+    const extract = extractArrayByKey("permissions", "テスト対象");
+
+    expect(() => extract(["unexpected-array"])).toThrow(/受信した型: array/);
   });
 });
 

@@ -35,21 +35,45 @@ export interface NormalizeEntriesResult<TEntry> {
   excludedCount: number;
 }
 
-export interface NormalizeEntriesOptions<TEntry> {
+interface NormalizeEntriesBaseOptions<TEntry> {
   /** 1エントリを検証・正規化する Zod スキーマ */
   entrySchema: z.ZodType<TEntry>;
-  /**
-   * 生レスポンス全体からエントリ配列を取り出す。レスポンスの形状 (トップレベルが配列か、
-   * オブジェクトの特定キーの下に配列があるか) は API ごとに異なるため、呼び出し側が
-   * 実装する。形状が不正な場合はここで DipsApiError を投げること (エラーメッセージも
-   * API ごとに異なるため呼び出し側の責務とする)。
-   */
-  extractArray: (raw: unknown) => unknown[];
   /** ログ・エラーメッセージに使う対象名 (例: "DIPS機体情報" / "DIPS許可・承認情報") */
   subject: string;
   /** 構造化ログの route フィールド (例: "normalizeAircraftList") */
   route: string;
 }
+
+/**
+ * `extractArray` (完全カスタム) と `arrayKey` (既定実装 `extractArrayByKey` を使う) は
+ * 排他的に指定する。ほとんどの API (`flightPlanInfo`/`flightProhibitedAreaInfo`/
+ * `permissions` のようにオブジェクトの特定キーの下に配列がある形) は `arrayKey` だけで
+ * 足りる (2026-09-06 レビュー I6)。レスポンスがトップレベル配列そのもの (機体情報一覧
+ * 取得 API) など特殊な形状の場合のみ `extractArray` を渡すこと。
+ */
+export type NormalizeEntriesOptions<TEntry> = NormalizeEntriesBaseOptions<TEntry> &
+  (
+    | {
+        /**
+         * 生レスポンス全体からエントリ配列を取り出す。レスポンスの形状がトップレベル配列
+         * ではない特殊なケース (機体情報一覧取得 API 等) にのみ使う。形状が不正な場合は
+         * ここで DipsApiError を投げること (エラーメッセージも API ごとに異なるため
+         * 呼び出し側の責務とする)。
+         */
+        extractArray: (raw: unknown) => unknown[];
+        arrayKey?: undefined;
+      }
+    | {
+        extractArray?: undefined;
+        /**
+         * レスポンスのトップレベルオブジェクトの下にある配列のキー名 (例: "permissions")。
+         * 既定実装 `extractArrayByKey` (このファイル内) を使う。キー自体が無い場合は
+         * 仕様変更・接続先誤りの疑いとして DipsApiError を投げ、明示的な `null`/`[]` は
+         * 「該当なし」の正当な空状態として空配列を返す。
+         */
+        arrayKey: string;
+      }
+  );
 
 /** レスポンスの実際の型名を返す (エラーメッセージの切り分け用。値そのものは含めない) */
 export function describeReceivedType(value: unknown): string {
@@ -72,6 +96,47 @@ function formatIssuePathList(error: z.ZodError, rawEntry: unknown): string[] {
     const path = issue.path.join(".");
     return path || `(受信した型: ${describeReceivedType(rawEntry)}, code: ${issue.code})`;
   });
+}
+
+/** `extractArrayByKey` が「値そのもの (配列 または null)」を検証するのに使う */
+const ArrayOrNullSchema = z.array(z.unknown()).nullable();
+
+/**
+ * 生レスポンスのトップレベルオブジェクトから `arrayKey` の配列を取り出す既定実装。
+ *
+ * `flightPlanSchema.ts` (`flightPlanInfo`) / `flightProhibitedAreaSchema.ts`
+ * (`flightProhibitedAreaInfo`) / `permissionsSchema.ts` (`permissions`) が、対象キー名と
+ * 対象名以外まったく同じこの処理 (約40行) を3コピー複製していたため (2026-09-06
+ * レビュー I6)、ここへ1本化する。以下を区別する (F1 差し戻しの方針を維持):
+ * - `arrayKey` キー自体が存在しない → 仕様変更・接続先誤りの疑いとして DipsApiError
+ * - `arrayKey` の値が明示的な `null` または `[]` → 「該当なし」の正当な空状態として
+ *   空配列を返す
+ * - 上記以外の不正な値 (配列でも null でもない) → DipsApiError
+ */
+export function extractArrayByKey(arrayKey: string, subject: string): (raw: unknown) => unknown[] {
+  return (raw: unknown): unknown[] => {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+      throw new DipsApiError(
+        `${subject}のレスポンス形式が不正です (受信した型: ${describeReceivedType(raw)})`
+      );
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(raw, arrayKey)) {
+      throw new DipsApiError(
+        `${subject}のレスポンスに ${arrayKey} キーが存在しません (仕様変更またはDIPS接続先の誤りの疑いがあります)`
+      );
+    }
+
+    const rawValue = (raw as Record<string, unknown>)[arrayKey];
+    const shapeResult = ArrayOrNullSchema.safeParse(rawValue);
+    if (!shapeResult.success) {
+      throw new DipsApiError(
+        `${subject}のレスポンス形式が不正です (${arrayKey} の値が不正です。受信した型: ${describeReceivedType(rawValue)})`
+      );
+    }
+
+    return shapeResult.data ?? [];
+  };
 }
 
 /**
@@ -134,9 +199,10 @@ function logDroppedEntries(
  */
 export function normalizeEntriesWithDiagnostics<TEntry>(
   raw: unknown,
-  { entrySchema, extractArray, subject, route }: NormalizeEntriesOptions<TEntry>
+  { entrySchema, extractArray, arrayKey, subject, route }: NormalizeEntriesOptions<TEntry>
 ): NormalizeEntriesResult<TEntry> {
-  const rawEntries = extractArray(raw);
+  const resolvedExtractArray = extractArray ?? extractArrayByKey(arrayKey, subject);
+  const rawEntries = resolvedExtractArray(raw);
 
   const { entries, failures } = parseEntries(rawEntries, entrySchema);
 

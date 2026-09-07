@@ -1,10 +1,6 @@
 import { z } from "zod";
-import { DipsApiError } from "@/lib/dips/errors";
 import type { DipsPermissionInfo } from "@/lib/dips/types";
-import {
-  describeReceivedType,
-  normalizeEntriesWithDiagnostics,
-} from "@/lib/dips/normalizeEntriesWithDiagnostics";
+import { normalizeEntriesWithDiagnostics } from "@/lib/dips/normalizeEntriesWithDiagnostics";
 
 /**
  * 許可・承認情報取得 API (DIPS2.0 API(FPA) 接続システム向けガイドライン 2.3.6) の
@@ -53,7 +49,8 @@ import {
  *   A3 でクライアント境界を固めて潰したはずの「キー名変更が0件として静かに成功する」
  *   失敗モードをサーバー境界で復活させていた。`permissions` キーそのものが無い場合は
  *   DipsApiError を投げ、明示的な `null`・`[]` は引き続き正当なゼロ件として扱う
- *   (詳細は `extractPermissionsArray` のコメント参照)
+ *   (2026-09-06 レビュー I6 でこの区別は `normalizeEntriesWithDiagnostics.ts` の
+ *   `extractArrayByKey` へ共通化した。詳細はそちらのコメント参照)
  * - **F4: boolean フラグが数値 `1`/`0` も受理する**。`aircraftListSchema.ts` の
  *   RAW_CODE (`z.union([z.string(), z.number()])`) と寛容度を揃えていなかったため、
  *   DIPS が数値の `1`/`0` を返す経路だけ弾かれていた
@@ -185,13 +182,6 @@ const PermissionEntrySchema = z.object({
 });
 
 /**
- * `permissions` の値そのもの (配列 または null) を検証するスキーマ。キーの存在確認は
- * `extractPermissionsArray` が別途行う (このスキーマだけでは「値が undefined」と
- * 「キー自体が無い」を区別できないため)。
- */
-const PermissionsValueSchema = z.array(z.unknown()).nullable();
-
-/**
  * 正規化結果と、除外したエントリ件数をあわせて返す。件数だけを上位層 (API レスポンス →
  * UI) へ伝えることで、「許可情報0件」と「一部の許可情報が異常値で除外された」を UI 側で
  * 区別できるようにする (機体情報一覧取得 API の C3 対応と同じ考え方)。
@@ -203,58 +193,23 @@ export interface NormalizePermissionsResult {
 }
 
 /**
- * 生レスポンスから `permissions` 配列を取り出す。以下を区別する (F1 差し戻し):
- * - `permissions` キー自体が存在しない → 仕様変更・接続先誤りの疑いとして DipsApiError
- *   を投げる (B2 の寛容化が、A3 でクライアント境界を固めて潰したはずの「キー名変更が
- *   0件として静かに成功する」失敗モードをサーバー境界で復活させていたことへの対処)
- * - `permissions` が明示的に `null` または `[]` → 「許可・承認情報なし」の正当な空状態
- *   として空配列を返す
- * - `permissions` が上記以外の不正な値 (配列でも null でもない) → DipsApiError を投げる
- *
- * オブジェクトが `permissions` プロパティを持つかどうかは `hasOwnProperty` で直接確認する
- * (Zod の `.nullable()` は「値が undefined」と「キー自体が無い」のどちらも `undefined` として
- * 扱われ、両者を区別できないため)。
- */
-function extractPermissionsArray(raw: unknown): unknown[] {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new DipsApiError(
-      `DIPS許可・承認情報のレスポンス形式が不正です (受信した型: ${describeReceivedType(raw)})`
-    );
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(raw, "permissions")) {
-    throw new DipsApiError(
-      "DIPS許可・承認情報のレスポンスに permissions キーが存在しません (仕様変更またはDIPS接続先の誤りの疑いがあります)"
-    );
-  }
-
-  const rawPermissionsValue = (raw as Record<string, unknown>).permissions;
-  const shapeResult = PermissionsValueSchema.safeParse(rawPermissionsValue);
-  if (!shapeResult.success) {
-    throw new DipsApiError(
-      `DIPS許可・承認情報のレスポンス形式が不正です (permissions の値が不正です。受信した型: ${describeReceivedType(rawPermissionsValue)})`
-    );
-  }
-
-  return shapeResult.data ?? [];
-}
-
-/**
  * 許可・承認情報取得 API の生レスポンスを検証し、DipsPermissionInfo[] へ正規化する。
  * 除外した許可の件数も併せて返す (`excludedCount`)。
  *
  * エントリ単位のフォールバック・ログ・全件失敗時の DipsApiError は共通エンジン
- * (`normalizeEntriesWithDiagnostics`) に委譲する。
+ * (`normalizeEntriesWithDiagnostics`) に委譲する。生レスポンスから `permissions` 配列を
+ * 取り出す処理 (キー欠落と明示的な null の区別。F1 差し戻しの方針) も、
+ * `flightPlanSchema.ts`/`flightProhibitedAreaSchema.ts` と重複していたため、共通エンジンの
+ * `arrayKey` オプションへ委譲する (2026-09-06 レビュー I6)。
  *
  * `permissions` が明示的な `null` または `[]` の場合は「許可情報なし」の正当な応答のため、
- * そのまま [] を返す (キー欠落とは区別する。詳細は `extractPermissionsArray` 参照)。
- * エラーメッセージには Zod のキー名または受信した型名のみを含め、受信値 (個人情報を
- * 含みうる) は一切含めない。
+ * そのまま [] を返す (キー欠落とは区別する)。エラーメッセージには Zod のキー名または
+ * 受信した型名のみを含め、受信値 (個人情報を含みうる) は一切含めない。
  */
 export function normalizePermissionsWithDiagnostics(raw: unknown): NormalizePermissionsResult {
   const { entries, excludedCount } = normalizeEntriesWithDiagnostics(raw, {
     entrySchema: PermissionEntrySchema,
-    extractArray: extractPermissionsArray,
+    arrayKey: "permissions",
     subject: "DIPS許可・承認情報",
     route: "normalizePermissions",
   });

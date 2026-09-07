@@ -1,10 +1,7 @@
 import { z } from "zod";
-import { DipsApiError } from "@/lib/dips/errors";
 import type { DipsFlightPlanInfo } from "@/lib/dips/types";
-import {
-  describeReceivedType,
-  normalizeEntriesWithDiagnostics,
-} from "@/lib/dips/normalizeEntriesWithDiagnostics";
+import { normalizeEntriesWithDiagnostics } from "@/lib/dips/normalizeEntriesWithDiagnostics";
+import { DipsGeometrySchema } from "@/lib/dips/geometrySchema";
 
 /**
  * 飛行計画情報取得 API (DIPS2.0 API(FPR) 接続システム向けガイドライン v1.9 2.3.6) の
@@ -34,23 +31,11 @@ import {
  * 前提であり、実サンプルに事前到達できていないため、まずは要求どおりの形を求め、
  * 本番疎通確認で寛容化が必要と分かった時点で個別に広げる方針とする
  * (permissionsSchema.ts 冒頭コメントの方針と同じ)。
+ *
+ * ジオメトリ (`flyRoute`) のスキーマは `flightProhibitedAreaSchema.ts` の `range` と
+ * バイト単位で同一だったため (2026-09-06 レビュー I5)、`lib/dips/geometrySchema.ts` の
+ * `DipsGeometrySchema` へ1本化した。
  */
-
-const FlightPlanGeometrySchema = z.object({
-  type: z.enum(["Circle", "Polygon"]),
-  center: z
-    .array(z.number())
-    .nullish()
-    .transform((value) => value ?? []),
-  radius: z
-    .number()
-    .nullish()
-    .transform((value) => value ?? 0),
-  coordinates: z
-    .array(z.array(z.number()))
-    .nullish()
-    .transform((value) => value ?? []),
-});
 
 /** 「●」フィールド (自アカウントの飛行計画のみ出力) 共通のヘルパー: 省略時は null */
 function nullishField<T extends z.ZodTypeAny>(schema: T) {
@@ -115,7 +100,7 @@ const FlightPlanEntrySchema = z.object({
   plannedFlightTime: z.number(),
   flightSpeed: z.number(),
   flightAltitude: z.number(),
-  flyRoute: FlightPlanGeometrySchema,
+  flyRoute: DipsGeometrySchema,
   riskMitigationOnsiteControl: nullishField(z.string()),
   riskMitigationOnsiteControlL3: nullishField(z.string()),
   riskMitigationOnsiteControlL35: nullishField(z.string()),
@@ -130,9 +115,6 @@ const FlightPlanEntrySchema = z.object({
 
 type FlightPlanEntry = z.infer<typeof FlightPlanEntrySchema>;
 
-/** `flightPlanInfo` の値そのもの (配列 または null) を検証するスキーマ */
-const FlightPlanListValueSchema = z.array(z.unknown()).nullable();
-
 export interface NormalizeFlightPlansResult {
   flightPlans: DipsFlightPlanInfo[];
   /** パースに失敗して除外した飛行計画の件数 */
@@ -144,42 +126,16 @@ function toFlightPlanInfo(entry: FlightPlanEntry): DipsFlightPlanInfo {
 }
 
 /**
- * 生レスポンスから `flightPlanInfo` 配列を取り出す。`permissionsSchema.ts` の
- * `extractPermissionsArray` (F1 差し戻し) と同じ方針で、キー自体が無い場合と明示的な
- * null を区別する。
- */
-function extractFlightPlanArray(raw: unknown): unknown[] {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new DipsApiError(
-      `DIPS飛行計画情報のレスポンス形式が不正です (受信した型: ${describeReceivedType(raw)})`
-    );
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(raw, "flightPlanInfo")) {
-    throw new DipsApiError(
-      "DIPS飛行計画情報のレスポンスに flightPlanInfo キーが存在しません (仕様変更またはDIPS接続先の誤りの疑いがあります)"
-    );
-  }
-
-  const rawValue = (raw as Record<string, unknown>).flightPlanInfo;
-  const shapeResult = FlightPlanListValueSchema.safeParse(rawValue);
-  if (!shapeResult.success) {
-    throw new DipsApiError(
-      `DIPS飛行計画情報のレスポンス形式が不正です (flightPlanInfo の値が不正です。受信した型: ${describeReceivedType(rawValue)})`
-    );
-  }
-
-  return shapeResult.data ?? [];
-}
-
-/**
  * 飛行計画情報取得 API の生レスポンスを検証し、DipsFlightPlanInfo[] へ正規化する。
- * 除外した飛行計画の件数も併せて返す (`excludedCount`)。
+ * 除外した飛行計画の件数も併せて返す (`excludedCount`)。生レスポンスから `flightPlanInfo`
+ * 配列を取り出す処理 (キー欠落と明示的な null の区別。F1 差し戻しの方針) は、
+ * `permissionsSchema.ts`/`flightProhibitedAreaSchema.ts` と重複していたため、共通エンジンの
+ * `arrayKey` オプションへ委譲する (2026-09-06 レビュー I6)。
  */
 export function normalizeFlightPlansWithDiagnostics(raw: unknown): NormalizeFlightPlansResult {
   const { entries, excludedCount } = normalizeEntriesWithDiagnostics(raw, {
     entrySchema: FlightPlanEntrySchema,
-    extractArray: extractFlightPlanArray,
+    arrayKey: "flightPlanInfo",
     subject: "DIPS飛行計画情報",
     route: "normalizeFlightPlans",
   });
