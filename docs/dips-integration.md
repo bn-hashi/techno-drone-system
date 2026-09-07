@@ -1,7 +1,7 @@
 # DIPS 2.0 API 連携 (Phase 4)
 
-最終更新: 2026-08-10 (機体情報一覧取得API [DRS, realm utm] を実装。詳細は
-`docs/dips-drs-aircraft-list-api.md`)
+最終更新: 2026-08-28 (許可・承認情報取得API [5-2] の2回目の差し戻し対応: `permissions`
+キー欠落と正当なゼロ件の区別・オフライン時挙動・OAuth 復帰時のエラー表示等)
 
 ## 概要
 
@@ -34,7 +34,15 @@ route.ts (Controller)
 
 - `DIPS_ENABLED !== "true"` の場合、`getDipsService()` は `DipsDisabledError` を投げ、
   API ルートは **503** を返す (ローカル開発のデフォルト状態)
-- DIPS 由来のエラー (`DipsAuthError` / `DipsApiError` / `DipsConfigError`) は **502**
+- `DipsConfigError` (自システムの環境変数不足。DIPS 側の障害ではない) は **503** を返す
+- DIPS 側のエラー (`DipsAuthError` / `DipsApiError`) は **502** を返す
+- 2026-09-02 差し戻し (H2) までは本項に「`DipsAuthError` / `DipsApiError` /
+  `DipsConfigError` は502」と誤って一括で記載していた。実装 (`lib/dips/handleRouteError.ts`)
+  は当初から `DipsConfigError` を503・`DipsAuthError`/`DipsApiError` を502と区別しており
+  (docs/production-operations-runbook.md の切り分け表 1-8/1-9 と一致)、本項の記載が古かった。
+  なお H2 で `app/api/flight/plans/[id]/dips-notify/route.ts` (飛行計画通報) も同じ共通
+  ハンドラへ移行し、この区別を全 DIPS 連携ルートで統一した (移行前はこのルートだけ
+  `DipsConfigError` を502で返しており、本項の誤記載と実際に一致してしまっていた)
 
 ## API ルート
 
@@ -42,9 +50,54 @@ route.ts (Controller)
 |---|---|
 | `POST /api/flight/plans/[id]/dips-notify` | 飛行計画を飛行計画通報受付 API へ通報 |
 | `GET /api/dips/aircrafts` | DIPS ログイン済みアカウントの所有機体一覧を取得 (機体情報一覧取得 API)。クエリ `includeInvalid=true` で抹消済み・期限切れも含める |
+| `GET /api/dips/permissions` | DIPS ログイン済みアカウントの許可・承認情報一覧を取得 (許可・承認情報取得 API, realm `req`)。UI は `/flight/dips-permissions` (ナビ未リンク。直接 URL でアクセス) |
+| `POST /api/dips/flight-prohibited-areas/search` | 飛行禁止エリア情報を検索 (飛行禁止エリア情報取得 API, realm `fpl`)。中心点・半径 (Circle) とエリア種別で検索。UI は `/flight/dips-flight-prohibited-areas` (ナビ未リンク) |
+| `POST /api/dips/flight-plans/search` | 飛行計画情報を検索 (飛行計画情報取得 API, realm `fpl`)。中心点・半径 (Circle) と「自分のみ/全ユーザー」で検索。UI は `/flight/dips-flight-plans` (ナビ未リンク)。**⚠️ 検証環境へのサンプルデータは未投入のため、疎通確認は5-6 (飛行計画通報受付) の成功が前提** |
+| `POST /api/dips/permissions/apply` | 許可・承認申請受付 API (realm `req`) へ検証環境向けのテスト申請を送信する。申請内容はガイドライン準拠の固定値 (東京都・型式認証機体) で `DipsService.applyPermissionTest` が組み立てる。UI は `/flight/dips-permission-apply` (ナビ未リンク) |
 
 `requireFlightAccess` (ADMIN/PILOT)。`GET /api/dips/aircrafts` は所有者チェックの概念がなく、
 DIPS へログインしたアカウント自身が所有する機体のみが返る (DIPS 側の仕様上の制約)。
+`GET /api/dips/permissions` も同様にアカウント単位で、特定の機体・飛行計画への紐付けはない。
+
+> **2026-08-18 追記**: 許可・承認情報取得 API (5-2) を実装した (上表参照)。正規化方針・
+> 寛容パース (boolean の "1"/"0" 文字列受理、null 許容の範囲等) の詳細は
+> `lib/dips/permissionsSchema.ts` のファイル先頭コメントを参照。5-3 (許可・承認申請受付) /
+> 5-4 (飛行計画情報取得) / 5-5 (飛行禁止エリア情報取得) は未実装のまま
+> (`lib/dips/endpoints.ts` に URL・realm の定義のみ存在)。
+>
+> **2026-09-02 追記**: 飛行禁止エリア情報取得 API (5-5) を実装した (上表参照)。DIPS 本体は
+> POST + 検索条件ボディ (features: Circle/Polygon のジオメトリ, flightProhibitedAreaInfo:
+> エリア種別配列) のため、本システムの内部ルートも POST とした。本システムは Circle
+> (中心点+半径) のみサポートする (Polygon は構成点配列の入力が UI 上複雑になるため
+> 意図的に対象外。詳細は `lib/dips/types.ts` の `DipsCircleSearchFeature` コメント参照)。
+> 個人情報を一切含まないレスポンスのため PII 遮断のための寛容化は不要。
+>
+> 続けて飛行計画情報取得 API (5-4) も実装した (上表参照)。FPRガイドライン 2.3.6 は
+> レスポンス項目を「○ = 全ユーザーの飛行計画で出力」「● = 自アカウントの飛行計画のみ
+> 出力」に分類しており、● の項目 (名称・操縦者情報・機体情報・許可申請情報等) は
+> `DipsFlightPlanInfo` (lib/dips/types.ts) で `| null` にし、他ユーザーの飛行計画検索
+> (allFlightPlan 省略時の既定) で省略されても除外されないようにした。通報者・操縦者・
+> 許可申請者の連絡先 (氏名・住所・電話番号・メールアドレス) はスキーマに定義せず
+> 個人情報を型として保持しない (5-1 と同じ方針)。**検証環境へのサンプルデータは未投入
+> のため、疎通確認は5-6 (飛行計画通報受付) の成功が前提**であり、この実装単体では
+> 実データでの動作確認ができていない。
+>
+> 続けて許可・承認申請受付 API (5-3) も実装した (上表参照)。DIPS2.0 API(FPA) ガイドライン
+> v1.5 §2.3.7 は134項目のリクエストボディを要求するが、この機能の目的は「検証環境で
+> 任意の申請を送信し、申請受付番号が取得できることの確認」(設定通知書「検証環境での
+> 確認ポイント」D35/E35) のみのため、申請内容を入力する UI は持たせず、ガイドライン
+> 自身のリクエストボディサンプルの値と設定通知書 別紙2 の固定テスト値をそのまま用いた
+> 固定payload (`lib/dips/permissionApplicationSchema.ts` の
+> `buildPermissionApplicationTestPayload`) を1クリックで送信する形にした。飛行場所は
+> 東京都のみに限定している (検証用申請者IDの制約。同ファイルのコメント参照。大阪航空局
+> 管轄を含む申請はエラーになるため)。DIPS 6 API すべての実装がこれで完了した
+> (実疎通確認はすべて本番サーバーで人が実施する)。
+>
+> **2026-08-26 差し戻し**: 実機検証 (Playwright) で疎通確認 UI の不具合4件
+> (再マウント後の1回目クリックで fetch されない・意図しない自動再取得・不正な200が
+> 「0件」に化ける・失敗後も古いデータが残る) が判明し対応した。詳細は
+> `app/(flight)/flight/dips-permissions/DipsPermissionsPanel.tsx` と
+> `lib/api/dips.ts` の `fetchDipsPermissions()` のコメントを参照。
 
 > **訂正 (2026-07-28)**: 以前ここに記載していた `POST /api/flight/aircraft/[id]/verify-registration`
 > (機体の登録記号を機体情報一覧取得 API と照合するルート) は、Authorization Code Flow への
@@ -85,7 +138,12 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 
 1. **エンドポイントパス** (`lib/dips/endpoints.ts`) — 全パスが暫定値
 2. **飛行計画通報のペイロード形式** (`lib/dips/types.ts` の `DipsFlightPlanNotificationPayload`)
-3. **飛行計画情報取得・飛行禁止エリアのレスポンス型** — 現状 `unknown`
+
+> **2026-09-02 追記**: 「飛行計画情報取得・飛行禁止エリアのレスポンス型が `unknown`」だった
+> 項目は解消した。DIPS2.0 API(FPR) ガイドライン v1.9 本体 (公開 PDF) を取得し §2.3.6/2.3.7
+> の全項目を突合して `lib/dips/types.ts` の `DipsFlightPlanInfo` / `DipsFlightProhibitedAreaInfo`
+> を定義した (5-4/5-5 とも実装済み)。エンドポイントパス (`lib/dips/endpoints.ts`) も
+> 同ガイドラインの実パスと一致することを確認済み。
 
 > **訂正 (2026-07-28)**: 以前ここにあった「OIDC グラント種別 (`lib/dips/oidcClient.ts`) —
 > `client_credentials` を仮定」は誤りだったため上記リストから除外した。3本の公開ガイドライン

@@ -61,6 +61,9 @@ const mockApiClient = (): DipsApiClient =>
     fetchPermissions: vi.fn(),
     notifyFlightPlan: vi.fn(),
     fetchAircraftList: vi.fn(),
+    searchFlightProhibitedAreas: vi.fn(),
+    searchFlightPlans: vi.fn(),
+    applyPermission: vi.fn(),
   }) as unknown as DipsApiClient;
 
 const makeAircraftInfo = (overrides: Partial<DipsAircraftInfo> = {}): DipsAircraftInfo => ({
@@ -341,13 +344,95 @@ describe("DipsService", () => {
 
   describe("fetchPermissions", () => {
     it("test_fetchPermissions_delegates_to_api_client", async () => {
-      const response = { permissions: [] };
+      // 正規化 (寛容パース・エントリ単位のフォールバック) は DipsApiClient 側
+      // (lib/dips/permissionsSchema.ts) の責務のため、Service は結果をそのまま返すだけで
+      // よい (このテストは apiClient をモックしているため実際の正規化は経由しない)
+      const response = { permissions: [], excludedCount: 0 };
       vi.mocked(apiClient.fetchPermissions).mockResolvedValue(response);
 
       const result = await service.fetchPermissions("user-1");
 
       expect(result).toEqual(response);
       expect(apiClient.fetchPermissions).toHaveBeenCalledWith("user-1");
+    });
+  });
+
+  // ─── applyPermissionTest ─────────────────────────────────────────────────────
+
+  describe("applyPermissionTest", () => {
+    it("test_delegates_to_api_client_with_a_generated_test_payload", async () => {
+      const response = { formNum: "Q190100001" };
+      vi.mocked(apiClient.applyPermission).mockResolvedValue(response);
+
+      const result = await service.applyPermissionTest("user-1");
+
+      expect(result).toEqual(response);
+      expect(apiClient.applyPermission).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ formKind: "1", category: "2" })
+      );
+    });
+  });
+
+  // ─── searchFlightPlans ───────────────────────────────────────────────────────
+
+  describe("searchFlightPlans", () => {
+    it("test_maps_flat_form_input_into_circle_feature_and_all_flight_plan_flag", async () => {
+      const response = { flightPlans: [], excludedCount: 0 };
+      vi.mocked(apiClient.searchFlightPlans).mockResolvedValue(response);
+
+      const result = await service.searchFlightPlans("user-1", {
+        centerLongitude: 139.4677,
+        centerLatitude: 35.6476,
+        radiusMeters: 10000,
+        onlyMine: true,
+      });
+
+      expect(result).toEqual(response);
+      expect(apiClient.searchFlightPlans).toHaveBeenCalledWith("user-1", {
+        features: { type: "Circle", center: [139.4677, 35.6476], radius: 10000 },
+        allFlightPlan: "1",
+      });
+    });
+
+    it("test_defaults_to_all_users_search_when_only_mine_is_omitted", async () => {
+      vi.mocked(apiClient.searchFlightPlans).mockResolvedValue({
+        flightPlans: [],
+        excludedCount: 0,
+      });
+
+      await service.searchFlightPlans("user-1", {
+        centerLongitude: 139.4677,
+        centerLatitude: 35.6476,
+        radiusMeters: 10000,
+      });
+
+      expect(apiClient.searchFlightPlans).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ allFlightPlan: "0" })
+      );
+    });
+  });
+
+  // ─── searchFlightProhibitedAreas ────────────────────────────────────────────
+
+  describe("searchFlightProhibitedAreas", () => {
+    it("test_maps_flat_form_input_into_circle_feature_and_area_type_ids", async () => {
+      const response = { areas: [], excludedCount: 0 };
+      vi.mocked(apiClient.searchFlightProhibitedAreas).mockResolvedValue(response);
+
+      const result = await service.searchFlightProhibitedAreas("user-1", {
+        centerLongitude: 139.7686,
+        centerLatitude: 35.6803,
+        radiusMeters: 1000,
+        flightProhibitedAreaTypeIds: [5, 6],
+      });
+
+      expect(result).toEqual(response);
+      expect(apiClient.searchFlightProhibitedAreas).toHaveBeenCalledWith("user-1", {
+        features: { type: "Circle", center: [139.7686, 35.6803], radius: 1000 },
+        flightProhibitedAreaTypeIds: [5, 6],
+      });
     });
   });
 
