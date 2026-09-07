@@ -351,6 +351,15 @@ pm2 logs techno-drone --lines 30
 **事前準備**: `DIPS_FPL_CLIENT_ID` / `DIPS_FPL_CLIENT_SECRET` が `.env` に設定済みであること
 (5-4/5-6 と共有の Client ID)。
 
+**⚠️ 本番疎通確認で最初に疑うべき箇所 (2026-09-06 レビュー I11)**: 5-5 はリクエストの
+`flightProhibitedAreaInfo` をオブジェクト (`{ flightProhibitedAreaTypeId: [...] }`) にする一方、
+レスポンスの同名キー `flightProhibitedAreaInfo` は配列にする非対称な形になっている
+(`lib/dips/dipsApiClient.ts` の `searchFlightProhibitedAreas()` / `lib/dips/flightProhibitedAreaSchema.ts`
+の `extractProhibitedAreaArray` 相当の処理を参照)。この非対称さは手元にガイドライン PDF が無く
+実機で検証できていない (推測ではなくガイドライン原文の記載に基づいて実装したが、実レスポンスでの
+確認は未実施)。502 や「レスポンス形式が不正です」で失敗した場合は、まずここ (リクエスト/レスポンスで
+同じキー名が違う形になっている点) を疑うこと。
+
 **確認手順**:
 
 1. `/flight/dips-flight-prohibited-areas` にアクセスし、検索範囲 (既定値: 東京駅周辺・半径
