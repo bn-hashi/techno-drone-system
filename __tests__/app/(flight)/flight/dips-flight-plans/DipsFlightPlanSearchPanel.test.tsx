@@ -96,10 +96,45 @@ describe("DipsFlightPlanSearchPanel", () => {
     await user.type(screen.getByLabelText("半径 (m)"), "0");
     await user.click(screen.getByRole("button", { name: "飛行計画情報を検索" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "経度・緯度・半径 (1以上) を正しく入力してください"
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("半径は1以上の数値で入力してください");
     expect(mockSearchDipsFlightPlans).not.toHaveBeenCalled();
+  });
+
+  // I3 回帰テスト (2026-09-06 レビュー): 502 等で失敗した後、入力を不正な値に変えて
+  // 再検索すると、以前は古いエラーと新しいバリデーションエラーが同時に表示され
+  // role="alert" が2つになっていた (読み上げも二重になる)。冒頭で mutation.reset() を
+  // 呼ぶことで解消する
+  it("test_panel_clears_previous_error_when_a_new_validation_error_occurs", async () => {
+    mockSearchDipsFlightPlans.mockRejectedValue(new Error("502エラー"));
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightPlanSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行計画情報を検索" }));
+    expect(await screen.findByText("502エラー")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("半径 (m)"));
+    await user.type(screen.getByLabelText("半径 (m)"), "0");
+    await user.click(screen.getByRole("button", { name: "飛行計画情報を検索" }));
+
+    expect(screen.queryByText("502エラー")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  // I3 回帰テスト: 成功して結果一覧が表示された後、不正な入力のまま再検索すると、
+  // 以前は前回の結果一覧が残り続け「無効な条件のまま結果が残る」誤表示になっていた
+  it("test_panel_clears_previous_results_when_a_new_validation_error_occurs", async () => {
+    mockSearchDipsFlightPlans.mockResolvedValue({ flightPlans: [validFlightPlan], excludedCount: 0 });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightPlanSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行計画情報を検索" }));
+    expect(await screen.findByText("訓練飛行")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("半径 (m)"));
+    await user.type(screen.getByLabelText("半径 (m)"), "0");
+    await user.click(screen.getByRole("button", { name: "飛行計画情報を検索" }));
+
+    expect(screen.queryByText("訓練飛行")).not.toBeInTheDocument();
   });
 
   it("test_panel_displays_flight_plan_name_on_success", async () => {

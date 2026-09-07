@@ -126,6 +126,52 @@ describe("DipsFlightProhibitedAreaSearchPanel", () => {
     expect(await screen.findByText(/ログインが必要です。再度ログインしてください/)).toBeInTheDocument();
   });
 
+  // I3 回帰テスト (2026-09-06 レビュー): 502 等で失敗した後、入力を不正な値に変えて
+  // 再検索すると、以前は古いエラーと新しいバリデーションエラーが同時に表示され
+  // role="alert" が2つになっていた (読み上げも二重になる)。冒頭で mutation.reset() を
+  // 呼ぶことで解消する
+  it("test_panel_clears_previous_error_when_a_new_validation_error_occurs", async () => {
+    mockSearchDipsFlightProhibitedAreas.mockRejectedValue(new Error("502エラー"));
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+    expect(await screen.findByText("502エラー")).toBeInTheDocument();
+
+    // 種別を全て外してバリデーション失敗を誘発する
+    await user.click(
+      screen.getByRole("checkbox", { name: "小型無人機等飛行禁止法エリア(レッドゾーン)" })
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "小型無人機等飛行禁止法エリア(イエローゾーン)" })
+    );
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+
+    expect(screen.queryByText("502エラー")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  // I3 回帰テスト: 成功して結果一覧が表示された後、不正な入力のまま再検索すると、
+  // 以前は前回の結果一覧が残り続け「無効な条件のまま結果が残る」誤表示になっていた
+  it("test_panel_clears_previous_results_when_a_new_validation_error_occurs", async () => {
+    mockSearchDipsFlightProhibitedAreas.mockResolvedValue({ areas: [validArea], excludedCount: 0 });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+    expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "小型無人機等飛行禁止法エリア(レッドゾーン)" })
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "小型無人機等飛行禁止法エリア(イエローゾーン)" })
+    );
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+
+    expect(screen.queryByText("東京国際空港 空港の区域")).not.toBeInTheDocument();
+  });
+
   it("test_panel_shows_generic_error_message_on_other_failures", async () => {
     mockSearchDipsFlightProhibitedAreas.mockRejectedValue(new Error("500エラー"));
     const user = userEvent.setup();

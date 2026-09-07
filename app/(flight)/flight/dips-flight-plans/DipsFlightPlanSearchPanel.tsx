@@ -2,27 +2,19 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import {
-  searchDipsFlightPlans,
-  DipsAuthRequiredClientError,
-  AppSessionExpiredClientError,
-} from "@/lib/api/dips";
+import { searchDipsFlightPlans } from "@/lib/api/dips";
 import type { DipsFlightPlanInfo, FetchDipsFlightPlansResult } from "@/lib/api/dips";
-import { DipsAuthPrompt } from "@/components/flight/DipsAuthPrompt";
-import { AppSessionExpiredPrompt } from "@/components/flight/AppSessionExpiredPrompt";
+import { DipsRouteErrorMessage } from "@/components/flight/DipsRouteErrorMessage";
+import {
+  DipsCircleSearchFields,
+  validateCircleSearchInput,
+  DEFAULT_LONGITUDE,
+  DEFAULT_LATITUDE,
+  DEFAULT_RADIUS_METERS,
+  type CircleSearchFormState,
+} from "@/components/flight/DipsCircleSearchFields";
 
-/**
- * 検索フォームの既定値 (東京駅周辺、半径1000m)。5-5 (DipsFlightProhibitedAreaSearchPanel)
- * と同じ既定値を使う (このシステムの検証環境利用開始予定地に依らない汎用値)。
- */
-const DEFAULT_LONGITUDE = "139.7671";
-const DEFAULT_LATITUDE = "35.6812";
-const DEFAULT_RADIUS_METERS = "1000";
-
-interface FormState {
-  longitude: string;
-  latitude: string;
-  radiusMeters: string;
+interface FormState extends CircleSearchFormState {
   onlyMine: boolean;
 }
 
@@ -80,37 +72,6 @@ function SearchResults({ data }: { data: FetchDipsFlightPlansResult }) {
   );
 }
 
-function SearchError({ error }: { error: unknown }) {
-  if (error instanceof DipsAuthRequiredClientError) {
-    return (
-      <DipsAuthPrompt
-        realm={error.realm}
-        returnPath={typeof window !== "undefined" ? window.location.pathname : undefined}
-        className="mt-4 text-sm text-gray-700"
-        role="status"
-        ariaLive="polite"
-      />
-    );
-  }
-  if (error instanceof AppSessionExpiredClientError) {
-    return (
-      <AppSessionExpiredPrompt className="mt-4 text-sm text-gray-700" role="status" ariaLive="polite" />
-    );
-  }
-  return (
-    <p className="mt-4 text-sm text-red-600" role="alert">
-      {error instanceof Error ? error.message : "DIPS飛行計画情報の取得に失敗しました"}
-    </p>
-  );
-}
-
-/** 数値入力欄をパースする。空欄・非数値なら null */
-function parseNumber(raw: string): number | null {
-  if (raw.trim() === "") return null;
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : null;
-}
-
 /**
  * 飛行計画情報取得 API (5-4) の疎通確認パネル。
  *
@@ -133,18 +94,23 @@ export function DipsFlightPlanSearchPanel() {
   });
 
   const handleSubmit = () => {
+    // I3 対応 (2026-09-06 レビュー): 冒頭で reset することで、前回の 502 エラーや
+    // 前回の検索結果を必ず消してから新しい状態 (バリデーションエラー or 新しい検索) へ
+    // 進める。以前はここが無く、バリデーション失敗時に古いエラーと新しいバリデーション
+    // エラーが同時に表示され (role="alert" が2つになる)、成功後の不正入力では無効な
+    // 条件のまま前回の結果一覧が残り続けていた
+    mutation.reset();
     setValidationError(null);
-    const longitude = parseNumber(form.longitude);
-    const latitude = parseNumber(form.latitude);
-    const radiusMeters = parseNumber(form.radiusMeters);
-    if (longitude === null || latitude === null || radiusMeters === null || radiusMeters <= 0) {
-      setValidationError("経度・緯度・半径 (1以上) を正しく入力してください");
+
+    const validated = validateCircleSearchInput(form);
+    if ("error" in validated) {
+      setValidationError(validated.error);
       return;
     }
     mutation.mutate({
-      centerLongitude: longitude,
-      centerLatitude: latitude,
-      radiusMeters,
+      centerLongitude: validated.longitude,
+      centerLatitude: validated.latitude,
+      radiusMeters: validated.radiusMeters,
       onlyMine: form.onlyMine,
     });
   };
@@ -152,41 +118,10 @@ export function DipsFlightPlanSearchPanel() {
   return (
     <div>
       <div className="space-y-3 text-sm">
-        <fieldset className="rounded border border-gray-200 p-3">
-          <legend className="px-1 text-xs text-gray-500">検索範囲 (円: 中心と半径)</legend>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-700">経度</span>
-              <input
-                type="number"
-                step="any"
-                value={form.longitude}
-                onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-                className="w-full rounded border border-gray-300 px-2 py-1"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-700">緯度</span>
-              <input
-                type="number"
-                step="any"
-                value={form.latitude}
-                onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-                className="w-full rounded border border-gray-300 px-2 py-1"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-700">半径 (m)</span>
-              <input
-                type="number"
-                min={1}
-                value={form.radiusMeters}
-                onChange={(e) => setForm({ ...form, radiusMeters: e.target.value })}
-                className="w-full rounded border border-gray-300 px-2 py-1"
-              />
-            </label>
-          </div>
-        </fieldset>
+        <DipsCircleSearchFields
+          form={form}
+          onChange={(circle) => setForm({ ...form, ...circle })}
+        />
 
         <label className="flex items-center gap-2">
           <input
@@ -213,7 +148,12 @@ export function DipsFlightPlanSearchPanel() {
         {mutation.isPending ? "検索中..." : "飛行計画情報を検索"}
       </button>
 
-      {mutation.isError && <SearchError error={mutation.error} />}
+      {mutation.isError && (
+        <DipsRouteErrorMessage
+          error={mutation.error}
+          fallbackMessage="DIPS飛行計画情報の取得に失敗しました"
+        />
+      )}
       {mutation.isSuccess && !mutation.isPending && <SearchResults data={mutation.data} />}
     </div>
   );
