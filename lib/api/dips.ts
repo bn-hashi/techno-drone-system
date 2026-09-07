@@ -7,6 +7,14 @@ import type {
   DipsPermissionInfo,
   DipsFlightRoute,
   DipsUaInfo,
+  DipsFlightProhibitedAreaInfo,
+  DipsAreaGeometry,
+  DipsFlightPlanInfo,
+  DipsFlightPlanInsuranceInfo,
+  DipsFlightPlanPilotInfo,
+  DipsFlightPlanAircraftInfo,
+  DipsFlightPlanPermitApplicationInfo,
+  DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 
 /**
@@ -83,32 +91,95 @@ export class AppSessionExpiredClientError extends Error {
   }
 }
 
+/** DIPS 連携 API ルートが返すエラー系フィールドの共通形。各ルート固有のフィールドは呼び出し側が拡張する */
+interface DipsErrorBody {
+  authRequired?: boolean;
+  realm?: string;
+  error?: string;
+}
+
+interface FetchDipsRouteOptions {
+  /** ネットワークエラー・その他の失敗時のメッセージに使う対象名 (例: "DIPS機体情報の取得") */
+  subject: string;
+  /** 401 authRequired 時に body.realm が無い場合のフォールバック realm */
+  defaultRealm: string;
+}
+
+/**
+ * DIPS 連携 API ルート (`/api/dips/*`, `/api/flight/plans/[id]/dips-notify`) への fetch を
+ * 行い、共通のエラー分類 (ネットワーク断・401 authRequired・401 plain・403・その他の !ok) を
+ * 行う。サーバー側の `handleDipsRouteError` と対になるクライアント側ヘルパー。
+ *
+ * `fetchDipsOwnedAircrafts` / `fetchDipsPermissions` / `searchDipsFlightProhibitedAreas` /
+ * `searchDipsFlightPlans` / `applyDipsPermissionTest` の5関数が、対象名以外まったく同じ
+ * この分類ロジックを複製していた (2026-09-06 レビュー I4)。`notifyFlightPlanToDips` は
+ * この複製にすら入っておらず、403 / `AppSessionExpiredClientError` (401 plain) の分岐が
+ * 欠落していたため、PILOT 権限剥奪時に英語の "Forbidden"・"Unauthorized" がそのまま
+ * 画面に出る実害があった。ここへ全6関数を統合することで同時に解消する
+ * (詳細は __tests__/lib/api/dips.test.ts の notifyFlightPlanToDips 回帰テスト参照)。
+ *
+ * 呼び出し側は成功時のレスポンス body (`res.ok` かつ JSON 解析済み。解析失敗時は `{}`) を
+ * そのまま受け取り、独自のパース (DTO 検証・excludedCount 合算等) を行う。
+ */
+async function fetchDipsRoute<TBody extends DipsErrorBody>(
+  input: RequestInfo,
+  init: RequestInit | undefined,
+  { subject, defaultRealm }: FetchDipsRouteOptions
+): Promise<TBody> {
+  let res: Response;
+  try {
+    res = await fetch(input, init);
+  } catch {
+    // fetch() 自体が失敗した場合 (ネットワーク接続不可等) の TypeError は英語のまま
+    // 画面に出てしまう (2026-09-02 差し戻し H4)。ここで日本語メッセージに正規化する
+    throw new Error(`${subject}に失敗しました。ネットワーク接続を確認してください`);
+  }
+
+  const body = (await res.json().catch(() => null)) as TBody | null;
+
+  if (res.status === 401 && body?.authRequired) {
+    throw new DipsAuthRequiredClientError(body.realm ?? defaultRealm);
+  }
+
+  if (res.status === 401) {
+    // requireFlightAccess() が返す素の 401 (英語 "Unauthorized") はアプリ自体のセッション
+    // 切れ。DIPS 再認可 (authRequired) とは別物のため専用エラーで区別する
+    throw new AppSessionExpiredClientError();
+  }
+
+  if (res.status === 403) {
+    // requireFlightAccess() が返す素の 403 (英語 "Forbidden") をそのまま表示しない
+    throw new Error("この操作を行う権限がありません");
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error ?? `${subject}に失敗しました`);
+  }
+
+  return body ?? ({} as TBody);
+}
+
 /**
  * 飛行計画を DIPS へ通報する。
  * トークン未取得・失効 (401 authRequired) の場合は DipsAuthRequiredClientError を投げる。
+ * アプリ自体のセッションが切れている場合は AppSessionExpiredClientError を投げる。
  */
 export async function notifyFlightPlanToDips(
   planId: string,
   input: DipsNotificationInput
 ): Promise<DipsNotificationResult> {
-  const res = await fetch(`/api/flight/plans/${planId}/dips-notify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const body = await fetchDipsRoute<DipsErrorBody & { result?: DipsNotificationResult }>(
+    `/api/flight/plans/${planId}/dips-notify`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    { subject: "DIPS通報", defaultRealm: "fpl" }
+  );
 
-  const body = (await res.json().catch(() => null)) as
-    | ({ authRequired?: boolean; realm?: string; error?: string } & {
-        result?: DipsNotificationResult;
-      })
-    | null;
-
-  if (res.status === 401 && body?.authRequired) {
-    throw new DipsAuthRequiredClientError(body.realm ?? "fpl");
-  }
-
-  if (!res.ok || !body?.result) {
-    throw new Error(body?.error ?? "DIPS通報に失敗しました");
+  if (!body.result) {
+    throw new Error("DIPS通報に失敗しました");
   }
 
   return body.result;
@@ -261,46 +332,15 @@ function parseOwnedAircrafts(rawAircrafts: unknown): ParseOwnedAircraftsResult {
 export async function fetchDipsOwnedAircrafts(
   includeInvalid = false
 ): Promise<FetchDipsOwnedAircraftsResult> {
-  let res: Response;
-  try {
-    res = await fetch(`/api/dips/aircrafts?includeInvalid=${includeInvalid}`);
-  } catch {
-    // fetch() 自体が失敗した場合 (ネットワーク接続不可等) の TypeError は英語のまま
-    // 画面に出てしまう (2026-09-02 差し戻し H4: fetchDipsPermissions 側 (D4 差し戻し) に
-    // しか入っていなかった移行漏れ。DipsAircraftPickerModal.tsx / DipsVerifyButton.tsx が
-    // err.message をそのまま描画するため、オフライン時に英語の "Failed to fetch" が
-    // 5-1 の画面に出ていた)。ここで日本語メッセージに正規化する
-    throw new Error("DIPS機体情報の取得に失敗しました。ネットワーク接続を確認してください");
-  }
+  const body = await fetchDipsRoute<
+    DipsErrorBody & { aircrafts?: unknown; excludedCount?: number }
+  >(`/api/dips/aircrafts?includeInvalid=${includeInvalid}`, undefined, {
+    subject: "DIPS機体情報の取得",
+    defaultRealm: "utm",
+  });
 
-  const body = (await res.json().catch(() => null)) as
-    | ({ authRequired?: boolean; realm?: string; error?: string } & {
-        aircrafts?: unknown;
-        excludedCount?: number;
-      })
-    | null;
-
-  if (res.status === 401 && body?.authRequired) {
-    throw new DipsAuthRequiredClientError(body.realm ?? "utm");
-  }
-
-  if (res.status === 401) {
-    // requireFlightAccess() が返す素の 401 (英語 "Unauthorized") はアプリ自体のセッション
-    // 切れ。DIPS 再認可 (authRequired) とは別物のため専用エラーで区別する
-    throw new AppSessionExpiredClientError();
-  }
-
-  if (res.status === 403) {
-    // requireFlightAccess() が返す素の 403 (英語 "Forbidden") をそのまま表示しない
-    throw new Error("この操作を行う権限がありません");
-  }
-
-  if (!res.ok) {
-    throw new Error(body?.error ?? "DIPS機体情報の取得に失敗しました");
-  }
-
-  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
-  const { aircrafts, excludedCount: clientExcludedCount } = parseOwnedAircrafts(body?.aircrafts);
+  const serverExcludedCount = typeof body.excludedCount === "number" ? body.excludedCount : 0;
+  const { aircrafts, excludedCount: clientExcludedCount } = parseOwnedAircrafts(body.aircrafts);
 
   return {
     aircrafts,
@@ -419,46 +459,292 @@ function parsePermissions(rawPermissions: unknown): ParsePermissionsResult {
  * fetchDipsOwnedAircrafts の parseOwnedAircrafts と同じ強度で境界検証する。
  */
 export async function fetchDipsPermissions(): Promise<FetchDipsPermissionsResult> {
-  let res: Response;
-  try {
-    res = await fetch("/api/dips/permissions");
-  } catch {
-    // fetch() 自体が失敗した場合 (ネットワーク接続不可等) の TypeError は英語のまま
-    // 画面に出てしまう (D4 差し戻し)。ここで日本語メッセージに正規化する
-    throw new Error("DIPS許可・承認情報の取得に失敗しました。ネットワーク接続を確認してください");
-  }
+  const body = await fetchDipsRoute<
+    DipsErrorBody & { permissions?: unknown; excludedCount?: number }
+  >("/api/dips/permissions", undefined, {
+    subject: "DIPS許可・承認情報の取得",
+    defaultRealm: "req",
+  });
 
-  const body = (await res.json().catch(() => null)) as
-    | ({ authRequired?: boolean; realm?: string; error?: string } & {
-        permissions?: unknown;
-        excludedCount?: number;
-      })
-    | null;
-
-  if (res.status === 401 && body?.authRequired) {
-    throw new DipsAuthRequiredClientError(body.realm ?? "req");
-  }
-
-  if (res.status === 401) {
-    // requireFlightAccess() が返す素の 401 (英語 "Unauthorized") はアプリ自体のセッション
-    // 切れ。DIPS 再認可 (authRequired) とは別物のため専用エラーで区別する
-    throw new AppSessionExpiredClientError();
-  }
-
-  if (res.status === 403) {
-    // requireFlightAccess() が返す素の 403 (英語 "Forbidden") をそのまま表示しない
-    throw new Error("この操作を行う権限がありません");
-  }
-
-  if (!res.ok) {
-    throw new Error(body?.error ?? "DIPS許可・承認情報の取得に失敗しました");
-  }
-
-  const serverExcludedCount = typeof body?.excludedCount === "number" ? body.excludedCount : 0;
-  const { permissions, excludedCount: clientExcludedCount } = parsePermissions(body?.permissions);
+  const serverExcludedCount = typeof body.excludedCount === "number" ? body.excludedCount : 0;
+  const { permissions, excludedCount: clientExcludedCount } = parsePermissions(body.permissions);
 
   return {
     permissions,
     excludedCount: serverExcludedCount + clientExcludedCount,
   };
+}
+
+// ─── 飛行禁止エリア情報取得 ───────────────────────────────────────────────────
+
+/**
+ * DIPS 飛行禁止エリア情報。地理情報・エリア種別・名称のみで個人情報を含まない。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける。
+ */
+export type { DipsFlightProhibitedAreaInfo };
+
+export interface DipsFlightProhibitedAreaSearchInput {
+  centerLongitude: number;
+  centerLatitude: number;
+  radiusMeters: number;
+  flightProhibitedAreaTypeIds: number[];
+}
+
+export interface FetchDipsFlightProhibitedAreasResult {
+  areas: DipsFlightProhibitedAreaInfo[];
+  /** サーバー側でパースに失敗した件数とクライアント側の DTO 検証で落とした件数の合算
+   * (fetchDipsOwnedAircrafts/fetchDipsPermissions と同じ合算方針) */
+  excludedCount: number;
+}
+
+/**
+ * DIPS ジオメトリ (Circle/Polygon 共用のワイヤーフォーマット) の DTO 検証スキーマ。
+ * 飛行禁止エリア情報取得の `range` と飛行計画情報取得の `flyRoute` は、どちらも同じ
+ * `DipsAreaGeometry` 型 (lib/dips/types.ts) を使うにもかかわらず、以前はバイト単位で
+ * 同一のスキーマが2箇所に複製され、しかもこちらにしか `AssertExactType` が付いておらず
+ * `flyRoute` 側だけ型ドリフト検知が効かない状態だった (2026-09-06 レビュー I5)。
+ * ここへ1本化し、飛行計画情報取得の `flyRoute` (このファイル下部) からも再利用する。
+ */
+const AreaGeometryDtoSchema = z.object({
+  type: z.enum(["Circle", "Polygon"]),
+  center: z.array(z.number()),
+  radius: z.number(),
+  coordinates: z.array(z.array(z.number())),
+}) satisfies z.ZodType<DipsAreaGeometry>;
+
+type _AssertAreaGeometryDtoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof AreaGeometryDtoSchema>, DipsAreaGeometry>
+>;
+
+const DipsFlightProhibitedAreaInfoSchema = z.object({
+  areaId: z.string(),
+  name: z.string(),
+  detail: z.string(),
+  url: z.string(),
+  areaTypeId: z.number(),
+  startTime: z.string(),
+  finishTime: z.string(),
+  range: AreaGeometryDtoSchema,
+}) satisfies z.ZodType<DipsFlightProhibitedAreaInfo>;
+
+type _AssertDipsFlightProhibitedAreaInfoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsFlightProhibitedAreaInfoSchema>, DipsFlightProhibitedAreaInfo>
+>;
+
+/**
+ * DIPS 飛行禁止エリア情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
+ */
+function parseProhibitedAreas(rawAreas: unknown): {
+  areas: DipsFlightProhibitedAreaInfo[];
+  excludedCount: number;
+} {
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawAreas,
+    DipsFlightProhibitedAreaInfoSchema,
+    "DIPS飛行禁止エリア情報"
+  );
+  return { areas: entries, excludedCount };
+}
+
+/**
+ * DIPS 飛行禁止エリア情報を検索する (5-5)。トークン未取得・失効 (401 authRequired) の
+ * 場合は DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている場合は
+ * AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ */
+export async function searchDipsFlightProhibitedAreas(
+  input: DipsFlightProhibitedAreaSearchInput
+): Promise<FetchDipsFlightProhibitedAreasResult> {
+  const body = await fetchDipsRoute<DipsErrorBody & { areas?: unknown; excludedCount?: number }>(
+    "/api/dips/flight-prohibited-areas/search",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) },
+    { subject: "DIPS飛行禁止エリア情報の取得", defaultRealm: "fpl" }
+  );
+
+  const serverExcludedCount = typeof body.excludedCount === "number" ? body.excludedCount : 0;
+  const { areas, excludedCount: clientExcludedCount } = parseProhibitedAreas(body.areas);
+
+  return {
+    areas,
+    excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 飛行計画情報取得 ─────────────────────────────────────────────────────────
+
+/**
+ * DIPS 飛行計画情報。通報者・操縦者・許可申請者の氏名・住所・電話番号・メールアドレスは
+ * 含まない (サーバー側 `lib/dips/flightPlanSchema.ts` が既に除去済み)。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける。
+ */
+export type { DipsFlightPlanInfo };
+
+export interface DipsFlightPlanSearchInput {
+  centerLongitude: number;
+  centerLatitude: number;
+  radiusMeters: number;
+  /** true: 自アカウントの飛行計画のみ, false/省略: 全ユーザー */
+  onlyMine?: boolean;
+}
+
+export interface FetchDipsFlightPlansResult {
+  flightPlans: DipsFlightPlanInfo[];
+  /** サーバー側でパースに失敗した件数とクライアント側の DTO 検証で落とした件数の合算 */
+  excludedCount: number;
+}
+
+const FlightPlanInsuranceInfoDtoSchema = z.object({
+  insuranceCompany: z.string(),
+  insuranceProduct: z.string(),
+  interPerson: z.number(),
+  interObject: z.number(),
+  insuranceAbility: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanInsuranceInfo>;
+
+const FlightPlanPilotInfoDtoSchema = z.object({
+  pilotId: z.number(),
+  skillCertificationNumber: z.string(),
+  firstClass: z.string(),
+  secondClass: z.string(),
+  privateLicense: z.string(),
+  maker: z.string(),
+  model: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanPilotInfo>;
+
+const FlightPlanAircraftInfoDtoSchema = z.object({
+  aircraftId: z.number(),
+  type: z.string(),
+  certificationNum: z.string(),
+  symbol: z.string(),
+  model: z.string(),
+  maker: z.string(),
+  certification1: z.string(),
+  certification2: z.string(),
+  maxWeight: z.number(),
+}) satisfies z.ZodType<DipsFlightPlanAircraftInfo>;
+
+const FlightPlanPermitApplicationInfoDtoSchema = z.object({
+  flightPermitApplicationNumber: z.string(),
+  permitDate: z.string(),
+  startDate: z.string(),
+  finishDate: z.string(),
+}) satisfies z.ZodType<DipsFlightPlanPermitApplicationInfo>;
+
+const DipsFlightPlanInfoSchema = z.object({
+  flightPlanId: z.string(),
+  name: z.string().nullable(),
+  flightPurpose: z.array(z.number()).nullable(),
+  flightAirspace: z.array(z.number()).nullable(),
+  flightType: z.array(z.number()).nullable(),
+  assistantsNumber: z.number().nullable(),
+  departurePoint: z.string().nullable(),
+  destinationPoint: z.string().nullable(),
+  startTime: z.string(),
+  finishTime: z.string(),
+  plannedMaxTime: z.number(),
+  plannedFlightTime: z.number(),
+  flightSpeed: z.number(),
+  flightAltitude: z.number(),
+  // I5: 飛行禁止エリア情報取得の range と同じ DipsAreaGeometry 型のため、
+  // 別スキーマを複製せず AreaGeometryDtoSchema (このファイル冒頭で定義・
+  // AssertExactType 済み) をそのまま再利用する
+  flyRoute: AreaGeometryDtoSchema,
+  riskMitigationOnsiteControl: z.string().nullable(),
+  riskMitigationOnsiteControlL3: z.string().nullable(),
+  riskMitigationOnsiteControlL35: z.string().nullable(),
+  riskMitigationOnsiteControl2: z.string().nullable(),
+  exceptionalConditionsMooring: z.string().nullable(),
+  insuranceInformation: FlightPlanInsuranceInfoDtoSchema.nullable(),
+  otherInformation: z.string().nullable(),
+  pilotInfo: z.array(FlightPlanPilotInfoDtoSchema).nullable(),
+  aircraftInfo: z.array(FlightPlanAircraftInfoDtoSchema).nullable(),
+  flightPermitApplicationInfo: FlightPlanPermitApplicationInfoDtoSchema.nullable(),
+}) satisfies z.ZodType<DipsFlightPlanInfo>;
+
+type _AssertDipsFlightPlanInfoSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsFlightPlanInfoSchema>, DipsFlightPlanInfo>
+>;
+
+/**
+ * DIPS 飛行計画情報の配列を1件ずつ検証する。共通実装は `parseEntriesLeniently` 参照。
+ */
+function parseFlightPlans(rawFlightPlans: unknown): {
+  flightPlans: DipsFlightPlanInfo[];
+  excludedCount: number;
+} {
+  const { entries, excludedCount } = parseEntriesLeniently(
+    rawFlightPlans,
+    DipsFlightPlanInfoSchema,
+    "DIPS飛行計画情報"
+  );
+  return { flightPlans: entries, excludedCount };
+}
+
+/**
+ * DIPS 飛行計画情報を検索する (5-4)。トークン未取得・失効 (401 authRequired) の場合は
+ * DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている場合は
+ * AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ *
+ * ⚠️ 検証環境へのサンプルデータは未投入のため、`onlyMine` を指定しない (全ユーザー検索)
+ * 場合は検索結果が0件になる可能性が高い。事前に「飛行計画通報受付API」(5-6) でデータ
+ * 投入が必要 (設定通知書「検証環境での確認ポイント」D36/E36 参照)。
+ */
+export async function searchDipsFlightPlans(
+  input: DipsFlightPlanSearchInput
+): Promise<FetchDipsFlightPlansResult> {
+  const body = await fetchDipsRoute<
+    DipsErrorBody & { flightPlans?: unknown; excludedCount?: number }
+  >(
+    "/api/dips/flight-plans/search",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) },
+    { subject: "DIPS飛行計画情報の取得", defaultRealm: "fpl" }
+  );
+
+  const serverExcludedCount = typeof body.excludedCount === "number" ? body.excludedCount : 0;
+  const { flightPlans, excludedCount: clientExcludedCount } = parseFlightPlans(body.flightPlans);
+
+  return {
+    flightPlans,
+    excludedCount: serverExcludedCount + clientExcludedCount,
+  };
+}
+
+// ─── 許可・承認申請受付 ───────────────────────────────────────────────────────
+
+/**
+ * 許可・承認申請受付 API のレスポンス (成功時)。個人情報は含まない。
+ * サーバー側 (`lib/dips/types.ts`) の型を re-export し、型の二重定義を避ける
+ * (`DipsFlightProhibitedAreaInfo`/`DipsFlightPlanInfo` と同じ方針。2026-09-06 レビュー I8:
+ * 以前はこの型だけ再エクスポートせず独自 interface を再定義しており、
+ * `lib/dips/permissionApplicationSchema.ts` の同名型と二重定義になっていた)。
+ */
+export type { DipsPermissionApplicationResult };
+
+const DipsPermissionApplicationResultSchema = z.object({
+  formNum: z.string(),
+}) satisfies z.ZodType<DipsPermissionApplicationResult>;
+
+type _AssertDipsPermissionApplicationResultSchemaExact = AssertExactType<
+  IsExactType<z.infer<typeof DipsPermissionApplicationResultSchema>, DipsPermissionApplicationResult>
+>;
+
+/**
+ * 許可・承認申請受付 API (5-3) へ検証環境向けのテスト申請を送信する。申請内容は
+ * サーバー側 (`buildPermissionApplicationTestPayload`) がガイドライン準拠で組み立てる
+ * ため、このクライアント関数は引数を取らない。トークン未取得・失効 (401 authRequired)
+ * の場合は DipsAuthRequiredClientError を投げる。アプリ自体のセッションが切れている
+ * 場合は AppSessionExpiredClientError を投げる (fetchDipsPermissions と同じ区別)。
+ */
+export async function applyDipsPermissionTest(): Promise<DipsPermissionApplicationResult> {
+  const body = await fetchDipsRoute<DipsErrorBody & { result?: unknown }>(
+    "/api/dips/permissions/apply",
+    { method: "POST" },
+    { subject: "DIPS許可・承認申請の送信", defaultRealm: "req" }
+  );
+
+  const parsed = DipsPermissionApplicationResultSchema.safeParse(body.result);
+  if (!parsed.success) {
+    throw new Error("DIPS許可・承認申請の送信に失敗しました: レスポンスの形式が不正です");
+  }
+
+  return parsed.data;
 }

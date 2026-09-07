@@ -7,6 +7,7 @@ import {
   DipsAuthError,
   DipsApiError,
   DipsAuthRequiredError,
+  DipsPossiblyAcceptedTimeoutError,
 } from "@/lib/dips/errors";
 import type { DipsRealm } from "@/lib/dips/config";
 import { logger } from "@/lib/logger";
@@ -129,6 +130,54 @@ describe("handleDipsRouteError", () => {
       route: options.route,
       id: "plan-1",
     });
+  });
+
+  // ─── I1: DipsPossiblyAcceptedTimeoutError (2026-09-06 レビュー差し戻し) ──────────
+
+  it("test_returns_502_with_possibly_accepted_flag_for_possibly_accepted_timeout_error", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsPossiblyAcceptedTimeoutError("timed out");
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect({ status: response.status, possiblyAccepted: body.possiblyAccepted }).toEqual({
+      status: 502,
+      possiblyAccepted: true,
+    });
+  });
+
+  it("test_possibly_accepted_timeout_error_message_mentions_possible_acceptance", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsPossiblyAcceptedTimeoutError("timed out");
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect(body.error).toContain("受理済み");
+  });
+
+  it("test_possibly_accepted_timeout_error_uses_the_caller_supplied_recovery_hint", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsPossiblyAcceptedTimeoutError("timed out");
+
+    const response = handleDipsRouteError(error, {
+      ...options,
+      timeoutRecoveryHint: "許可・承認情報取得の画面で確認してください",
+    });
+    const body = await response.json();
+
+    expect(body.error).toContain("許可・承認情報取得の画面で確認してください");
+  });
+
+  it("test_possibly_accepted_timeout_error_falls_back_to_a_generic_hint_when_omitted", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsPossiblyAcceptedTimeoutError("timed out");
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect(body.error).toContain("再送する前に登録状況を確認してください");
   });
 
   it("test_client_facing_error_body_never_contains_the_label", async () => {

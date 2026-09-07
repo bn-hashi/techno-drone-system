@@ -18,6 +18,13 @@ export interface DipsEndpoint {
   realm: DipsRealm;
   /** どの系統のベース URL を使うか */
   apiBase: "fpr" | "fpa" | "drs";
+  /**
+   * 再送すると重複登録になりうる (非冪等な) 書き込み API かどうか。
+   * `DipsApiClient.request()` はこのフラグが立つ API に対してのみ、タイムアウト時間を
+   * 長めに取り、タイムアウト発生時は「受理済みの可能性がある」旨の専用エラー
+   * (`DipsPossiblyAcceptedTimeoutError`) を投げる (2026-09-06 レビュー I1)。
+   */
+  isNonIdempotentWrite?: boolean;
 }
 
 export const DIPS_ENDPOINTS = {
@@ -35,12 +42,13 @@ export const DIPS_ENDPOINTS = {
     realm: "fpl",
     apiBase: "fpr",
   },
-  /** 飛行計画通報受付 (fpl) */
+  /** 飛行計画通報受付 (fpl)。非冪等な登録系 POST (I1 参照) */
   flightPlanRegister: {
     method: "POST",
     path: "/api/flight-plan/register",
     realm: "fpl",
     apiBase: "fpr",
+    isNonIdempotentWrite: true,
   },
   /** 許可・承認情報取得 (req) */
   permissionList: {
@@ -49,12 +57,13 @@ export const DIPS_ENDPOINTS = {
     realm: "req",
     apiBase: "fpa",
   },
-  /** 許可・承認申請受付 (req) */
+  /** 許可・承認申請受付 (req)。134項目に及ぶ非冪等な登録系 POST (I1 参照) */
   permissionRegister: {
     method: "POST",
     path: "/req-pub/api/v1/appliers/me/permissionRegister",
     realm: "req",
     apiBase: "fpa",
+    isNonIdempotentWrite: true,
   },
   /** 機体情報一覧取得 (utm, DRS API ガイドライン §2.3.6) */
   aircraftList: {
