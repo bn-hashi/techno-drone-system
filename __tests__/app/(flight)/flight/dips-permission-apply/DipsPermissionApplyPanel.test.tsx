@@ -20,6 +20,12 @@ function renderWithQuery(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
+/** 「テスト申請を送信」→ 確認ステップの「送信する」まで進める共通ヘルパー */
+async function clickSubmitAndConfirm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+  await user.click(screen.getByRole("button", { name: "送信する" }));
+}
+
 describe("DipsPermissionApplyPanel", () => {
   beforeEach(() => {
     mockApplyDipsPermissionTest.mockReset();
@@ -33,24 +39,66 @@ describe("DipsPermissionApplyPanel", () => {
     expect(mockApplyDipsPermissionTest).not.toHaveBeenCalled();
   });
 
-  it("test_panel_submits_when_button_clicked", async () => {
+  // I2 (2026-09-06 レビュー): 実申請の送信には確認ステップを挟む (window.confirm は
+  // 使わずインライン確認)。以前は「テスト申請を送信」ボタン1つで即座に送信していた
+  // (実装前に本テストを実行し、即座に送信されて Red になることを確認済み)。
+  it("test_panel_requires_confirmation_before_submitting", async () => {
     mockApplyDipsPermissionTest.mockResolvedValue({ formNum: "Q190100001" });
     const user = userEvent.setup();
     renderWithQuery(<DipsPermissionApplyPanel />);
 
     await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+
+    expect(mockApplyDipsPermissionTest).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "送信する" })).toBeInTheDocument();
+  });
+
+  it("test_panel_submits_after_confirmation", async () => {
+    mockApplyDipsPermissionTest.mockResolvedValue({ formNum: "Q190100001" });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsPermissionApplyPanel />);
+
+    await clickSubmitAndConfirm(user);
 
     expect(mockApplyDipsPermissionTest).toHaveBeenCalledTimes(1);
   });
 
-  it("test_panel_shows_form_num_on_success", async () => {
-    mockApplyDipsPermissionTest.mockResolvedValue({ formNum: "Q190100001" });
+  it("test_panel_can_cancel_the_confirmation_without_submitting", async () => {
     const user = userEvent.setup();
     renderWithQuery(<DipsPermissionApplyPanel />);
 
     await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
 
-    expect(await screen.findByText(/Q190100001/)).toBeInTheDocument();
+    expect(mockApplyDipsPermissionTest).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "テスト申請を送信" })).toBeInTheDocument();
+  });
+
+  // I2 の核心: 成功後すぐにボタンが再活性化し、2回押すと共用DBに2件登録されていた
+  // (実装前に本テストを実行し、Red になることを確認済み)。成功後は送信系ボタンを
+  // 一切表示せず「送信済み」表示に固定し、再送にはページの再読み込みを要求する。
+  it("test_panel_locks_submission_after_success_and_shows_submitted_state", async () => {
+    mockApplyDipsPermissionTest.mockResolvedValue({ formNum: "Q190100001" });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsPermissionApplyPanel />);
+
+    await clickSubmitAndConfirm(user);
+    await screen.findByText(/Q190100001/);
+
+    expect(screen.queryByRole("button", { name: "テスト申請を送信" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "送信する" })).not.toBeInTheDocument();
+    expect(screen.getByText(/再送するにはこのページを再読み込みしてください/)).toBeInTheDocument();
+  });
+
+  it("test_panel_shows_submitted_message_with_form_num_after_success", async () => {
+    mockApplyDipsPermissionTest.mockResolvedValue({ formNum: "Q190100001" });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsPermissionApplyPanel />);
+
+    await clickSubmitAndConfirm(user);
+
+    expect(await screen.findByText(/送信済み/)).toBeInTheDocument();
+    expect(screen.getByText(/Q190100001/)).toBeInTheDocument();
   });
 
   it("test_panel_shows_dips_auth_prompt_on_auth_required_error", async () => {
@@ -58,7 +106,7 @@ describe("DipsPermissionApplyPanel", () => {
     const user = userEvent.setup();
     renderWithQuery(<DipsPermissionApplyPanel />);
 
-    await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+    await clickSubmitAndConfirm(user);
 
     expect(await screen.findByText("DIPSへのログインが必要です。")).toBeInTheDocument();
   });
@@ -68,7 +116,7 @@ describe("DipsPermissionApplyPanel", () => {
     const user = userEvent.setup();
     renderWithQuery(<DipsPermissionApplyPanel />);
 
-    await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+    await clickSubmitAndConfirm(user);
 
     expect(await screen.findByText(/ログインが必要です。再度ログインしてください/)).toBeInTheDocument();
   });
@@ -78,12 +126,28 @@ describe("DipsPermissionApplyPanel", () => {
     const user = userEvent.setup();
     renderWithQuery(<DipsPermissionApplyPanel />);
 
-    await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+    await clickSubmitAndConfirm(user);
 
     expect(await screen.findByText("502エラー")).toBeInTheDocument();
   });
 
-  it("test_panel_disables_button_while_pending", async () => {
+  it("test_panel_allows_retrying_confirmation_after_a_failure", async () => {
+    // 失敗後も再送信できること (ロックは成功時のみ)
+    mockApplyDipsPermissionTest.mockRejectedValueOnce(new Error("502エラー"));
+    mockApplyDipsPermissionTest.mockResolvedValueOnce({ formNum: "Q190100001" });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsPermissionApplyPanel />);
+
+    await clickSubmitAndConfirm(user);
+    expect(await screen.findByText("502エラー")).toBeInTheDocument();
+
+    await clickSubmitAndConfirm(user);
+
+    expect(await screen.findByText(/Q190100001/)).toBeInTheDocument();
+    expect(mockApplyDipsPermissionTest).toHaveBeenCalledTimes(2);
+  });
+
+  it("test_panel_disables_confirm_button_while_pending", async () => {
     let resolvePromise: (value: { formNum: string }) => void = () => {};
     mockApplyDipsPermissionTest.mockReturnValue(
       new Promise((resolve) => {
@@ -94,6 +158,7 @@ describe("DipsPermissionApplyPanel", () => {
     renderWithQuery(<DipsPermissionApplyPanel />);
 
     await user.click(screen.getByRole("button", { name: "テスト申請を送信" }));
+    await user.click(screen.getByRole("button", { name: "送信する" }));
 
     expect(screen.getByRole("button", { name: "送信中..." })).toBeDisabled();
     resolvePromise({ formNum: "Q190100001" });
