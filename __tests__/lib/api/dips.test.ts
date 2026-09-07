@@ -6,6 +6,7 @@ import {
   searchDipsFlightPlans,
   applyDipsPermissionTest,
   unlinkDipsAccount,
+  notifyFlightPlanToDips,
   DipsAuthRequiredClientError,
   AppSessionExpiredClientError,
 } from "@/lib/api/dips";
@@ -430,6 +431,85 @@ describe("unlinkDipsAccount", () => {
     mockFetchJson({}, 500);
 
     await expect(unlinkDipsAccount("utm")).rejects.toThrow("DIPS連携の解除に失敗しました");
+  });
+});
+
+const notificationInput = {
+  flightPurpose: [15],
+  flightAirspace: [1],
+  assistantsNumber: 0,
+  departurePoint: "泉岳寺",
+  destinationPoint: "京急泉岳寺駅",
+  flightSpeed: 30,
+  flightAltitude: 50,
+  flyRoute: "{}",
+  riskMitigationOnsiteControl: true,
+};
+
+describe("notifyFlightPlanToDips", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("test_notifyFlightPlanToDips_returns_result_on_success", async () => {
+    mockFetchJson({ result: { flightPlanId: "FP-1", flightPlanRegistrationResult: "OK", flightPlanRegistrationDatetime: "2026-09-01T00:00:00+09:00" } });
+
+    const result = await notifyFlightPlanToDips("plan-1", notificationInput);
+
+    expect(result.flightPlanId).toBe("FP-1");
+  });
+
+  it("test_notifyFlightPlanToDips_throws_auth_required_error_with_fpl_realm_on_401", async () => {
+    mockFetchJson({ error: "DIPSへのログインが必要です", authRequired: true, realm: "fpl" }, 401);
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toBeInstanceOf(
+      DipsAuthRequiredClientError
+    );
+  });
+
+  it("test_notifyFlightPlanToDips_throws_app_session_expired_error_on_plain_401", async () => {
+    // 回帰テスト (I4): requireFlightAccess() が返す素の 401 ({ error: "Unauthorized" }、
+    // authRequired なし) は、この関数だけ AppSessionExpiredClientError への分岐が
+    // 欠落しており、英語の "Unauthorized" がそのまま画面に出ていた
+    mockFetchJson({ error: "Unauthorized" }, 401);
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toBeInstanceOf(
+      AppSessionExpiredClientError
+    );
+  });
+
+  it("test_notifyFlightPlanToDips_throws_japanese_message_on_403", async () => {
+    // 回帰テスト (I4): requireFlightAccess() が返す素の 403 ({ error: "Forbidden" }) を
+    // 英語のまま画面に出さない。PILOT 権限剥奪時に発生する経路
+    mockFetchJson({ error: "Forbidden" }, 403);
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toThrow(
+      "この操作を行う権限がありません"
+    );
+  });
+
+  it("test_notifyFlightPlanToDips_throws_server_error_message_on_failure", async () => {
+    mockFetchJson({ error: "DIPS連携でエラーが発生しました" }, 502);
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toThrow(
+      "DIPS連携でエラーが発生しました"
+    );
+  });
+
+  it("test_notifyFlightPlanToDips_throws_default_message_when_result_is_missing", async () => {
+    mockFetchJson({});
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toThrow(
+      "DIPS通報に失敗しました"
+    );
+  });
+
+  it("test_notifyFlightPlanToDips_throws_japanese_message_when_fetch_itself_fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(notifyFlightPlanToDips("plan-1", notificationInput)).rejects.toThrow(
+      "DIPS通報に失敗しました。ネットワーク接続を確認してください"
+    );
   });
 });
 
