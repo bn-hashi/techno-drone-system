@@ -58,6 +58,28 @@ export interface HandleDipsRouteErrorOptions {
 }
 
 /**
+ * `DipsApiError` / `DipsAuthError` が保持する `status` / `responseBody` をログの
+ * context に載せる形へ変換する (`DipsAuthError` には `responseBody` が存在しないため
+ * `status` のみ)。
+ *
+ * 2026-09-08 対応: `logger` (lib/logger.ts) の `serializeError` は Error の
+ * name/message/stack のみに絞り込む (PII を含みうる独自プロパティを露出しないための
+ * ガード) ため、DIPS 固有のエラー種別が持つ `status` / `responseBody` は素通しでは
+ * ログに出ない。これが原因で「DIPS が何を理由に拒否したか」が本番のログから分からず、
+ * 飛行計画通報 (5-6) の DIPS 検証環境疎通確認が原因不明のまま止まっていた。
+ * `responseBody` は `DipsApiClient.request()` が例外を投げる時点で既に PII 対策として
+ * 200文字 (RESPONSE_BODY_PREVIEW_LENGTH) へ切り詰め済みの値をそのまま転記するだけで、
+ * ここで新たに全文を持ち込むわけではない (lib/dips/dipsApiClient.ts 参照。この切り詰めは
+ * 呼び出す API を区別せず一律に適用されている)。
+ */
+function dipsErrorLogContext(error: DipsAuthError | DipsApiError): Record<string, unknown> {
+  return {
+    status: error.status,
+    ...(error instanceof DipsApiError ? { responseBody: error.responseBody } : {}),
+  };
+}
+
+/**
  * DIPS 連携 API 呼び出し中に発生した例外を、エラー種別ごとの HTTP レスポンスへ変換する。
  *
  * - `DipsDisabledError`: DIPS 連携が無効。503
@@ -77,7 +99,8 @@ export interface HandleDipsRouteErrorOptions {
  *   `possiblyAccepted: true` と「再送前に確認してください」の専用文言を返す。
  *   `DipsApiError` のサブクラスのため、このチェックは下の `DipsAuthError || DipsApiError`
  *   より前に置く必要がある
- * - `DipsAuthError` / `DipsApiError`: DIPS 側のエラー。502
+ * - `DipsAuthError` / `DipsApiError`: DIPS 側のエラー。502。ログの context に
+ *   `dipsErrorLogContext` (上記) の `status` / `responseBody` を含める (2026-09-08 対応)
  * - それ以外: 自システムの内部エラー。500
  */
 export function handleDipsRouteError(
@@ -109,7 +132,10 @@ export function handleDipsRouteError(
   }
 
   if (error instanceof DipsPossiblyAcceptedTimeoutError) {
-    logger.error(`DIPS${label}${actionVerb}がタイムアウトしました (受理済みの可能性があります)`, error, context);
+    logger.error(`DIPS${label}${actionVerb}がタイムアウトしました (受理済みの可能性があります)`, error, {
+      ...context,
+      ...dipsErrorLogContext(error),
+    });
     const hint = timeoutRecoveryHint ?? "再送する前に登録状況を確認してください";
     return NextResponse.json(
       {
@@ -121,7 +147,10 @@ export function handleDipsRouteError(
   }
 
   if (error instanceof DipsAuthError || error instanceof DipsApiError) {
-    logger.error(`DIPS${label}${actionVerb}に失敗しました`, error, context);
+    logger.error(`DIPS${label}${actionVerb}に失敗しました`, error, {
+      ...context,
+      ...dipsErrorLogContext(error),
+    });
     return NextResponse.json({ error: "DIPS連携でエラーが発生しました" }, { status: 502 });
   }
 
