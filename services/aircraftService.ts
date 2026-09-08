@@ -12,6 +12,11 @@ import {
 
 const MIN_WEIGHT_GRAMS = 1;
 const MIN_FLIGHT_TIME_MIN = 1;
+/** DIPS 機体の種類コードの範囲 (FPRガイドライン 2.3.8 No.66: 1〜6) */
+const MIN_DIPS_UA_TYPE = 1;
+const MAX_DIPS_UA_TYPE = 6;
+/** DIPS 総重量(kg)算出用の最大離陸重量 (g) の下限 */
+const MIN_MAX_TAKEOFF_WEIGHT_GRAMS = 1;
 
 interface AccessContext {
   userId: string;
@@ -76,6 +81,19 @@ export class AircraftService {
     }
   }
 
+  /**
+   * DIPS 機体の種類コード (1〜6) の値域を検証する。未入力 (null/undefined) は許可する
+   * (機体登録時点では任意。DIPS 通報時に DipsService が別途必須チェックする)。
+   */
+  private validateDipsUaType(value: number | null | undefined): void {
+    if (value === undefined || value === null) return;
+    if (!Number.isInteger(value) || value < MIN_DIPS_UA_TYPE || value > MAX_DIPS_UA_TYPE) {
+      throw new BusinessError(
+        `機体の種類は${MIN_DIPS_UA_TYPE}〜${MAX_DIPS_UA_TYPE}の範囲で指定してください`
+      );
+    }
+  }
+
   private validateUpdateInput(data: UpdateAircraftInput): void {
     this.validateNumericField(
       data.weightGrams,
@@ -87,6 +105,12 @@ export class AircraftService {
       MIN_FLIGHT_TIME_MIN,
       "最大飛行時間は 1 分以上で入力してください"
     );
+    this.validateNumericField(
+      data.maxTakeoffWeightGrams ?? undefined,
+      MIN_MAX_TAKEOFF_WEIGHT_GRAMS,
+      "最大離陸重量は 1g 以上で入力してください"
+    );
+    this.validateDipsUaType(data.dipsUaType);
   }
 
   private validateCreateInput(input: CreateAircraftInput): void {
@@ -100,5 +124,11 @@ export class AircraftService {
       MIN_FLIGHT_TIME_MIN,
       "最大飛行時間は 1 分以上で入力してください"
     );
+    this.validateNumericField(
+      input.maxTakeoffWeightGrams ?? undefined,
+      MIN_MAX_TAKEOFF_WEIGHT_GRAMS,
+      "最大離陸重量は 1g 以上で入力してください"
+    );
+    this.validateDipsUaType(input.dipsUaType);
   }
 }

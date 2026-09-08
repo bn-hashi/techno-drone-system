@@ -19,6 +19,15 @@ export interface AircraftDto {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** DIPS 機体の種類 (1〜6)。未設定は DIPS 通報前に入力が必須 */
+  dipsUaType: number | null;
+  /** DIPS 機体認証(第一種) の取得有無。既定は未取得 (false) */
+  hasDipsCertification1: boolean;
+  /** DIPS 機体認証(第二種) の取得有無。既定は未取得 (false) */
+  hasDipsCertification2: boolean;
+  dipsCertificationNumber: string | null;
+  /** DIPS 総重量(kg)算出用の最大離陸重量 (g)。未設定なら機体重量 (weightGrams) を代用する */
+  maxTakeoffWeightGrams: number | null;
 }
 
 export interface AircraftFormData {
@@ -29,6 +38,11 @@ export interface AircraftFormData {
   weightGrams: number;
   maxFlightTimeMin: number;
   registrationNumber?: string | null;
+  dipsUaType?: number | null;
+  hasDipsCertification1?: boolean;
+  hasDipsCertification2?: boolean;
+  dipsCertificationNumber?: string | null;
+  maxTakeoffWeightGrams?: number | null;
 }
 
 const AircraftDtoSchema = z.object({
@@ -44,6 +58,11 @@ const AircraftDtoSchema = z.object({
   isActive: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  dipsUaType: z.number().nullable(),
+  hasDipsCertification1: z.boolean(),
+  hasDipsCertification2: z.boolean(),
+  dipsCertificationNumber: z.string().nullable(),
+  maxTakeoffWeightGrams: z.number().nullable(),
 });
 
 function parseAircraftDto(raw: unknown, context: string): AircraftDto {

@@ -21,6 +21,11 @@ const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft => ({
   isActive: true,
   createdAt: new Date("2026-06-30"),
   updatedAt: new Date("2026-06-30"),
+  dipsUaType: null,
+  hasDipsCertification1: false,
+  hasDipsCertification2: false,
+  dipsCertificationNumber: null,
+  maxTakeoffWeightGrams: null,
   ...overrides,
 });
 
@@ -230,6 +235,126 @@ describe("AircraftService", () => {
         })
       ).rejects.toThrow(BusinessError);
     });
+
+    it("test_create_persists_the_dips_ua_type", async () => {
+      const aircraft = makeAircraft({ dipsUaType: 3 });
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+      vi.mocked(repo.create).mockResolvedValue(aircraft);
+
+      await service.create({
+        userId: "user-1",
+        name: "DJI Mini 3",
+        manufacturer: "DJI",
+        modelNumber: "Mini3",
+        serialNumber: "SN-001",
+        weightGrams: 249,
+        maxFlightTimeMin: 38,
+        dipsUaType: 3,
+      });
+
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ dipsUaType: 3 }));
+    });
+
+    it("test_create_with_an_out_of_range_dips_ua_type_raises_error", async () => {
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: 249,
+          maxFlightTimeMin: 38,
+          dipsUaType: 7,
+        })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_with_a_zero_dips_ua_type_raises_error", async () => {
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: 249,
+          maxFlightTimeMin: 38,
+          dipsUaType: 0,
+        })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_without_a_dips_ua_type_does_not_raise_error", async () => {
+      // 機体登録時に未入力でも許可する (DIPS 通報時に別途必須チェックする方針)
+      const aircraft = makeAircraft({ dipsUaType: null });
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+      vi.mocked(repo.create).mockResolvedValue(aircraft);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: 249,
+          maxFlightTimeMin: 38,
+        })
+      ).resolves.toBe(aircraft);
+    });
+
+    it("test_create_rejects_a_zero_max_takeoff_weight_with_business_error", async () => {
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          userId: "user-1",
+          name: "DJI Mini 3",
+          manufacturer: "DJI",
+          modelNumber: "Mini3",
+          serialNumber: "SN-001",
+          weightGrams: 249,
+          maxFlightTimeMin: 38,
+          maxTakeoffWeightGrams: 0,
+        })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_create_persists_certification_flags_and_certification_number", async () => {
+      const aircraft = makeAircraft({
+        hasDipsCertification1: true,
+        hasDipsCertification2: false,
+        dipsCertificationNumber: "12345678901",
+      });
+      vi.mocked(repo.findBySerialNumber).mockResolvedValue(null);
+      vi.mocked(repo.create).mockResolvedValue(aircraft);
+
+      await service.create({
+        userId: "user-1",
+        name: "DJI Mini 3",
+        manufacturer: "DJI",
+        modelNumber: "Mini3",
+        serialNumber: "SN-001",
+        weightGrams: 249,
+        maxFlightTimeMin: 38,
+        hasDipsCertification1: true,
+        hasDipsCertification2: false,
+        dipsCertificationNumber: "12345678901",
+      });
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hasDipsCertification1: true,
+          hasDipsCertification2: false,
+          dipsCertificationNumber: "12345678901",
+        })
+      );
+    });
   });
 
   describe("update", () => {
@@ -273,6 +398,56 @@ describe("AircraftService", () => {
       await expect(
         service.update("aircraft-1", { maxFlightTimeMin: 0 }, { userId: "user-1", isAdmin: false })
       ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_update_persists_the_dips_ua_type", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+      vi.mocked(repo.update).mockResolvedValue(makeAircraft({ dipsUaType: 2 }));
+
+      await service.update(
+        "aircraft-1",
+        { dipsUaType: 2 },
+        { userId: "user-1", isAdmin: false }
+      );
+
+      expect(repo.update).toHaveBeenCalledWith("aircraft-1", { dipsUaType: 2 });
+    });
+
+    it("test_update_rejects_an_out_of_range_dips_ua_type", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+
+      await expect(
+        service.update("aircraft-1", { dipsUaType: 7 }, { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_update_rejects_a_zero_max_takeoff_weight", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+
+      await expect(
+        service.update(
+          "aircraft-1",
+          { maxTakeoffWeightGrams: 0 },
+          { userId: "user-1", isAdmin: false }
+        )
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_update_persists_certification_flags", async () => {
+      const aircraft = makeAircraft();
+      vi.mocked(repo.findById).mockResolvedValue(aircraft);
+      vi.mocked(repo.update).mockResolvedValue(makeAircraft({ hasDipsCertification1: true }));
+
+      await service.update(
+        "aircraft-1",
+        { hasDipsCertification1: true },
+        { userId: "user-1", isAdmin: false }
+      );
+
+      expect(repo.update).toHaveBeenCalledWith("aircraft-1", { hasDipsCertification1: true });
     });
   });
 

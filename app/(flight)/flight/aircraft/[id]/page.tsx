@@ -6,6 +6,7 @@ import { getAircraftService } from "@/lib/serviceFactory";
 import { AircraftNotFoundError } from "@/services/errors";
 import { UserRole } from "@/types/prisma";
 import { hasFlightAccess } from "@/lib/auth/flightPermissions";
+import { dipsUaTypeLabel } from "@/lib/constants/dipsAircraftType";
 import { DeactivateButton } from "./DeactivateButton";
 import { DipsVerifyButton } from "./DipsVerifyButton";
 
@@ -90,6 +91,26 @@ export default async function AircraftDetailPage({ params }: AircraftDetailPageP
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">登録記号</dt>
             <dd className="text-sm text-gray-900">{aircraft.registrationNumber ?? "—"}</dd>
+          </div>
+          <div className="px-6 py-4 flex gap-4">
+            <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">DIPS機体の種類</dt>
+            <dd className="text-sm text-gray-900">{dipsUaTypeLabel(aircraft.dipsUaType)}</dd>
+          </div>
+          <div className="px-6 py-4 flex gap-4">
+            <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">DIPS機体認証</dt>
+            <dd className="text-sm text-gray-900">
+              第一種: {aircraft.hasDipsCertification1 ? "取得済み" : "未取得"} / 第二種:{" "}
+              {aircraft.hasDipsCertification2 ? "取得済み" : "未取得"}
+              {aircraft.dipsCertificationNumber && ` (認証書番号: ${aircraft.dipsCertificationNumber})`}
+            </dd>
+          </div>
+          <div className="px-6 py-4 flex gap-4">
+            <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">最大離陸重量</dt>
+            <dd className="text-sm text-gray-900">
+              {aircraft.maxTakeoffWeightGrams !== null
+                ? `${aircraft.maxTakeoffWeightGrams.toLocaleString()} g`
+                : "未設定（機体重量を代用）"}
+            </dd>
           </div>
           <div className="px-6 py-4 flex gap-4">
             <dt className="w-40 text-sm font-medium text-gray-500 shrink-0">ステータス</dt>

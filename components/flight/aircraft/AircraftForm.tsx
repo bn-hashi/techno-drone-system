@@ -6,6 +6,7 @@ import type { AircraftDto, AircraftFormData } from "@/lib/api/aircraft";
 import { createAircraft, updateAircraft } from "@/lib/api/aircraft";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 import { DipsAircraftPickerModal } from "@/components/flight/aircraft/DipsAircraftPickerModal";
+import { DIPS_AIRCRAFT_TYPE_OPTIONS } from "@/lib/constants/dipsAircraftType";
 
 interface AircraftFormProps {
   initialData?: AircraftDto;
@@ -19,6 +20,23 @@ interface FormState {
   weightGrams: string;
   maxFlightTimeMin: string;
   registrationNumber: string;
+  /** DIPS 機体の種類コード (1〜6)。未設定は空文字 */
+  dipsUaType: string;
+  hasDipsCertification1: boolean;
+  hasDipsCertification2: boolean;
+  dipsCertificationNumber: string;
+  /** DIPS 総重量(kg)算出用の最大離陸重量 (g)。未設定は空文字 */
+  maxTakeoffWeightGrams: string;
+}
+
+/** null 許容の数値項目を、未設定 (null/undefined) は空文字にしてフォーム入力欄へ渡す */
+function numberOrNullToFormValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+/** フォーム入力欄の文字列 (空文字は未設定) を null 許容の数値へ戻す */
+function formValueToNumberOrNull(value: string): number | null {
+  return value === "" ? null : Number(value);
 }
 
 export function AircraftForm({ initialData }: AircraftFormProps) {
@@ -33,15 +51,25 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
     weightGrams: String(initialData?.weightGrams ?? ""),
     maxFlightTimeMin: String(initialData?.maxFlightTimeMin ?? ""),
     registrationNumber: initialData?.registrationNumber ?? "",
+    dipsUaType: numberOrNullToFormValue(initialData?.dipsUaType),
+    hasDipsCertification1: initialData?.hasDipsCertification1 ?? false,
+    hasDipsCertification2: initialData?.hasDipsCertification2 ?? false,
+    dipsCertificationNumber: initialData?.dipsCertificationNumber ?? "",
+    maxTakeoffWeightGrams: numberOrNullToFormValue(initialData?.maxTakeoffWeightGrams),
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDipsModalOpen, setIsDipsModalOpen] = useState(false);
   const [dipsImportNotice, setDipsImportNotice] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setForm((prev) => ({ ...prev, [name]: checked }));
   };
 
   /**
@@ -85,6 +113,11 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
         weightGrams: Number(form.weightGrams),
         maxFlightTimeMin: Number(form.maxFlightTimeMin),
         registrationNumber: form.registrationNumber || null,
+        dipsUaType: formValueToNumberOrNull(form.dipsUaType),
+        hasDipsCertification1: form.hasDipsCertification1,
+        hasDipsCertification2: form.hasDipsCertification2,
+        dipsCertificationNumber: form.dipsCertificationNumber || null,
+        maxTakeoffWeightGrams: formValueToNumberOrNull(form.maxTakeoffWeightGrams),
       };
       if (isEdit && initialData) {
         await updateAircraft(initialData.id, submitData);
@@ -248,6 +281,91 @@ export function AircraftForm({ initialData }: AircraftFormProps) {
           <p className="mt-1 text-xs text-green-700">{dipsImportNotice}</p>
         )}
       </div>
+
+      <fieldset className="border border-gray-200 rounded p-3 space-y-3">
+        <legend className="px-1 text-xs font-medium text-gray-500">
+          DIPS飛行計画通報用の情報（未入力の場合、通報時に入力を求められます）
+        </legend>
+
+        <div>
+          <label htmlFor="aircraft-dips-ua-type" className="block text-sm font-medium text-gray-700 mb-1">
+            機体の種類
+          </label>
+          <select
+            id="aircraft-dips-ua-type"
+            name="dipsUaType"
+            value={form.dipsUaType}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">未設定</option>
+            {DIPS_AIRCRAFT_TYPE_OPTIONS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              name="hasDipsCertification1"
+              checked={form.hasDipsCertification1}
+              onChange={handleCheckboxChange}
+            />
+            機体認証(第一種)を取得している
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              name="hasDipsCertification2"
+              checked={form.hasDipsCertification2}
+              onChange={handleCheckboxChange}
+            />
+            機体認証(第二種)を取得している
+          </label>
+        </div>
+
+        <div>
+          <label
+            htmlFor="aircraft-dips-certification-number"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            機体認証書番号
+          </label>
+          <input
+            id="aircraft-dips-certification-number"
+            type="text"
+            name="dipsCertificationNumber"
+            value={form.dipsCertificationNumber}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="aircraft-max-takeoff-weight-grams"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            最大離陸重量 (g)
+          </label>
+          <input
+            id="aircraft-max-takeoff-weight-grams"
+            type="number"
+            name="maxTakeoffWeightGrams"
+            value={form.maxTakeoffWeightGrams}
+            onChange={handleChange}
+            min={1}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            未入力の場合、DIPSへの通報時は機体重量を代用します
+          </p>
+        </div>
+      </fieldset>
 
       <DipsAircraftPickerModal
         isOpen={isDipsModalOpen}

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AircraftForm } from "@/components/flight/aircraft/AircraftForm";
 import type { AircraftDto } from "@/lib/api/aircraft";
-import { updateAircraft } from "@/lib/api/aircraft";
+import { createAircraft, updateAircraft } from "@/lib/api/aircraft";
 import type { DipsOwnedAircraftDto } from "@/lib/api/dips";
 
 const mockPush = vi.fn();
@@ -31,6 +31,11 @@ const editableAircraft: AircraftDto = {
   isActive: true,
   createdAt: "2026-01-01T00:00:00+09:00",
   updatedAt: "2026-01-01T00:00:00+09:00",
+  dipsUaType: 3,
+  hasDipsCertification1: true,
+  hasDipsCertification2: false,
+  dipsCertificationNumber: "12345678901",
+  maxTakeoffWeightGrams: 1200,
 };
 
 const mockFetchDipsOwnedAircrafts = vi.hoisted(() => vi.fn());
@@ -129,5 +134,77 @@ describe("AircraftForm", () => {
 
     expect(updateAircraft).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  describe("DIPS飛行計画通報用の機体属性", () => {
+    /** 新規登録に必要な最小限の項目を埋める (DIPS 属性は対象外) */
+    async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+      await user.type(screen.getByLabelText("機体名 *"), "テスト機体");
+      await user.type(screen.getByLabelText("製造メーカー *"), "サンプル製造者");
+      await user.type(screen.getByLabelText("型式番号 *"), "サンプル型式");
+      await user.type(screen.getByLabelText("シリアル番号 *"), "SN00000002");
+      await user.type(screen.getByLabelText("機体重量 (g) *"), "500");
+      await user.type(screen.getByLabelText("最大飛行時間 (分) *"), "20");
+    }
+
+    it("test_form_prefills_existing_dips_ua_type_in_edit_mode", () => {
+      render(<AircraftForm initialData={editableAircraft} />);
+
+      expect(screen.getByLabelText("機体の種類")).toHaveValue("3");
+    });
+
+    it("test_form_prefills_existing_certification_flags_in_edit_mode", () => {
+      render(<AircraftForm initialData={editableAircraft} />);
+
+      expect(screen.getByLabelText("機体認証(第一種)を取得している")).toBeChecked();
+      expect(screen.getByLabelText("機体認証(第二種)を取得している")).not.toBeChecked();
+    });
+
+    it("test_form_defaults_dips_ua_type_to_unset_when_creating", () => {
+      render(<AircraftForm />);
+
+      expect(screen.getByLabelText("機体の種類")).toHaveValue("");
+    });
+
+    it("test_form_defaults_certification_checkboxes_to_unchecked_when_creating", () => {
+      render(<AircraftForm />);
+
+      expect(screen.getByLabelText("機体認証(第一種)を取得している")).not.toBeChecked();
+      expect(screen.getByLabelText("機体認証(第二種)を取得している")).not.toBeChecked();
+    });
+
+    it("test_form_submits_the_selected_dips_ua_type", async () => {
+      const user = userEvent.setup();
+      render(<AircraftForm />);
+      await fillRequiredFields(user);
+      await user.selectOptions(screen.getByLabelText("機体の種類"), "3");
+
+      await user.click(screen.getByRole("button", { name: "登録する" }));
+
+      expect(createAircraft).toHaveBeenCalledWith(expect.objectContaining({ dipsUaType: 3 }));
+    });
+
+    it("test_form_submits_null_dips_ua_type_when_left_unset", async () => {
+      const user = userEvent.setup();
+      render(<AircraftForm />);
+      await fillRequiredFields(user);
+
+      await user.click(screen.getByRole("button", { name: "登録する" }));
+
+      expect(createAircraft).toHaveBeenCalledWith(expect.objectContaining({ dipsUaType: null }));
+    });
+
+    it("test_form_submits_checked_certification_flags", async () => {
+      const user = userEvent.setup();
+      render(<AircraftForm />);
+      await fillRequiredFields(user);
+      await user.click(screen.getByLabelText("機体認証(第一種)を取得している"));
+
+      await user.click(screen.getByRole("button", { name: "登録する" }));
+
+      expect(createAircraft).toHaveBeenCalledWith(
+        expect.objectContaining({ hasDipsCertification1: true, hasDipsCertification2: false })
+      );
+    });
   });
 });
