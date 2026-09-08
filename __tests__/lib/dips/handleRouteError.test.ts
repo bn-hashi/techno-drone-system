@@ -92,6 +92,65 @@ describe("handleDipsRouteError", () => {
     expect(response.status).toBe(502);
   });
 
+  // ─── 2026-09-08 対応: DIPS の拒否理由 (status/responseBody) をログに出す ──────────
+  // 本番の疎通確認で DIPS が何を理由に拒否したかがログから分からず、原因調査が
+  // できなくなっていたための対応。name/message/stack しか出さない logger の
+  // serializeError (lib/logger.ts) を経由しても読めるよう、context 側に載せる。
+
+  it("test_includes_dips_status_and_response_body_in_the_logged_context_for_api_error", async () => {
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed", 400, '{"code":"INVALID_COORDINATE"}');
+
+    handleDipsRouteError(error, options);
+
+    expect(spy).toHaveBeenCalledWith(expect.any(String), error, {
+      route: options.route,
+      status: 400,
+      responseBody: '{"code":"INVALID_COORDINATE"}',
+    });
+  });
+
+  it("test_includes_dips_status_but_omits_response_body_for_auth_error", async () => {
+    // DipsAuthError は responseBody フィールドを持たないため、context にも含めない
+    // (存在しない値を undefined で埋めない)
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsAuthError("failed", 401);
+
+    handleDipsRouteError(error, options);
+
+    expect(spy).toHaveBeenCalledWith(expect.any(String), error, {
+      route: options.route,
+      status: 401,
+    });
+  });
+
+  it("test_dips_status_and_response_body_survive_alongside_extra_context", async () => {
+    // extraContext (例: 飛行計画通報ルートの飛行計画 ID) と DIPS のエラー詳細が
+    // どちらもログに残ることを確認する (片方が他方を上書きしない)
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed", 422, "unprocessable");
+
+    handleDipsRouteError(error, { ...options, extraContext: { id: "plan-1" } });
+
+    expect(spy).toHaveBeenCalledWith(expect.any(String), error, {
+      route: options.route,
+      id: "plan-1",
+      status: 422,
+      responseBody: "unprocessable",
+    });
+  });
+
+  it("test_client_facing_error_body_never_contains_the_dips_response_body", async () => {
+    // status/responseBody はログ専用。利用者に見えるエラーメッセージは変えない
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed", 400, '{"code":"INVALID_COORDINATE"}');
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect(body.error).toBe("DIPS連携でエラーが発生しました");
+  });
+
   it("test_returns_500_and_logs_label_specific_message_for_unexpected_error", async () => {
     const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
     const error = new Error("unexpected");
