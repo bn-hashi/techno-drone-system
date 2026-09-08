@@ -473,6 +473,22 @@ describe("DipsApiClient", () => {
     });
   });
 
+  it("test_request_error_truncates_response_body_to_200_chars_for_pii_safety", async () => {
+    // handleDipsRouteError (2026-09-08 対応) が responseBody をログへ転記するようになった
+    // ため、ここでの200文字切り詰め (RESPONSE_BODY_PREVIEW_LENGTH) が個人情報の露出を
+    // 防ぐ唯一の歯止めになる。全 API (fetchPermissions 以外の5APIも同じ request() を経由)
+    // で一律に適用されることを、この1本のテストで代表させる
+    const longBody = "a".repeat(500);
+    fetchMock.mockResolvedValue(new Response(longBody, { status: 500 }));
+
+    const error = (await makeClient()
+      .fetchPermissions("user-1")
+      .catch((caught: unknown) => caught)) as { responseBody?: string };
+
+    expect(error.responseBody).toHaveLength(200);
+    expect(error.responseBody).toBe("a".repeat(200));
+  });
+
   it("test_request_wraps_network_failure_in_DipsApiError", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
 
