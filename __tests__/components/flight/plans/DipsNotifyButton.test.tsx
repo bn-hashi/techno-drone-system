@@ -54,6 +54,39 @@ function savePendingFormToSessionStorage(planId: string): void {
         centerLatitude: "35.6",
         radiusMeters: "100",
         riskMitigationOnsiteControl: true,
+        riskMitigationOnsiteControlL3: false,
+        riskMitigationOnsiteControlL35: false,
+        riskMitigationOnsiteControl2: false,
+        exceptionalConditionsMooring: false,
+        prefecture: "13",
+        municipality: "東京都千代田区1-1",
+        telephone: "09011112222",
+        firstClass: false,
+        secondClass: false,
+        privateLicense: false,
+      },
+    })
+  );
+}
+
+/** 段階3 (req-013) 以前に保存された、新規必須項目を含まない退避フォーム */
+function savePreStage3FormToSessionStorage(planId: string): void {
+  window.sessionStorage.setItem(
+    PENDING_NOTIFY_STORAGE_KEY,
+    JSON.stringify({
+      planId,
+      form: {
+        flightPurpose: [1],
+        flightAirspace: "1",
+        assistantsNumber: "1",
+        departurePoint: "東京都千代田区",
+        destinationPoint: "東京都港区",
+        flightSpeed: "10",
+        flightAltitude: "50",
+        centerLongitude: "139.7",
+        centerLatitude: "35.6",
+        radiusMeters: "100",
+        riskMitigationOnsiteControl: true,
       },
     })
   );
@@ -182,6 +215,28 @@ describe("DipsNotifyButton", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "通報する" })).toBeEnabled();
     });
+  });
+
+  /**
+   * 回帰テスト (req-013 段階3): デプロイ前 (新規必須項目が存在しなかった時点) に
+   * sessionStorage へ退避されたフォームで OAuth 復帰した場合、`loadPendingNotifyForm`
+   * の `{...INITIAL_FORM, ...parsed.form}` マージにより新規項目は空文字/false で
+   * 補われる。都道府県・住所・電話番号が空のため validateAndBuildInput は失敗するが、
+   * これは意図した安全側の挙動 (例外を投げず、手動再送信を促すバナーに落とす) であり、
+   * クラッシュしないことを確認する。
+   */
+  it("test_DipsNotifyButton_pre_stage3_saved_form_falls_back_to_manual_retry_banner", async () => {
+    savePreStage3FormToSessionStorage("plan-1");
+    setDipsQuery("dips=linked");
+
+    render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /復元した入力内容に不備があります.*再度「通報する」を押してください/
+      );
+    });
+    expect(mockNotifyFlightPlanToDips).not.toHaveBeenCalled();
   });
 
   /** 自動再送信を意図的に未解決のまま止め、進行中の状態を検証できるようにする */
@@ -335,6 +390,11 @@ describe("DipsNotifyButton", () => {
       fireEvent.change(screen.getByLabelText("経度"), { target: { value: "139.7" } });
       fireEvent.change(screen.getByLabelText("緯度"), { target: { value: "35.6" } });
       fireEvent.change(screen.getByLabelText("半径 (m)"), { target: { value: "100" } });
+      fireEvent.change(screen.getByLabelText("都道府県"), { target: { value: "13" } });
+      fireEvent.change(screen.getByLabelText("住所（市町村以下）"), {
+        target: { value: "東京都千代田区1-1" },
+      });
+      fireEvent.change(screen.getByLabelText("電話番号"), { target: { value: "09011112222" } });
     }
 
     /** 送信成功後、ダイアログが閉じるまで待つ (Act の完了待ち。Assert はテスト側で行う) */

@@ -5,9 +5,10 @@ import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsNotificationUserInput, DipsAircraftInfo } from "@/lib/dips/types";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
+import type { IUserRepository } from "@/repositories/userRepository";
 import { FlightPlanNotFoundError, BusinessError } from "@/services/errors";
 import { DipsAuthRequiredError } from "@/lib/dips/errors";
-import type { Aircraft, FlightPlan } from "@prisma/client";
+import type { Aircraft, FlightPlan, User } from "@prisma/client";
 import { FlightPlanStatus } from "@prisma/client";
 
 const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft =>
@@ -24,6 +25,11 @@ const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft =>
     isActive: true,
     createdAt: new Date("2026-07-01"),
     updatedAt: new Date("2026-07-01"),
+    dipsUaType: 2,
+    hasDipsCertification1: false,
+    hasDipsCertification2: false,
+    dipsCertificationNumber: null,
+    maxTakeoffWeightGrams: null,
     ...overrides,
   }) as Aircraft;
 
@@ -44,6 +50,14 @@ const makePlan = (overrides: Partial<FlightPlan> = {}): FlightPlan =>
     ...overrides,
   }) as FlightPlan;
 
+const makeUser = (overrides: Partial<User> = {}): User =>
+  ({
+    id: "user-1",
+    name: "申請太郎",
+    email: "shinsei@example.com",
+    ...overrides,
+  }) as User;
+
 const userInput: DipsNotificationUserInput = {
   flightPurpose: [15],
   flightAirspace: [1],
@@ -54,6 +68,16 @@ const userInput: DipsNotificationUserInput = {
   flightAltitude: 50,
   flyRoute: "{}",
   riskMitigationOnsiteControl: true,
+  riskMitigationOnsiteControlL3: false,
+  riskMitigationOnsiteControlL35: false,
+  riskMitigationOnsiteControl2: false,
+  exceptionalConditionsMooring: false,
+  prefecture: "13",
+  municipality: "中央区銀座1-1",
+  telephone: "09011112222",
+  firstClass: false,
+  secondClass: false,
+  privateLicense: false,
 };
 
 const mockApiClient = (): DipsApiClient =>
@@ -101,6 +125,9 @@ const mockAircraftService = (): AircraftService =>
 const mockFlightPlanService = (): FlightPlanService =>
   ({ findById: vi.fn(), recordDipsNotification: vi.fn() }) as unknown as FlightPlanService;
 
+const mockUserRepository = (): IUserRepository =>
+  ({ findById: vi.fn() }) as unknown as IUserRepository;
+
 const context = { userId: "user-1", isAdmin: false };
 
 describe("DipsService", () => {
@@ -108,6 +135,7 @@ describe("DipsService", () => {
   let oidcClient: DipsOidcClient;
   let aircraftService: AircraftService;
   let flightPlanService: FlightPlanService;
+  let userRepository: IUserRepository;
   let service: DipsService;
 
   beforeEach(() => {
@@ -115,7 +143,9 @@ describe("DipsService", () => {
     oidcClient = mockOidcClient();
     aircraftService = mockAircraftService();
     flightPlanService = mockFlightPlanService();
-    service = new DipsService(apiClient, oidcClient, aircraftService, flightPlanService);
+    userRepository = mockUserRepository();
+    vi.mocked(userRepository.findById).mockResolvedValue(makeUser());
+    service = new DipsService(apiClient, oidcClient, aircraftService, flightPlanService, userRepository);
   });
 
   // ─── 認可 ───────────────────────────────────────────────────────────────────
@@ -296,6 +326,97 @@ describe("DipsService", () => {
       await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
         FlightPlanNotFoundError
       );
+    });
+
+    it("test_notify_flight_plan_sends_the_reporter_name_from_the_user_record", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(userRepository.findById).mockResolvedValue(makeUser({ name: "現場 太郎" }));
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
+
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect(payload.flightPlanInfo.reporter.contactReporter.name).toBe("現場 太郎");
+    });
+
+    it("test_notify_flight_plan_sends_the_same_person_as_pilot_and_reporter", async () => {
+      // req-013 人の決定: 操縦者と通報者は同一人物として扱う
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
+
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect(payload.flightPlanInfo.pilotInfo[0].contactPilot.email).toBe(
+        payload.flightPlanInfo.reporter.contactReporter.email
+      );
+    });
+
+    it("test_notify_flight_plan_reads_certification_flags_from_the_aircraft_master", async () => {
+      // 「全機体が未取得」をハードコードしていないことの確認: マスタの値をそのまま送る
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(
+        makeAircraft({ hasDipsCertification1: true, hasDipsCertification2: false })
+      );
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/07/03 10:00",
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context);
+
+      const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
+      expect(payload.flightPlanInfo.aircraftInfo[0].certification1).toBe("1");
+      expect(payload.flightPlanInfo.aircraftInfo[0].certification2).toBe("0");
+    });
+
+    it("test_notify_flight_plan_without_a_dips_ua_type_raises_business_error", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ dipsUaType: null }));
+
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_notify_flight_plan_without_a_dips_ua_type_does_not_call_the_api", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ dipsUaType: null }));
+
+      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
+    });
+
+    it("test_notify_flight_plan_when_the_user_is_missing_raises_error", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(userRepository.findById).mockResolvedValue(null);
+
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_notify_flight_plan_when_the_user_is_missing_does_not_call_the_api", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(userRepository.findById).mockResolvedValue(null);
+
+      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
   });
 

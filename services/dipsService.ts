@@ -14,17 +14,12 @@ import type {
   DipsOwnedAircraftDto,
   DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
-import { formatDipsStartTime, clampToDipsFlightMinutes } from "@/lib/dips/notificationMapper";
+import { buildFlightPlanNotificationPayload, GRAMS_PER_KILOGRAM } from "@/lib/dips/notificationMapper";
 import { DIPS_UA_STATUS_ACTIVE } from "@/lib/constants/dipsAircraftStatus";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
+import type { IUserRepository } from "@/repositories/userRepository";
 import { BusinessError } from "@/services/errors";
-
-/** 飛行計画名称の最大長 (FPRガイドライン 2.3.8) */
-const MAX_FLIGHT_PLAN_NAME_LENGTH = 30;
-
-/** DIPS 機体重量 (kg) → 本システムの機体重量 (g) の単位変換係数 */
-const GRAMS_PER_KILOGRAM = 1000;
 
 interface ListOwnedAircraftsOptions {
   /** true なら抹消済み・有効期限切れの機体も含める (既定は有効な機体のみ) */
@@ -55,7 +50,8 @@ export class DipsService {
     private readonly apiClient: DipsApiClient,
     private readonly oidcClient: DipsOidcClient,
     private readonly aircraftService: AircraftService,
-    private readonly flightPlanService: FlightPlanService
+    private readonly flightPlanService: FlightPlanService,
+    private readonly userRepository: IUserRepository
   ) {}
 
   /** DIPS ログイン (認可コードフロー) 開始 URL を返す */
@@ -72,7 +68,14 @@ export class DipsService {
    * 飛行計画を DIPS の飛行計画通報受付 API へ通報する。
    *
    * 既に通報済み (dipsFlightPlanId あり) の飛行計画は再通報せず BusinessError を投げる (冪等性保護)。
-   * FlightPlan/Aircraft から導出できない項目 (飛行目的・空域・速度など) は userInput で受け取る。
+   * FlightPlan/Aircraft/User から導出できない項目 (飛行目的・空域・速度・住所・電話番号など) は
+   * userInput で受け取る。payload の組み立ては `buildFlightPlanNotificationPayload()`
+   * (lib/dips/notificationMapper.ts) に集約し、必須51項目 (FPRガイドライン 2.3.8) の網羅は
+   * そちらのユニットテストで機械的に検証する (req-013: 2026-07-07 から2か月間、必須項目
+   * 不足で拒否され続けた事故の再発防止策)。
+   *
+   * 機体の DIPS 属性 (機体の種類) が未設定の場合、共用の検証環境DBへ無駄な送信をしないよう
+   * DIPS へ送信する前に BusinessError を投げる。
    */
   async notifyFlightPlan(
     flightPlanId: string,
@@ -88,26 +91,36 @@ export class DipsService {
     if (!aircraft.registrationNumber) {
       throw new BusinessError("機体に登録記号が設定されていません");
     }
+    if (aircraft.dipsUaType === null) {
+      throw new BusinessError("機体の「機体の種類」が未設定です。機体情報を編集してください");
+    }
 
-    const result = await this.apiClient.notifyFlightPlan(context.userId, {
-      flightPlanInfo: {
-        flightPlanId: "",
-        name: plan.title.slice(0, MAX_FLIGHT_PLAN_NAME_LENGTH),
-        flightPurpose: userInput.flightPurpose,
-        flightAirspace: userInput.flightAirspace,
-        assistantsNumber: userInput.assistantsNumber,
-        departurePoint: userInput.departurePoint,
-        destinationPoint: userInput.destinationPoint,
-        startTime: formatDipsStartTime(plan.plannedAt),
-        plannedMaxTime: clampToDipsFlightMinutes(aircraft.maxFlightTimeMin),
-        plannedFlightTime: clampToDipsFlightMinutes(plan.durationMin),
-        flightSpeed: userInput.flightSpeed,
-        flightAltitude: userInput.flightAltitude,
-        flyRoute: userInput.flyRoute,
-        riskMitigationOnsiteControl: userInput.riskMitigationOnsiteControl ? "1" : "0",
-        aircraftInfo: [{ symbol: aircraft.registrationNumber }],
+    const user = await this.userRepository.findById(context.userId);
+    if (!user) {
+      throw new BusinessError("通報者情報 (ユーザー) が見つかりません");
+    }
+
+    const payload = buildFlightPlanNotificationPayload({
+      planTitle: plan.title,
+      plannedAt: plan.plannedAt,
+      durationMin: plan.durationMin,
+      aircraftMaxFlightTimeMin: aircraft.maxFlightTimeMin,
+      userInput,
+      reporterUser: { name: user.name, email: user.email },
+      aircraft: {
+        dipsUaType: aircraft.dipsUaType,
+        registrationNumber: aircraft.registrationNumber,
+        modelNumber: aircraft.modelNumber,
+        manufacturer: aircraft.manufacturer,
+        hasDipsCertification1: aircraft.hasDipsCertification1,
+        hasDipsCertification2: aircraft.hasDipsCertification2,
+        dipsCertificationNumber: aircraft.dipsCertificationNumber,
+        weightGrams: aircraft.weightGrams,
+        maxTakeoffWeightGrams: aircraft.maxTakeoffWeightGrams,
       },
     });
+
+    const result = await this.apiClient.notifyFlightPlan(context.userId, payload);
 
     await this.flightPlanService.recordDipsNotification(flightPlanId, result.flightPlanId, context);
 

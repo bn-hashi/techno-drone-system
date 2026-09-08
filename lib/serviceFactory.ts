@@ -206,6 +206,7 @@ export function getDipsService(): DipsService {
     new DipsApiClient(config, oidcClient),
     oidcClient,
     getAircraftService(),
-    getFlightPlanService()
+    getFlightPlanService(),
+    new UserRepository()
   );
 }

@@ -444,6 +444,16 @@ const notificationInput = {
   flightAltitude: 50,
   flyRoute: "{}",
   riskMitigationOnsiteControl: true,
+  riskMitigationOnsiteControlL3: false,
+  riskMitigationOnsiteControlL35: false,
+  riskMitigationOnsiteControl2: false,
+  exceptionalConditionsMooring: false,
+  prefecture: "13",
+  municipality: "中央区銀座1-1",
+  telephone: "09011112222",
+  firstClass: false,
+  secondClass: false,
+  privateLicense: false,
 };
 
 describe("notifyFlightPlanToDips", () => {
