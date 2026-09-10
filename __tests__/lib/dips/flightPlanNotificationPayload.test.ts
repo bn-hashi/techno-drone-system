@@ -8,7 +8,10 @@ import {
   gramsToKilograms,
   type BuildFlightPlanNotificationPayloadInput,
 } from "@/lib/dips/notificationMapper";
-import type { DipsFlightPlanNotificationPayload, DipsNotificationUserInput } from "@/lib/dips/types";
+import type {
+  DipsFlightPlanNotificationPayload,
+  DipsNotificationUserInput,
+} from "@/lib/dips/types";
 import { DIPS_COUNTRY_CODE_JAPAN } from "@/lib/constants/dipsAddressCode";
 import {
   DIPS_FLIGHT_PURPOSE_OTHER_BUSINESS,
@@ -18,9 +21,11 @@ import {
 /**
  * FPRガイドライン v1.9 §2.3.8 の必須51項目の網羅テスト。
  *
- * 出典: `_orchestrator/results/quick/20260908-fpr-guideline-2.3.8-extract.txt`
- * (No 番号・必須マークは同ファイルを1行ずつ精読して突合したもの。req-013 builder報告の
- * 対応表と対になる)。
+ * 出典: `docs/dips-flight-plan-required-fields.md` (No 番号・必須マークはガイドライン PDF
+ * を1行ずつ精読して突合したもの。本テストの REQUIRED_FIELDS 表と対になる対応表)。
+ * 元は `_orchestrator/results/req-013/builder.md` にあったが、`_orchestrator/` は
+ * gitignore 対象で本番サーバーから参照できないため `docs/` 配下へ移設した
+ * (2026-09-10, req-013 差し戻し J7)。
  *
  * 2026-07-07 から2か月間、送信項目が DIPS の必須要件を満たさず拒否され続けた事故の
  * 再発防止策: このテストは「51項目のうち1つでも payload から欠ければ失敗する」。
@@ -43,11 +48,31 @@ function parseFlyRoute(payload: DipsFlightPlanNotificationPayload): {
   return JSON.parse(payload.flightPlanInfo.flyRoute);
 }
 
+/**
+ * REQUIRED_FIELDS の値が「欠落」とみなされるかを判定する。
+ *
+ * req-013 差し戻し J1: 元の判定は `value === undefined || value === null` のみで、
+ * 空文字を欠落として検出できなかった (`buildContactPerson` の `name` を `""` に
+ * 書き換えても本ファイルの30テストが全緑になることを実証済み)。DIPS が返す
+ * 「必須項目不足」は空値でも発生するため、空文字 (前後空白のみを含む) と NaN も
+ * 欠落として扱う。
+ */
+function isMissingRequiredValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string" && value.trim() === "") return true;
+  if (typeof value === "number" && Number.isNaN(value)) return true;
+  return false;
+}
+
 const REQUIRED_FIELDS: RequiredFieldSpec[] = [
   { no: 1, label: "flightPlanInfo", get: (p) => p.flightPlanInfo },
   { no: 3, label: "flightPlanInfo.name", get: (p) => p.flightPlanInfo.name },
   { no: 4, label: "flightPlanInfo.flightPurpose", get: (p) => p.flightPlanInfo.flightPurpose },
-  { no: 9, label: "flightPlanInfo.assistantsNumber", get: (p) => p.flightPlanInfo.assistantsNumber },
+  {
+    no: 9,
+    label: "flightPlanInfo.assistantsNumber",
+    get: (p) => p.flightPlanInfo.assistantsNumber,
+  },
   { no: 10, label: "flightPlanInfo.departurePoint", get: (p) => p.flightPlanInfo.departurePoint },
   { no: 11, label: "flightPlanInfo.startTime", get: (p) => p.flightPlanInfo.startTime },
   { no: 12, label: "flightPlanInfo.plannedMaxTime", get: (p) => p.flightPlanInfo.plannedMaxTime },
@@ -186,7 +211,11 @@ const REQUIRED_FIELDS: RequiredFieldSpec[] = [
     label: "pilotInfo[0].contactPilot.email",
     get: (p) => p.flightPlanInfo.pilotInfo[0]?.contactPilot.email,
   },
-  { no: 60, label: "pilotInfo[0].firstClass", get: (p) => p.flightPlanInfo.pilotInfo[0]?.firstClass },
+  {
+    no: 60,
+    label: "pilotInfo[0].firstClass",
+    get: (p) => p.flightPlanInfo.pilotInfo[0]?.firstClass,
+  },
   {
     no: 61,
     label: "pilotInfo[0].secondClass",
@@ -260,7 +289,10 @@ const validInput: BuildFlightPlanNotificationPayloadInput = {
   planTitle: "訓練飛行",
   plannedAt: new Date("2026-07-03T01:00:00Z"),
   durationMin: 60,
-  aircraftMaxFlightTimeMin: 20,
+  // req-013 差し戻し J3: 機体の航続可能時間は所要時間 (60分) 以上でなければ矛盾する
+  // (以前は 20 だったため、機体が20分しか飛べないのに60分の飛行を計画する矛盾した
+  // 基準データが「valid」として固定されていた)
+  aircraftMaxFlightTimeMin: 90,
   userInput: validUserInput,
   reporterUser: { name: "申請太郎", email: "shinsei@example.com" },
   aircraft: {
@@ -287,16 +319,84 @@ describe("REQUIRED_FIELDS テーブル自体の整合性", () => {
   });
 });
 
+describe("isMissingRequiredValue (REQUIRED_FIELDS の欠落判定)", () => {
+  it("test_treats_undefined_as_missing", () => {
+    expect(isMissingRequiredValue(undefined)).toBe(true);
+  });
+
+  it("test_treats_null_as_missing", () => {
+    expect(isMissingRequiredValue(null)).toBe(true);
+  });
+
+  it("test_treats_an_empty_string_as_missing", () => {
+    expect(isMissingRequiredValue("")).toBe(true);
+  });
+
+  it("test_treats_a_whitespace_only_string_as_missing", () => {
+    expect(isMissingRequiredValue("   ")).toBe(true);
+  });
+
+  it("test_treats_nan_as_missing", () => {
+    expect(isMissingRequiredValue(Number.NaN)).toBe(true);
+  });
+
+  it("test_does_not_treat_zero_as_missing", () => {
+    // assistantsNumber (No.9) 等は 0 (補助者無し) が正当な値のため、falsy 判定にしてはならない
+    expect(isMissingRequiredValue(0)).toBe(false);
+  });
+
+  it("test_does_not_treat_the_string_zero_as_missing", () => {
+    // certification1/2 等の DIPS フラグは "0" (無し) が正当な値のため、falsy 判定にしてはならない
+    expect(isMissingRequiredValue("0")).toBe(false);
+  });
+
+  it("test_does_not_treat_a_non_empty_string_as_missing", () => {
+    expect(isMissingRequiredValue("申請太郎")).toBe(false);
+  });
+
+  it("test_does_not_treat_an_object_as_missing", () => {
+    expect(isMissingRequiredValue({ contactReporterFlag: "1" })).toBe(false);
+  });
+});
+
 describe("buildFlightPlanNotificationPayload — 必須51項目の網羅 (最重要)", () => {
   it("test_builds_a_payload_that_contains_all_51_required_fields", () => {
     const payload = buildFlightPlanNotificationPayload(validInput);
 
-    const missing = REQUIRED_FIELDS.filter((field) => {
-      const value = field.get(payload);
-      return value === undefined || value === null;
-    }).map((field) => `No.${field.no} ${field.label}`);
+    const missing = REQUIRED_FIELDS.filter((field) =>
+      isMissingRequiredValue(field.get(payload))
+    ).map((field) => `No.${field.no} ${field.label}`);
 
     expect(missing).toEqual([]);
+  });
+});
+
+describe("buildFlightPlanNotificationPayload — 飛行時間の整合 (req-013 差し戻し J3)", () => {
+  it("test_throws_when_the_duration_exceeds_the_aircraft_max_flight_time", () => {
+    // 機体の航続可能時間 (20分) より長い所要時間 (60分) を計画する、物理的に矛盾した入力。
+    // 以前はこの矛盾を検出せず、そのまま DIPS へ送信していた
+    expect(() =>
+      buildFlightPlanNotificationPayload({
+        ...validInput,
+        durationMin: 60,
+        aircraftMaxFlightTimeMin: 20,
+      })
+    ).toThrow(/航続可能時間/);
+  });
+
+  it("test_does_not_throw_when_the_duration_equals_the_aircraft_max_flight_time", () => {
+    // 境界値: 所要時間 == 航続可能時間 は矛盾ではない (ちょうど使い切る飛行)
+    expect(() =>
+      buildFlightPlanNotificationPayload({
+        ...validInput,
+        durationMin: 20,
+        aircraftMaxFlightTimeMin: 20,
+      })
+    ).not.toThrow();
+  });
+
+  it("test_does_not_throw_when_the_duration_is_within_the_aircraft_max_flight_time", () => {
+    expect(() => buildFlightPlanNotificationPayload(validInput)).not.toThrow();
   });
 });
 
@@ -311,15 +411,21 @@ describe("buildFlightPlanNotificationPayload — 個別の業務ルール", () =
   });
 
   it("test_omits_the_duplicate_flight_plan_flag", () => {
+    // req-013 差し戻し J4: ガイドラインのサンプルでは getDuplicateFlightPlanFlag は
+    // flightPlanInfo の兄弟 (ペイロードのトップレベル)。flightPlanInfo 直下ではなく
+    // payload 自体を検査しないと、誤った階層に追加されてもガードが発火しない
+    // (20260908-fpr-guideline-2.3.8-samples.txt のサンプル JSON で階層を確認済み)
     const payload = buildFlightPlanNotificationPayload(validInput);
 
-    expect(payload.flightPlanInfo).not.toHaveProperty("getDuplicateFlightPlanFlag");
+    expect(payload).not.toHaveProperty("getDuplicateFlightPlanFlag");
   });
 
   it("test_omits_the_permit_application_info", () => {
+    // req-013 差し戻し J4: flightPermitApplicationInfo も同様にトップレベル
+    // (ガイドラインのサンプル JSON で flightPlanInfo の閉じ括弧の後に出現することを確認済み)
     const payload = buildFlightPlanNotificationPayload(validInput);
 
-    expect(payload.flightPlanInfo).not.toHaveProperty("flightPermitApplicationInfo");
+    expect(payload).not.toHaveProperty("flightPermitApplicationInfo");
   });
 
   it("test_omits_the_insurance_information", () => {
@@ -393,7 +499,11 @@ describe("buildFlightPlanNotificationPayload — 個別の業務ルール", () =
     // ハードコードしていないことの確認: マスタの値が true なら "1" を送る
     const payload = buildFlightPlanNotificationPayload({
       ...validInput,
-      aircraft: { ...validInput.aircraft, hasDipsCertification1: true, hasDipsCertification2: true },
+      aircraft: {
+        ...validInput.aircraft,
+        hasDipsCertification1: true,
+        hasDipsCertification2: true,
+      },
     });
 
     expect(payload.flightPlanInfo.aircraftInfo[0].certification1).toBe("1");
@@ -490,7 +600,13 @@ describe("buildReporter", () => {
 describe("buildPilotInfo", () => {
   it("test_fixes_the_contact_pilot_flag_to_0", () => {
     const pilotInfo = buildPilotInfo(
-      { name: "申請太郎", email: "shinsei@example.com", prefecture: "13", municipality: "銀座", telephone: "090" },
+      {
+        name: "申請太郎",
+        email: "shinsei@example.com",
+        prefecture: "13",
+        municipality: "銀座",
+        telephone: "090",
+      },
       { firstClass: false, secondClass: false, privateLicense: false },
       { maker: "maker001", model: "model001" }
     );
@@ -501,7 +617,13 @@ describe("buildPilotInfo", () => {
   it("test_returns_exactly_one_pilot_entry", () => {
     // req-013 人の決定: 複数操縦者運用の作り込みはしない (YAGNI)。常に1件
     const pilotInfo = buildPilotInfo(
-      { name: "申請太郎", email: "shinsei@example.com", prefecture: "13", municipality: "銀座", telephone: "090" },
+      {
+        name: "申請太郎",
+        email: "shinsei@example.com",
+        prefecture: "13",
+        municipality: "銀座",
+        telephone: "090",
+      },
       { firstClass: true, secondClass: true, privateLicense: true },
       { maker: "maker001", model: "model001" }
     );

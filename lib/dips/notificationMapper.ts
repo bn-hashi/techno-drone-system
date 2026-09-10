@@ -16,6 +16,7 @@ import {
   DIPS_FLIGHT_PURPOSE_OTHER_NON_BUSINESS,
 } from "@/lib/constants/dipsFlightPurpose";
 import { DIPS_COUNTRY_CODE_JAPAN } from "@/lib/constants/dipsAddressCode";
+import { BusinessError } from "@/services/errors";
 
 const JST_OFFSET_MINUTES = 9 * 60;
 
@@ -34,6 +35,26 @@ const MAX_FLIGHT_PLAN_NAME_LENGTH = 30;
 export function clampToDipsFlightMinutes(minutes: number): number {
   const roundedUp = Math.ceil(minutes / DIPS_MINUTES_STEP) * DIPS_MINUTES_STEP;
   return Math.min(Math.max(roundedUp, DIPS_MINUTES_MIN), DIPS_MINUTES_MAX);
+}
+
+/**
+ * 所要時間 (plannedFlightTime) が機体の航続可能時間 (plannedMaxTime) を超えていないかを
+ * 検証する (req-013 差し戻し J3)。
+ *
+ * どちらも DIPS の制約 (5分単位・5〜1440) に丸める前の生の値で比較する。丸め後の値
+ * (`clampToDipsFlightMinutes` の出力) で比較すると、例えば機体3分/所要4分のような
+ * 小さな矛盾が丸めにより一致して (どちらも5分) 見えなくなってしまうため。
+ * 機体の航続可能時間より長い飛行計画は物理的に矛盾しており、送信前に検出する。
+ */
+function assertFlightTimeWithinAircraftRange(
+  durationMin: number,
+  aircraftMaxFlightTimeMin: number
+): void {
+  if (durationMin > aircraftMaxFlightTimeMin) {
+    throw new BusinessError(
+      `飛行の所要時間 (${durationMin}分) が機体の航続可能時間 (${aircraftMaxFlightTimeMin}分) を超えています。飛行計画または機体情報を見直してください`
+    );
+  }
 }
 
 /**
@@ -233,7 +254,10 @@ export interface BuildFlightPlanNotificationPayloadInput {
 /** その他1/その他2 が選択されているときだけ理由テキストを含める (No.5/6 の条件付き必須) */
 function buildOtherPurposeReasons(
   userInput: DipsNotificationUserInput
-): Pick<DipsFlightPlanNotificationPayload["flightPlanInfo"], "othergyomutext" | "othergyomugaitext"> {
+): Pick<
+  DipsFlightPlanNotificationPayload["flightPlanInfo"],
+  "othergyomutext" | "othergyomugaitext"
+> {
   const reasons: Pick<
     DipsFlightPlanNotificationPayload["flightPlanInfo"],
     "othergyomutext" | "othergyomugaitext"
@@ -270,6 +294,8 @@ function buildSafetyMeasureFlags(
 export function buildFlightPlanNotificationPayload(
   input: BuildFlightPlanNotificationPayloadInput
 ): DipsFlightPlanNotificationPayload {
+  assertFlightTimeWithinAircraftRange(input.durationMin, input.aircraftMaxFlightTimeMin);
+
   const person: ContactPersonInput = {
     name: input.reporterUser.name,
     email: input.reporterUser.email,
