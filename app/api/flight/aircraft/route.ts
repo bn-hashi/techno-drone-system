@@ -16,6 +16,14 @@ const CreateAircraftSchema = z.object({
   weightGrams: z.number().int().positive(),
   maxFlightTimeMin: z.number().int().positive(),
   registrationNumber: z.string().nullable().optional(),
+  // DIPS 飛行計画通報 (FPRガイドライン 2.3.8) 用の機体属性。値域チェック (1〜6等) は
+  // Service 層 (aircraftService.ts) が担う (レイヤードアーキテクチャの原則どおり、
+  // ビジネスルールはここに書かない)
+  dipsUaType: z.number().int().nullable().optional(),
+  hasDipsCertification1: z.boolean().optional(),
+  hasDipsCertification2: z.boolean().optional(),
+  dipsCertificationNumber: z.string().nullable().optional(),
+  maxTakeoffWeightGrams: z.number().int().nullable().optional(),
 });
 
 export async function GET(request: Request): Promise<NextResponse> {

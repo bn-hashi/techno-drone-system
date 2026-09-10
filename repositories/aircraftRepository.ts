@@ -10,6 +10,14 @@ export interface CreateAircraftInput {
   weightGrams: number;
   maxFlightTimeMin: number;
   registrationNumber?: string | null;
+  /** DIPS 機体の種類 (1〜6)。未入力なら DIPS 通報前に設定が必須になる */
+  dipsUaType?: number | null;
+  /** DIPS 機体認証(第一種) の取得有無。省略時は Prisma スキーマの既定値 (false=未取得) */
+  hasDipsCertification1?: boolean;
+  /** DIPS 機体認証(第二種) の取得有無。省略時は Prisma スキーマの既定値 (false=未取得) */
+  hasDipsCertification2?: boolean;
+  dipsCertificationNumber?: string | null;
+  maxTakeoffWeightGrams?: number | null;
 }
 
 export interface UpdateAircraftInput {
@@ -19,6 +27,11 @@ export interface UpdateAircraftInput {
   weightGrams?: number;
   maxFlightTimeMin?: number;
   registrationNumber?: string | null;
+  dipsUaType?: number | null;
+  hasDipsCertification1?: boolean;
+  hasDipsCertification2?: boolean;
+  dipsCertificationNumber?: string | null;
+  maxTakeoffWeightGrams?: number | null;
 }
 
 export interface IAircraftRepository {
