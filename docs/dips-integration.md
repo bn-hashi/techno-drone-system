@@ -143,7 +143,7 @@ DIPS へログインしたアカウント自身が所有する機体のみが返
 > 必須51項目) を満たさず拒否され続けていた** (当初は 2026-07-03 時点の暫定リストのまま
 > 実装され、ガイドライン PDF での再確認が行われていなかった)。req-013 で §2.3.8 の全88項目を
 > ガイドライン抽出テキストと1項目ずつ突合し、不足していた35項目を実装した (対応表は
-> `_orchestrator/results/req-013/builder.md` 参照)。
+> `docs/dips-flight-plan-required-fields.md` 参照)。
 >
 > **再発防止策**: payload の組み立てを `lib/dips/notificationMapper.ts` の
 > `buildFlightPlanNotificationPayload()` に集約し、必須51項目すべてが出力されることを

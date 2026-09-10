@@ -471,9 +471,9 @@ payload の組み立てを `lib/dips/notificationMapper.ts` に集約、必須51
 **失敗時の切り分け (400 が返る場合)**:
 
 1. pm2 ログの `responseBody` (先頭200文字) を確認する
-2. `errorMessage` に含まれる項目名を、req-013 の builder 報告書
-   (`_orchestrator/results/req-013/builder.md`) の必須51項目対応表と突き合わせる。
-   **推測で直さない。** 項目が1つでも欠ければ拒否される (DIPS の仕様)
+2. `errorMessage` に含まれる項目名を、`docs/dips-flight-plan-required-fields.md`
+   の必須51項目対応表と突き合わせる。**推測で直さない。** 項目が1つでも欠ければ
+   拒否される (DIPS の仕様)
 3. それでも不明な場合は、他の1-9〜1-12 と同じ表 (realm は `fpl`) を確認する
 
 ---
