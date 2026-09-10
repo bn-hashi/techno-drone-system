@@ -35,6 +35,23 @@ describe("DipsNotifyForm — 表示", () => {
     expect(screen.getByLabelText("係留飛行を行う")).not.toBeChecked();
   });
 
+  it("test_defaults_the_flight_airspace_to_no_selection", () => {
+    // req-013 差し戻し J2: 既定で「DID上空」等を主張してはならない
+    expect(INITIAL_FORM.flightAirspace).toBe("");
+
+    render(<DipsNotifyForm form={INITIAL_FORM} onFormChange={vi.fn()} />);
+
+    expect(screen.getByLabelText("人・家屋の密集地域 (DID) の上空を飛行する")).not.toBeChecked();
+    expect(screen.getByLabelText("地表・水面から150m以上の高さを飛行する")).not.toBeChecked();
+    expect(screen.getByLabelText("空港周辺を飛行する")).not.toBeChecked();
+  });
+
+  it("test_shows_a_notice_that_airspace_selections_cannot_be_reported_here", () => {
+    render(<DipsNotifyForm form={INITIAL_FORM} onFormChange={vi.fn()} />);
+
+    expect(screen.getByText(/許可・承認が必要な特定飛行です/)).toBeInTheDocument();
+  });
+
   it("test_hides_the_other_business_reason_field_when_purpose_13_is_not_selected", () => {
     render(<DipsNotifyForm form={INITIAL_FORM} onFormChange={vi.fn()} />);
 
@@ -42,13 +59,17 @@ describe("DipsNotifyForm — 表示", () => {
   });
 
   it("test_shows_the_other_business_reason_field_when_purpose_13_is_selected", () => {
-    render(<DipsNotifyForm form={{ ...INITIAL_FORM, flightPurpose: [13] }} onFormChange={vi.fn()} />);
+    render(
+      <DipsNotifyForm form={{ ...INITIAL_FORM, flightPurpose: [13] }} onFormChange={vi.fn()} />
+    );
 
     expect(screen.getByText("その他1(業務)の理由")).toBeInTheDocument();
   });
 
   it("test_shows_the_other_non_business_reason_field_when_purpose_16_is_selected", () => {
-    render(<DipsNotifyForm form={{ ...INITIAL_FORM, flightPurpose: [16] }} onFormChange={vi.fn()} />);
+    render(
+      <DipsNotifyForm form={{ ...INITIAL_FORM, flightPurpose: [16] }} onFormChange={vi.fn()} />
+    );
 
     expect(screen.getByText("その他2(業務以外)の理由")).toBeInTheDocument();
   });
@@ -97,6 +118,33 @@ describe("DipsNotifyForm — 入力の反映", () => {
     const updated = onFormChange.mock.calls.at(-1)?.[0](INITIAL_FORM);
     expect(updated.exceptionalConditionsMooring).toBe(true);
   });
+
+  it("test_calls_onFormChange_when_an_airspace_checkbox_is_checked", async () => {
+    const user = userEvent.setup();
+    const onFormChange = vi.fn();
+    render(<DipsNotifyForm form={INITIAL_FORM} onFormChange={onFormChange} />);
+
+    await user.click(screen.getByLabelText("空港周辺を飛行する"));
+
+    const updated = onFormChange.mock.calls.at(-1)?.[0](INITIAL_FORM);
+    expect(updated.flightAirspace).toBe("3");
+  });
+
+  it("test_calls_onFormChange_when_an_airspace_checkbox_is_unchecked", async () => {
+    const user = userEvent.setup();
+    const onFormChange = vi.fn();
+    render(
+      <DipsNotifyForm
+        form={{ ...INITIAL_FORM, flightAirspace: "1,3" }}
+        onFormChange={onFormChange}
+      />
+    );
+
+    await user.click(screen.getByLabelText("人・家屋の密集地域 (DID) の上空を飛行する"));
+
+    const updated = onFormChange.mock.calls.at(-1)?.[0]({ ...INITIAL_FORM, flightAirspace: "1,3" });
+    expect(updated.flightAirspace).toBe("3");
+  });
 });
 
 describe("validateAndBuildInput — 必須項目", () => {
@@ -122,6 +170,17 @@ describe("validateAndBuildInput — 必須項目", () => {
     const result = validateAndBuildInput(validForm);
 
     expect(result.ok).toBe(true);
+  });
+
+  it("test_accepts_an_empty_flight_airspace_selection", () => {
+    // req-013 差し戻し J2: No.7 は任意。特定飛行に該当しない通常の飛行は
+    // 「いずれも選択しない」(空配列) が正しい値であり、必須にしてはならない
+    const result = validateAndBuildInput({ ...validForm, flightAirspace: "" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.input.flightAirspace).toEqual([]);
+    }
   });
 
   it("test_rejects_purpose_13_without_a_reason", () => {
