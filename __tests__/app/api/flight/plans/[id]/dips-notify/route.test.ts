@@ -34,8 +34,29 @@ const validBody = {
   destinationPoint: "到着地",
   flightSpeed: 30,
   flightAltitude: 50,
-  flyRoute: "テスト経路",
+  // req-013 差し戻し J5: DipsNotifyInputSchema が geometry.type の有無を検証するようになった
+  // ため、実際のリクエストボディと同じ形の GeoJSON 文字列でなければ 400 になってしまう
+  flyRoute: JSON.stringify({
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { radius: 10 },
+        geometry: { type: "Circle", center: [139.7454, 35.6586] },
+      },
+    ],
+  }),
   riskMitigationOnsiteControl: true,
+  riskMitigationOnsiteControlL3: false,
+  riskMitigationOnsiteControlL35: false,
+  riskMitigationOnsiteControl2: false,
+  exceptionalConditionsMooring: false,
+  prefecture: "13",
+  municipality: "中央区銀座1-1",
+  telephone: "09011112222",
+  firstClass: false,
+  secondClass: false,
+  privateLicense: false,
 };
 
 const makeRequest = (body: unknown = validBody) =>
@@ -115,11 +136,13 @@ describe("POST /api/flight/plans/[id]/dips-notify", () => {
     const response = await POST(makeRequest(), makeContext());
     const body = await response.json();
 
-    expect({ status: response.status, authRequired: body.authRequired, realm: body.realm }).toEqual({
-      status: 401,
-      authRequired: true,
-      realm: "fpl",
-    });
+    expect({ status: response.status, authRequired: body.authRequired, realm: body.realm }).toEqual(
+      {
+        status: 401,
+        authRequired: true,
+        realm: "fpl",
+      }
+    );
   });
 
   it("test_post_returns_realm_from_auth_required_error_not_hardcoded_fpl", async () => {

@@ -23,6 +23,16 @@ const config: DipsConfig = {
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status });
 
+const sampleContactPerson = {
+  name: "申請太郎",
+  country: "001",
+  prefectures: "13",
+  municipality: "中央区銀座1-1",
+  telephoneCountry: "001",
+  telephone: "09011112222",
+  email: "shinsei@example.test",
+};
+
 const samplePayload: DipsFlightPlanNotificationPayload = {
   flightPlanInfo: {
     flightPlanId: "",
@@ -39,7 +49,36 @@ const samplePayload: DipsFlightPlanNotificationPayload = {
     flightAltitude: 50,
     flyRoute: "{}",
     riskMitigationOnsiteControl: "1",
-    aircraftInfo: [{ symbol: "JU1234567890" }],
+    riskMitigationOnsiteControlL3: "0",
+    riskMitigationOnsiteControlL35: "0",
+    riskMitigationOnsiteControl2: "0",
+    exceptionalConditionsMooring: "0",
+    reporter: {
+      contactReporterFlag: "1",
+      contactReporter: sampleContactPerson,
+    },
+    pilotInfo: [
+      {
+        contactPilotFlag: "0",
+        contactPilot: sampleContactPerson,
+        firstClass: "0",
+        secondClass: "0",
+        privateLicense: "0",
+        maker: "maker001",
+        model: "model001",
+      },
+    ],
+    aircraftInfo: [
+      {
+        type: "2",
+        symbol: "JU1234567890",
+        model: "model001",
+        maker: "maker001",
+        certification1: "0",
+        certification2: "0",
+        maxWeight: 0.9,
+      },
+    ],
   },
 };
 

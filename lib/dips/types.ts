@@ -122,13 +122,40 @@ export type DipsFlightPurposeCode =
 export type DipsFlightAirspaceCode = number;
 
 /**
- * 飛行計画通報でユーザーがダイアログ入力する項目 (FlightPlan/Aircraft から導出できない項目)。
+ * 通報者・操縦者の連絡先 (FPRガイドライン 2.3.8 の contactReporter/contactPilot 共通形)。
+ *
+ * req-013 人の決定: 操縦者と通報者は同一人物として扱う (ログインユーザー1人の情報を
+ * 両方に使う。人を選ぶ UI は作らない)。氏名・メールアドレスは User レコードから取得し、
+ * 住所・電話番号は通報のたびに入力してもらう (新規 PII を DB に保存しない方針。
+ * req-003 以来の PII 方針を踏襲)。
+ */
+export interface DipsContactPerson {
+  name: string;
+  /** 別紙1 国コードのデータ定義 (本システムは日本固定) */
+  country: string;
+  /** 別紙2 都道府県コードのデータ定義 */
+  prefectures: string;
+  /** 住所 (市町村以下) */
+  municipality: string;
+  /** 別紙1 国コードのデータ定義 (電話番号の国コード。本システムは日本固定) */
+  telephoneCountry: string;
+  telephone: string;
+  email: string;
+}
+
+/**
+ * 飛行計画通報でユーザーがダイアログ入力する項目 (FlightPlan/Aircraft/User から
+ * 導出できない項目)。
  *
  * Q1=(a): 通報ボタン押下時のダイアログで都度入力する。
  */
 export interface DipsNotificationUserInput {
   /** 飛行目的 (複数可) */
   flightPurpose: DipsFlightPurposeCode[];
+  /** その他1(業務) の理由。flightPurpose に 13 を含むときのみ必須 (2.3.8 No.5) */
+  othergyomutext?: string;
+  /** その他2(業務以外) の理由。flightPurpose に 16 を含むときのみ必須 (2.3.8 No.6) */
+  othergyomugaitext?: string;
   /** 飛行空域種別 (複数可) */
   flightAirspace: DipsFlightAirspaceCode[];
   /** 補助者の人数 (無しは 0) */
@@ -143,40 +170,124 @@ export interface DipsNotificationUserInput {
   flightAltitude: number;
   /** 飛行範囲を表す GeoJSON 文字列 (Circle/Polygon) */
   flyRoute: string;
-  /** 立入管理措置を講じる場合 true */
+  /** 立入管理措置を講じる場合 true (No.27) */
   riskMitigationOnsiteControl: boolean;
+  /** 立入管理措置(レベル3飛行) を講じる場合 true (No.28) */
+  riskMitigationOnsiteControlL3: boolean;
+  /** 立入管理措置(レベル3.5飛行関連) を講じる場合 true (No.29) */
+  riskMitigationOnsiteControlL35: boolean;
+  /** 立入禁止措置を講じる場合 true (No.30) */
+  riskMitigationOnsiteControl2: boolean;
+  /** 係留飛行を行う場合 true (No.31) */
+  exceptionalConditionsMooring: boolean;
+  /** 都道府県コード (別紙2)。通報者・操縦者は同一人物として送信する (人の決定) */
+  prefecture: string;
+  /** 住所 (市町村以下) */
+  municipality: string;
+  telephone: string;
+  /** 技能証明(一等) の保有有無 (No.60) */
+  firstClass: boolean;
+  /** 技能証明(二等) の保有有無 (No.61) */
+  secondClass: boolean;
+  /** 技能認証保有状況 (No.62。2025年12月の制度改正により将来的に廃止予定) */
+  privateLicense: boolean;
 }
 
 /**
  * 飛行計画通報受付 API のリクエストボディ (FPRガイドライン 2.3.8)。
  * ネストの flightPlanInfo に通報項目を格納する。startTime は "yyyyMMdd hhmm" 形式。
+ *
+ * 必須51項目すべてに対応する (req-013)。各フィールドに §2.3.8 の No 番号をコメントで
+ * 残す (5-3 の DipsPermissionApplicationPayload と同じ流儀。次に触る人が一次情報と
+ * 突合できるようにするための再発防止策)。組み立ては `lib/dips/notificationMapper.ts` の
+ * `buildFlightPlanNotificationPayload()` に集約し、必須項目の網羅は
+ * `__tests__/lib/dips/flightPlanNotificationPayload.test.ts` で機械的に検証する。
  */
 export interface DipsFlightPlanNotificationPayload {
   flightPlanInfo: {
-    /** 更新時のみ。新規は空文字 */
+    /** No.2。更新時のみ。新規は空文字 */
     flightPlanId: string;
-    /** 飛行計画名称 (最大30文字) */
+    /** No.3。飛行計画名称 (最大30文字) */
     name: string;
+    /** No.4 */
     flightPurpose: DipsFlightPurposeCode[];
+    /** No.5。flightPurpose に 13(その他1) を含むときのみ設定する */
+    othergyomutext?: string;
+    /** No.6。flightPurpose に 16(その他2) を含むときのみ設定する */
+    othergyomugaitext?: string;
+    /** No.7 (任意) */
     flightAirspace: DipsFlightAirspaceCode[];
+    /** No.9 */
     assistantsNumber: number;
+    /** No.10 */
     departurePoint: string;
+    /** No.26 */
     destinationPoint: string;
-    /** "yyyyMMdd hhmm" (半角スペース区切り) */
+    /** No.11。"yyyyMMdd hhmm" (半角スペース区切り) */
     startTime: string;
-    /** 航続可能時間 (分, 5単位 5〜1440) */
+    /** No.12。航続可能時間 (分, 5単位 5〜1440) */
     plannedMaxTime: number;
-    /** 所要時間 (分, 5単位 5〜1440) */
+    /** No.13。所要時間 (分, 5単位 5〜1440) */
     plannedFlightTime: number;
+    /** No.14 */
     flightSpeed: number;
+    /** No.15 */
     flightAltitude: number;
-    /** GeoJSON 文字列 */
+    /** No.16。GeoJSON 文字列 (No.17 type / No.18 center / No.21 radius を内包する) */
     flyRoute: string;
-    /** "1"=講じる, "0"=講じない */
+    /** No.27。"1"=講じる, "0"=講じない */
     riskMitigationOnsiteControl: string;
+    /** No.28。立入管理措置(レベル3飛行)。"1"=講じる, "0"=講じない */
+    riskMitigationOnsiteControlL3: string;
+    /** No.29。立入管理措置(レベル3.5飛行関連)。"1"=講じる, "0"=講じない */
+    riskMitigationOnsiteControlL35: string;
+    /** No.30。立入禁止措置。"1"=講じる, "0"=講じない */
+    riskMitigationOnsiteControl2: string;
+    /** No.31。係留飛行。"1"=行う, "0"=行わない */
+    exceptionalConditionsMooring: string;
+    /** No.38-47。通報者。req-013 人の決定によりログインユーザー本人の情報を送信する */
+    reporter: {
+      /** No.39。"1"=通報者を連絡先とする。No.50 と排他 (どちらか一方のみ"1") */
+      contactReporterFlag: string;
+      /** No.40 */
+      contactReporter: DipsContactPerson;
+    };
+    /** No.49-64。操縦者情報 (配列)。req-013 では通報者と同一人物1件のみ送信する */
+    pilotInfo: Array<{
+      /** No.50。"0"=操縦者は連絡先としない (通報者側の flag と排他) */
+      contactPilotFlag: string;
+      /** No.51 */
+      contactPilot: DipsContactPerson;
+      /** No.60 */
+      firstClass: string;
+      /** No.61 */
+      secondClass: string;
+      /** No.62 */
+      privateLicense: string;
+      /** No.63。代表機体の製造者名 */
+      maker: string;
+      /** No.64。代表機体の型式／名称 */
+      model: string;
+    }>;
+    /** No.65-73。機体情報 (配列)。通報対象の機体1件のみ送信する */
     aircraftInfo: Array<{
-      /** 登録記号 (12桁) */
+      /** No.66。機体の種類 (1〜6) */
+      type: string;
+      /** No.67 (任意)。値があるときのみ設定する */
+      certificationNum?: string;
+      /** No.68。登録記号 (12桁) */
       symbol: string;
+      /** No.69。型式／名称 */
+      model: string;
+      /** No.70。製造者名 */
+      maker: string;
+      /** No.71。機体認証(第一種)。"1"=有り, "0"=無し。マスタの値をそのまま送る
+       * (「全機体が未取得」をハードコードしない。req-013 人の決定) */
+      certification1: string;
+      /** No.72。機体認証(第二種)。同上 */
+      certification2: string;
+      /** No.73。総重量(kg) */
+      maxWeight: number;
     }>;
   };
 }
