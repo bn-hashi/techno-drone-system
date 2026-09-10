@@ -379,14 +379,15 @@ describe("DipsNotifyButton", () => {
     function openDialogAndFillValidForm(): void {
       fireEvent.click(screen.getByRole("button", { name: "DIPSへ通報" }));
       fireEvent.click(screen.getByLabelText("空撮"));
-      fireEvent.change(screen.getByLabelText("飛行空域種別 (カンマ区切り)"), {
-        target: { value: "1" },
-      });
+      // req-013 差し戻し J2: 飛行空域 (No.7) は任意になったため、既定 (いずれも選択しない)
+      // のまま検証を通過できる。何も選択しない = 特定飛行に該当しない通常の飛行
       fireEvent.change(screen.getByLabelText("補助者人数"), { target: { value: "1" } });
       fireEvent.change(screen.getByLabelText("飛行速度 (km/h)"), { target: { value: "10" } });
       fireEvent.change(screen.getByLabelText("出発地"), { target: { value: "東京都千代田区" } });
       fireEvent.change(screen.getByLabelText("目的地"), { target: { value: "東京都港区" } });
-      fireEvent.change(screen.getByLabelText("飛行高度 (AGL メートル)"), { target: { value: "50" } });
+      fireEvent.change(screen.getByLabelText("飛行高度 (AGL メートル)"), {
+        target: { value: "50" },
+      });
       fireEvent.change(screen.getByLabelText("経度"), { target: { value: "139.7" } });
       fireEvent.change(screen.getByLabelText("緯度"), { target: { value: "35.6" } });
       fireEvent.change(screen.getByLabelText("半径 (m)"), { target: { value: "100" } });
@@ -429,7 +430,12 @@ describe("DipsNotifyButton", () => {
       beforeEach(() => {
         Object.defineProperty(window, "location", {
           configurable: true,
-          value: { ...originalLocation, pathname: "/flight/plans/plan-1", search: "?page=2", href: "" },
+          value: {
+            ...originalLocation,
+            pathname: "/flight/plans/plan-1",
+            search: "?page=2",
+            href: "",
+          },
         });
       });
 

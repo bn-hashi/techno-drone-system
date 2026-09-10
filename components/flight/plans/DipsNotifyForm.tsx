@@ -7,6 +7,7 @@ import {
   DIPS_FLIGHT_PURPOSE_OTHER_NON_BUSINESS,
 } from "@/lib/constants/dipsFlightPurpose";
 import { DIPS_PREFECTURE_OPTIONS } from "@/lib/constants/dipsAddressCode";
+import { DIPS_FLIGHT_AIRSPACE_OPTIONS } from "@/lib/constants/dipsFlightAirspace";
 import { buildCircleFlyRoute } from "@/lib/dips/notificationMapper";
 
 /**
@@ -46,7 +47,9 @@ export interface FormState {
 
 export const INITIAL_FORM: FormState = {
   flightPurpose: [],
-  flightAirspace: "1",
+  // No.7 は任意 (－)。既定でDID上空 (1) を主張すると、許可・承認情報を送らないこの画面の
+  // 設計と矛盾する (req-013 差し戻し J2)。利用者が該当するものだけを選ぶ
+  flightAirspace: "",
   assistantsNumber: "0",
   departurePoint: "",
   destinationPoint: "",
@@ -78,9 +81,7 @@ function parseNumberInRange(raw: string, min: number, max: number): number | nul
   return value;
 }
 
-type ValidationResult =
-  | { ok: true; input: DipsNotificationInput }
-  | { ok: false; message: string };
+type ValidationResult = { ok: true; input: DipsNotificationInput } | { ok: false; message: string };
 
 /** 飛行目的「その他」系が選択されているのに理由が未入力なら、条件付き必須の項目を検証する */
 function validateOtherPurposeReasons(form: FormState): ValidationResult | null {
@@ -107,13 +108,13 @@ export function validateAndBuildInput(form: FormState): ValidationResult {
   const otherPurposeError = validateOtherPurposeReasons(form);
   if (otherPurposeError) return otherPurposeError;
 
+  // No.7 は任意 (－)。特定飛行 (DID上空/150m以上/空港周辺) のいずれにも該当しない
+  // 通常の飛行は空配列が正しい値のため、ここで「1つ以上選択必須」にしてはならない
+  // (req-013 差し戻し J2)
   const flightAirspace = form.flightAirspace
     .split(",")
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
-  if (flightAirspace.length === 0) {
-    return { ok: false, message: "飛行空域種別を入力してください" };
-  }
   if (!form.departurePoint.trim() || !form.destinationPoint.trim()) {
     return { ok: false, message: "出発地・目的地を入力してください" };
   }
@@ -237,20 +238,10 @@ function PurposeFieldset({
   );
 }
 
-/** 飛行空域種別・補助者人数・速度・出発地/目的地・高度 (既存項目。req-013 では変更なし) */
+/** 補助者人数・速度・出発地/目的地・高度 (既存項目。req-013 段階3では変更なし) */
 function FlightBasicsFields({ form, setField }: FieldsetProps) {
   return (
     <>
-      <label className="block">
-        <span className="mb-1 block font-medium text-body">飛行空域種別 (カンマ区切り)</span>
-        <input
-          type="text"
-          value={form.flightAirspace}
-          onChange={(e) => setField("flightAirspace", e.target.value)}
-          className="w-full rounded border border-line px-2 py-1"
-        />
-      </label>
-
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block font-medium text-body">補助者人数</span>
@@ -308,6 +299,54 @@ function FlightBasicsFields({ form, setField }: FieldsetProps) {
         />
       </label>
     </>
+  );
+}
+
+/**
+ * 飛行空域 (2.3.8 No.7, 任意)。該当するものだけを選ぶ複数選択のチェックボックス。
+ *
+ * req-013 差し戻し J2: 以前は自由入力欄 (カンマ区切り) で既定値が "1" (DID上空) だった
+ * ため、利用者が書き換えない限り毎回「許可・承認を要する特定飛行」を主張する矛盾した
+ * 内容が送信されていた。No.7 は必須ではなく任意のため、既定は「いずれも選択しない」
+ * (空配列) にし、コードの意味が一目でわかるようチェックボックスの選択式にした
+ * (凡例を別途添える案もあったが、ラベル自体に意味を書くほうが誤りにくいため選択式を採用)。
+ * 内部表現は `FormState.flightAirspace: string` (カンマ区切り) のまま変更しない
+ * (ファイル冒頭のコメントの通り、既存フィールドの型変更は sessionStorage 経由の
+ * 復元データとの互換性リスクがあるため)。
+ */
+function FlightAirspaceFieldset({ form, setField }: FieldsetProps) {
+  const selectedCodes = form.flightAirspace
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+
+  const toggleCode = (code: number) => {
+    const next = selectedCodes.includes(code)
+      ? selectedCodes.filter((c) => c !== code)
+      : [...selectedCodes, code];
+    setField("flightAirspace", next.join(","));
+  };
+
+  return (
+    <fieldset className="rounded border border-line-soft p-3">
+      <legend className="px-1 text-xs text-muted">飛行空域 (該当するものだけを選択)</legend>
+      <div className="space-y-1">
+        {DIPS_FLIGHT_AIRSPACE_OPTIONS.map((option) => (
+          <label key={option.code} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={selectedCodes.includes(option.code)}
+              onChange={() => toggleCode(option.code)}
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        いずれかに該当する場合、許可・承認が必要な特定飛行です。本画面では許可・承認情報を
+        送信できないため、そのような飛行は通報できません。
+      </p>
+    </fieldset>
   );
 }
 
@@ -514,6 +553,7 @@ export function DipsNotifyForm({ form, onFormChange }: DipsNotifyFormProps) {
     <div className="space-y-4 text-sm">
       <PurposeFieldset form={form} setField={setField} onTogglePurpose={togglePurpose} />
       <FlightBasicsFields form={form} setField={setField} />
+      <FlightAirspaceFieldset form={form} setField={setField} />
       <FlyRouteFieldset form={form} setField={setField} />
       <SafetyMeasuresFieldset form={form} setField={setField} />
       <ContactFieldset form={form} setField={setField} />
