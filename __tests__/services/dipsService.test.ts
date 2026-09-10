@@ -20,7 +20,10 @@ const makeAircraft = (overrides: Partial<Aircraft> = {}): Aircraft =>
     modelNumber: "T-1",
     serialNumber: "SN-1",
     weightGrams: 500,
-    maxFlightTimeMin: 20,
+    // req-013 差し戻し J3: makePlan() の既定 durationMin (60分) 以上でなければ、
+    // notifyFlightPlan() が「所要時間が航続可能時間を超えている」BusinessError を
+    // 投げてしまう (以前は 20 で、既定の組み合わせ自体が矛盾していた)
+    maxFlightTimeMin: 90,
     registrationNumber: "JU1234567890",
     isActive: true,
     createdAt: new Date("2026-07-01"),
@@ -145,7 +148,13 @@ describe("DipsService", () => {
     flightPlanService = mockFlightPlanService();
     userRepository = mockUserRepository();
     vi.mocked(userRepository.findById).mockResolvedValue(makeUser());
-    service = new DipsService(apiClient, oidcClient, aircraftService, flightPlanService, userRepository);
+    service = new DipsService(
+      apiClient,
+      oidcClient,
+      aircraftService,
+      flightPlanService,
+      userRepository
+    );
   });
 
   // ─── 認可 ───────────────────────────────────────────────────────────────────
@@ -393,6 +402,25 @@ describe("DipsService", () => {
     it("test_notify_flight_plan_without_a_dips_ua_type_does_not_call_the_api", async () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ dipsUaType: null }));
+
+      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
+    });
+
+    it("test_notify_flight_plan_when_duration_exceeds_aircraft_max_flight_time_raises_error", async () => {
+      // req-013 差し戻し J3: 機体の航続可能時間より長い所要時間は物理的に矛盾する
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan({ durationMin: 60 }));
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ maxFlightTimeMin: 20 }));
+
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
+    });
+
+    it("test_notify_flight_plan_when_duration_exceeds_aircraft_max_flight_time_does_not_call_the_api", async () => {
+      vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan({ durationMin: 60 }));
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ maxFlightTimeMin: 20 }));
 
       await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
 

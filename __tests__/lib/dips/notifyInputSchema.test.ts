@@ -5,6 +5,17 @@ import {
   DIPS_FLIGHT_PURPOSE_OTHER_NON_BUSINESS,
 } from "@/lib/constants/dipsFlightPurpose";
 
+const VALID_FLY_ROUTE = JSON.stringify({
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { radius: 10 },
+      geometry: { type: "Circle", center: [139.7454, 35.6586] },
+    },
+  ],
+});
+
 const validInput = {
   flightPurpose: [15],
   flightAirspace: [1],
@@ -13,7 +24,8 @@ const validInput = {
   destinationPoint: "京急泉岳寺駅",
   flightSpeed: 30,
   flightAltitude: 50,
-  flyRoute: "{}",
+  // req-013 差し戻し J5: "{}" は geometry.type を欠くため、有効な GeoJSON 文字列に是正した
+  flyRoute: VALID_FLY_ROUTE,
   riskMitigationOnsiteControl: true,
   riskMitigationOnsiteControlL3: false,
   riskMitigationOnsiteControlL35: false,
@@ -50,6 +62,47 @@ describe("DipsNotifyInputSchema — 基本項目", () => {
     const result = DipsNotifyInputSchema.safeParse({ ...validInput, telephone: "" });
 
     expect(result.success).toBe(false);
+  });
+
+  it("test_accepts_an_empty_flight_airspace_array", () => {
+    // req-013 差し戻し J2: No.7 は任意。特定飛行に該当しない通常の飛行は空配列が正しい
+    const result = DipsNotifyInputSchema.safeParse({ ...validInput, flightAirspace: [] });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("DipsNotifyInputSchema — flyRoute の中身 (req-013 差し戻し J5)", () => {
+  it("test_rejects_an_empty_json_object", () => {
+    // "{}" は geometry.type を欠くため、必須項目 (No.17) 不足のまま共用検証DBへ
+    // 送信されてしまっていた
+    const result = DipsNotifyInputSchema.safeParse({ ...validInput, flyRoute: "{}" });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("test_rejects_a_non_json_string", () => {
+    const result = DipsNotifyInputSchema.safeParse({ ...validInput, flyRoute: "テスト経路" });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("test_rejects_a_feature_collection_without_a_geometry_type", () => {
+    const result = DipsNotifyInputSchema.safeParse({
+      ...validInput,
+      flyRoute: JSON.stringify({
+        type: "FeatureCollection",
+        features: [{ type: "Feature", properties: {}, geometry: { center: [139.7, 35.6] } }],
+      }),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("test_accepts_a_valid_circle_geometry", () => {
+    const result = DipsNotifyInputSchema.safeParse({ ...validInput, flyRoute: VALID_FLY_ROUTE });
+
+    expect(result.success).toBe(true);
   });
 });
 
