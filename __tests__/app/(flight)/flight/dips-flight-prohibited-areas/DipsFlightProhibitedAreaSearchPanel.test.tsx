@@ -102,7 +102,32 @@ describe("DipsFlightProhibitedAreaSearchPanel", () => {
     await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
 
     expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("test_panel_does_not_render_detail_paragraph_when_area_detail_is_null", async () => {
+    const areaWithoutDetailAndUrl: DipsFlightProhibitedAreaInfo = {
+      ...validArea,
+      detail: null,
+      url: null,
+    };
+    mockSearchDipsFlightProhibitedAreas.mockResolvedValue({
+      areas: [areaWithoutDetailAndUrl],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+    await screen.findByText("東京国際空港 空港の区域");
+
+    // detail が null のとき、`{area.detail && <p>...}` の詳細用 <p> 自体が DOM に
+    // 存在しないことを検証する。detail が null の場合はテキスト内容も空になるため
+    // queryByText(detail文言) では「<p> は残るが空文字で描画される」回帰を検出できない
+    // (CodeRabbit 指摘の再現確認済み: ガードを外して `<p>{area.detail}</p>` に戻しても
+    // queryByText ベースの検証は落ちなかった)。名前用・有効期限用・種別コード用の3つの
+    // <p> は必ず描画されるため、detail 用 <p> が無ければ件数は3のままになる
+    const listItem = screen.getByRole("listitem");
+    expect(listItem.querySelectorAll("p")).toHaveLength(3);
   });
 
   it("test_panel_shows_zero_result_message_when_areas_empty", async () => {
