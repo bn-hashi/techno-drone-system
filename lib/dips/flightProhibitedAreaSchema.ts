@@ -18,10 +18,11 @@ import { DipsGeometrySchema } from "@/lib/dips/geometrySchema";
  *
  * `detail`/`url` (2026-09-11 本番障害対応): 本番で「空港等の周辺空域」(1)・
  * 「人口集中地区」(2) を含む検索が全件パース失敗で502になっていた。原因は本スキーマが
- * この2フィールドを非null必須にしていたこと (詳細: req-011 5-5 エラー原因特定の
- * verifier報告)。DIPS の生 responseBody がログに残っておらず、実際の値が `null` /
- * キー欠落 / 値ありのどれで来るか未確認のため、`nullableString` で3パターンすべてを
- * 吸収し `null` に正規化する (`permissionsSchema.ts` の `nullableString` と同じ方針)。
+ * この2フィールドを非null必須にしていたことで特定済み (詳細: req-011 5-5 エラー原因特定の
+ * verifier報告。本番 pm2 ログから特定)。未確認なのは DIPS が実際にどの形でこの2
+ * フィールドを返すか (`null` / キー欠落 / 空文字のどれか) の区別のみで、原因未特定のまま
+ * 当て推量で直したものではない。`nullableString` で3パターンすべてを吸収し `null` に
+ * 正規化する (`permissionsSchema.ts` の `nullableString` と同じ方針)。
  */
 
 /** 空文字・null・キー欠落を null に正規化する (detail/url 用。permissionsSchema.ts の
