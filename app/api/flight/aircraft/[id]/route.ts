@@ -14,6 +14,11 @@ const UpdateAircraftSchema = z.object({
   weightGrams: z.number().int().positive().optional(),
   maxFlightTimeMin: z.number().int().positive().optional(),
   registrationNumber: z.string().nullable().optional(),
+  dipsUaType: z.number().int().nullable().optional(),
+  hasDipsCertification1: z.boolean().optional(),
+  hasDipsCertification2: z.boolean().optional(),
+  dipsCertificationNumber: z.string().nullable().optional(),
+  maxTakeoffWeightGrams: z.number().int().nullable().optional(),
 });
 
 interface RouteContext {

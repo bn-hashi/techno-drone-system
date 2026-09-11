@@ -54,6 +54,10 @@ function parseEntriesLeniently<T>(
 
 export interface DipsNotificationInput {
   flightPurpose: number[];
+  /** その他1(業務) の理由。flightPurpose に 13 を含むときのみ必須 (2.3.8 No.5) */
+  othergyomutext?: string;
+  /** その他2(業務以外) の理由。flightPurpose に 16 を含むときのみ必須 (2.3.8 No.6) */
+  othergyomugaitext?: string;
   flightAirspace: number[];
   assistantsNumber: number;
   departurePoint: string;
@@ -62,6 +66,17 @@ export interface DipsNotificationInput {
   flightAltitude: number;
   flyRoute: string;
   riskMitigationOnsiteControl: boolean;
+  riskMitigationOnsiteControlL3: boolean;
+  riskMitigationOnsiteControlL35: boolean;
+  riskMitigationOnsiteControl2: boolean;
+  exceptionalConditionsMooring: boolean;
+  /** 都道府県コード (別紙2)。通報者・操縦者は同一人物として送信する */
+  prefecture: string;
+  municipality: string;
+  telephone: string;
+  firstClass: boolean;
+  secondClass: boolean;
+  privateLicense: boolean;
 }
 
 export interface DipsNotificationResult {

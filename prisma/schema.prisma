@@ -381,6 +381,20 @@ model Aircraft {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  /// DIPS 機体の種類 (FPRガイドライン 2.3.8 No.66。1:飛行機 2:回転翼(ヘリ) 3:回転翼(マルチローター)
+  /// 4:回転翼(その他) 5:滑空機 6:飛行船)。未設定 (null) の機体は DIPS 通報前に入力が必須
+  dipsUaType Int?
+  /// DIPS 機体認証(第一種) の取得有無 (No.71)。既定は未取得 (false)。req-013 人の決定:
+  /// 「全機体が未取得」をコードにハードコードせず、この列の値を読んで送信する
+  hasDipsCertification1 Boolean @default(false)
+  /// DIPS 機体認証(第二種) の取得有無 (No.72)。既定は未取得 (false)。上記と同じ方針
+  hasDipsCertification2 Boolean @default(false)
+  /// DIPS 機体認証書番号 (No.67, 任意項目)
+  dipsCertificationNumber String?
+  /// DIPS 総重量(kg)算出用の最大離陸重量 (g)。未設定なら weightGrams (機体重量) を代用する
+  /// (FPRガイドライン No.73 備考「通報を行う飛行形態で入力すること。困難な場合は最大離陸重量」)
+  maxTakeoffWeightGrams Int?
+
   user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
   flightPlans FlightPlan[]
   flightLogs  FlightLog[]

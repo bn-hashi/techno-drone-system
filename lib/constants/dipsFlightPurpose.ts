@@ -3,6 +3,11 @@
  */
 import type { DipsFlightPurposeCode } from "@/lib/dips/types";
 
+/** その他1(業務)。選択時は othergyomutext (理由入力) が条件付き必須になる (2.3.8 No.5) */
+export const DIPS_FLIGHT_PURPOSE_OTHER_BUSINESS: DipsFlightPurposeCode = 13;
+/** その他2(業務以外)。選択時は othergyomugaitext (理由入力) が条件付き必須になる (2.3.8 No.6) */
+export const DIPS_FLIGHT_PURPOSE_OTHER_NON_BUSINESS: DipsFlightPurposeCode = 16;
+
 export const DIPS_FLIGHT_PURPOSE_OPTIONS: ReadonlyArray<{
   code: DipsFlightPurposeCode;
   label: string;
