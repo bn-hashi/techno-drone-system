@@ -534,8 +534,10 @@ type _AssertAreaGeometryDtoSchemaExact = AssertExactType<
 const DipsFlightProhibitedAreaInfoSchema = z.object({
   areaId: z.string(),
   name: z.string(),
-  detail: z.string(),
-  url: z.string(),
+  // detail/url はエリア種別によっては DIPS が返さない (null)。2026-09-11 本番障害対応
+  // (lib/dips/flightProhibitedAreaSchema.ts のコメント参照)
+  detail: z.string().nullable(),
+  url: z.string().nullable(),
   areaTypeId: z.number(),
   startTime: z.string(),
   finishTime: z.string(),

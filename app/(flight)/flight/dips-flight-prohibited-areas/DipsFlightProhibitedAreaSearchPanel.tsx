@@ -40,7 +40,15 @@ function AreaCard({ area }: { area: DipsFlightProhibitedAreaInfo }) {
   return (
     <li className="border border-gray-200 rounded p-4">
       <p className="font-medium text-gray-900">{area.name}</p>
-      <p className="mt-1 text-sm text-gray-600">{area.detail}</p>
+      {/* detail はエリア種別によっては DIPS が返さない (null。2026-09-11 本番障害対応)。
+          値がある場合のみ表示する (null を渡しても React は何も描画しないため壊れはしないが、
+          意図が伝わるよう明示的にガードする)。url は現状このコンポーネントで表示していない
+          ため、未使用のまま (追加は今回のスコープ外)。 */}
+      {area.detail && (
+        <p data-testid="area-detail" className="mt-1 text-sm text-gray-600">
+          {area.detail}
+        </p>
+      )}
       <p className="text-sm text-gray-600">
         有効期限: {area.startTime} 〜 {area.finishTime}
       </p>

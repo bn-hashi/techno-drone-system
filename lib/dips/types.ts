@@ -426,8 +426,10 @@ export interface DipsFlightProhibitedAreaSearchRequest {
 export interface DipsFlightProhibitedAreaInfo {
   areaId: string;
   name: string;
-  detail: string;
-  url: string;
+  /** 詳細情報。エリア種別によっては DIPS が返さない (null/キー欠落。2026-09-11 本番障害対応) */
+  detail: string | null;
+  /** 詳細ページURL。detail と同様、エリア種別によっては存在しない */
+  url: string | null;
   areaTypeId: number;
   /** 有効期限開始 (yyyy-MM-ddTHH:mm:ss 形式) */
   startTime: string;

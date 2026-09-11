@@ -109,6 +109,140 @@ describe("normalizeFlightProhibitedAreasWithDiagnostics", () => {
     ).toThrow(DipsApiError);
   });
 
+  it("test_null_detail_and_url_do_not_cause_the_entry_to_be_excluded", () => {
+    const entryWithNullFields = { ...validAreaEntry, detail: null, url: null };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithNullFields],
+    });
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_null_detail_and_url_fields_are_normalized_to_null_in_the_result", () => {
+    const entryWithNullFields = { ...validAreaEntry, detail: null, url: null };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithNullFields],
+    });
+
+    expect(result.areas).toEqual([
+      expect.objectContaining({ areaId: entryWithNullFields.flightProhibitedAreaId, detail: null, url: null }),
+    ]);
+  });
+
+  it("test_missing_detail_and_url_keys_do_not_cause_the_entry_to_be_excluded", () => {
+    const { detail: _detail, url: _url, ...entryWithoutDetailAndUrl } = validAreaEntry;
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithoutDetailAndUrl],
+    });
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_missing_detail_and_url_keys_are_normalized_to_null_in_the_result", () => {
+    const { detail: _detail, url: _url, ...entryWithoutDetailAndUrl } = validAreaEntry;
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithoutDetailAndUrl],
+    });
+
+    expect(result.areas).toEqual([
+      expect.objectContaining({
+        areaId: entryWithoutDetailAndUrl.flightProhibitedAreaId,
+        detail: null,
+        url: null,
+      }),
+    ]);
+  });
+
+  it("test_populated_detail_keeps_the_original_string_value", () => {
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry],
+    });
+
+    expect(result.areas[0].detail).toBe(validAreaEntry.detail);
+  });
+
+  it("test_populated_url_keeps_the_original_string_value", () => {
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry],
+    });
+
+    expect(result.areas[0].url).toBe(validAreaEntry.url);
+  });
+
+  it("test_mixed_entries_with_and_without_detail_and_url_are_not_excluded", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.excludedCount).toBe(0);
+  });
+
+  it("test_mixed_entries_with_and_without_detail_and_url_all_parse_into_the_result", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.areas).toHaveLength(3);
+  });
+
+  it("test_mixed_entries_keep_the_populated_detail_value_for_the_original_entry", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.areas[0].detail).toBe(validAreaEntry.detail);
+  });
+
+  it("test_mixed_entries_normalize_the_null_detail_entry_to_null", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.areas[1].detail).toBeNull();
+  });
+
+  it("test_mixed_entries_normalize_the_missing_detail_key_entry_to_null", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.areas[2].detail).toBeNull();
+  });
+
   it("test_circle_geometry_defaults_missing_coordinates_to_empty_array", () => {
     const circleEntry = {
       ...validAreaEntry,

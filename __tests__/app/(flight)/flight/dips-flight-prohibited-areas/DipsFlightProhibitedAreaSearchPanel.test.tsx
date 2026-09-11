@@ -86,6 +86,49 @@ describe("DipsFlightProhibitedAreaSearchPanel", () => {
     expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
   });
 
+  it("test_panel_renders_area_without_detail_and_url_without_crashing", async () => {
+    const areaWithoutDetailAndUrl: DipsFlightProhibitedAreaInfo = {
+      ...validArea,
+      detail: null,
+      url: null,
+    };
+    mockSearchDipsFlightProhibitedAreas.mockResolvedValue({
+      areas: [areaWithoutDetailAndUrl],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+
+    expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
+  });
+
+  it("test_panel_does_not_render_detail_paragraph_when_area_detail_is_null", async () => {
+    const areaWithoutDetailAndUrl: DipsFlightProhibitedAreaInfo = {
+      ...validArea,
+      detail: null,
+      url: null,
+    };
+    mockSearchDipsFlightProhibitedAreas.mockResolvedValue({
+      areas: [areaWithoutDetailAndUrl],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+    await screen.findByText("東京国際空港 空港の区域");
+
+    // detail が null のとき、`{area.detail && <p>...}` の詳細用 <p>
+    // (data-testid="area-detail") 自体が DOM に存在しないことを検証する。
+    // querySelectorAll("p")).toHaveLength(3) のような <p> の総数に依存する検証は、
+    // AreaCard に無関係な <p> が1つ増えるだけで壊れる脆いテストになる
+    // (2026-09-11 コードレビュー指摘)。data-testid を切ることで、他の <p> の増減とは
+    // 独立して detail 用 <p> の有無だけを検証できる
+    expect(screen.queryByTestId("area-detail")).not.toBeInTheDocument();
+  });
+
   it("test_panel_shows_zero_result_message_when_areas_empty", async () => {
     mockSearchDipsFlightProhibitedAreas.mockResolvedValue({ areas: [], excludedCount: 0 });
     const user = userEvent.setup();

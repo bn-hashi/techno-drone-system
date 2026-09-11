@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DipsPermissionInfo } from "@/lib/dips/types";
 import { normalizeEntriesWithDiagnostics } from "@/lib/dips/normalizeEntriesWithDiagnostics";
+import { nullableString } from "@/lib/dips/nullableStringSchema";
 
 /**
  * 許可・承認情報取得 API (DIPS2.0 API(FPA) 接続システム向けガイドライン 2.3.6) の
@@ -69,12 +70,6 @@ import { normalizeEntriesWithDiagnostics } from "@/lib/dips/normalizeEntriesWith
  * 挟み、`nullableArray` と同じ形に揃えた (詳細は `unusedDisplayString` / `flightRoutesField`
  * のコメント参照)。
  */
-
-/** 空文字・null・キー欠落を null に正規化する (permissionNumber2 用) */
-const nullableString = z
-  .string()
-  .nullish()
-  .transform((value) => (value === null || value === undefined || value === "" ? null : value));
 
 /** null・キー欠落を空配列として扱う (permissions/flightRoutes/uaInfos 用) */
 function nullableArray<T extends z.ZodTypeAny>(itemSchema: T) {
