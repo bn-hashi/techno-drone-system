@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DipsFlightProhibitedAreaInfo } from "@/lib/dips/types";
 import { normalizeEntriesWithDiagnostics } from "@/lib/dips/normalizeEntriesWithDiagnostics";
 import { DipsGeometrySchema } from "@/lib/dips/geometrySchema";
+import { nullableString } from "@/lib/dips/nullableStringSchema";
 
 /**
  * 飛行禁止エリア情報取得 API (DIPS2.0 API(FPR) 接続システム向けガイドライン v1.9 2.3.7) の
@@ -22,15 +23,10 @@ import { DipsGeometrySchema } from "@/lib/dips/geometrySchema";
  * verifier報告。本番 pm2 ログから特定)。未確認なのは DIPS が実際にどの形でこの2
  * フィールドを返すか (`null` / キー欠落 / 空文字のどれか) の区別のみで、原因未特定のまま
  * 当て推量で直したものではない。`nullableString` で3パターンすべてを吸収し `null` に
- * 正規化する (`permissionsSchema.ts` の `nullableString` と同じ方針)。
+ * 正規化する (`permissionsSchema.ts` の `nullableString` と同じ方針)。`nullableString`
+ * 自体は `lib/dips/nullableStringSchema.ts` の共通定義を使う (2026-09-11 コードレビュー
+ * 指摘: permissionsSchema.ts との重複を解消)。
  */
-
-/** 空文字・null・キー欠落を null に正規化する (detail/url 用。permissionsSchema.ts の
- * nullableString と同じ方針) */
-const nullableString = z
-  .string()
-  .nullish()
-  .transform((value) => (value === null || value === undefined || value === "" ? null : value));
 
 const ProhibitedAreaEntrySchema = z.object({
   flightProhibitedAreaId: z.string(),
