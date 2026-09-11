@@ -15,14 +15,28 @@ import { DipsGeometrySchema } from "@/lib/dips/geometrySchema";
  * ジオメトリ (`range`) のスキーマは `flightPlanSchema.ts` の `flyRoute` とバイト単位で
  * 同一だったため (2026-09-06 レビュー I5)、`lib/dips/geometrySchema.ts` の
  * `DipsGeometrySchema` へ1本化した。
+ *
+ * `detail`/`url` (2026-09-11 本番障害対応): 本番で「空港等の周辺空域」(1)・
+ * 「人口集中地区」(2) を含む検索が全件パース失敗で502になっていた。原因は本スキーマが
+ * この2フィールドを非null必須にしていたこと (詳細: req-011 5-5 エラー原因特定の
+ * verifier報告)。DIPS の生 responseBody がログに残っておらず、実際の値が `null` /
+ * キー欠落 / 値ありのどれで来るか未確認のため、`nullableString` で3パターンすべてを
+ * 吸収し `null` に正規化する (`permissionsSchema.ts` の `nullableString` と同じ方針)。
  */
+
+/** 空文字・null・キー欠落を null に正規化する (detail/url 用。permissionsSchema.ts の
+ * nullableString と同じ方針) */
+const nullableString = z
+  .string()
+  .nullish()
+  .transform((value) => (value === null || value === undefined || value === "" ? null : value));
 
 const ProhibitedAreaEntrySchema = z.object({
   flightProhibitedAreaId: z.string(),
   name: z.string(),
   range: DipsGeometrySchema,
-  detail: z.string(),
-  url: z.string(),
+  detail: nullableString,
+  url: nullableString,
   flightProhibitedAreaTypeId: z.number(),
   startTime: z.string(),
   finishTime: z.string(),

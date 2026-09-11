@@ -86,6 +86,25 @@ describe("DipsFlightProhibitedAreaSearchPanel", () => {
     expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
   });
 
+  it("test_panel_renders_area_without_detail_and_url_without_crashing", async () => {
+    const areaWithoutDetailAndUrl: DipsFlightProhibitedAreaInfo = {
+      ...validArea,
+      detail: null,
+      url: null,
+    };
+    mockSearchDipsFlightProhibitedAreas.mockResolvedValue({
+      areas: [areaWithoutDetailAndUrl],
+      excludedCount: 0,
+    });
+    const user = userEvent.setup();
+    renderWithQuery(<DipsFlightProhibitedAreaSearchPanel />);
+
+    await user.click(screen.getByRole("button", { name: "飛行禁止エリアを検索" }));
+
+    expect(await screen.findByText("東京国際空港 空港の区域")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("test_panel_shows_zero_result_message_when_areas_empty", async () => {
     mockSearchDipsFlightProhibitedAreas.mockResolvedValue({ areas: [], excludedCount: 0 });
     const user = userEvent.setup();

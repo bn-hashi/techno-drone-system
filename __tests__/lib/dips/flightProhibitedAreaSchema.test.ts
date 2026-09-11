@@ -109,6 +109,63 @@ describe("normalizeFlightProhibitedAreasWithDiagnostics", () => {
     ).toThrow(DipsApiError);
   });
 
+  it("test_null_detail_and_url_are_normalized_to_null_instead_of_dropping_the_entry", () => {
+    const entryWithNullFields = { ...validAreaEntry, detail: null, url: null };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithNullFields],
+    });
+
+    expect(result.excludedCount).toBe(0);
+    expect(result.areas).toEqual([
+      expect.objectContaining({ areaId: entryWithNullFields.flightProhibitedAreaId, detail: null, url: null }),
+    ]);
+  });
+
+  it("test_missing_detail_and_url_keys_are_normalized_to_null_instead_of_dropping_the_entry", () => {
+    const { detail: _detail, url: _url, ...entryWithoutDetailAndUrl } = validAreaEntry;
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [entryWithoutDetailAndUrl],
+    });
+
+    expect(result.excludedCount).toBe(0);
+    expect(result.areas).toEqual([
+      expect.objectContaining({
+        areaId: entryWithoutDetailAndUrl.flightProhibitedAreaId,
+        detail: null,
+        url: null,
+      }),
+    ]);
+  });
+
+  it("test_entries_with_populated_detail_and_url_keep_the_original_string_value", () => {
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry],
+    });
+
+    expect(result.areas[0].detail).toBe(validAreaEntry.detail);
+    expect(result.areas[0].url).toBe(validAreaEntry.url);
+  });
+
+  it("test_a_mix_of_entries_with_and_without_detail_and_url_all_parse_successfully", () => {
+    const entryWithNullFields = { ...validAreaEntry, flightProhibitedAreaId: "no-detail-1", detail: null, url: null };
+    const { detail: _detail, url: _url, ...entryWithoutKeys } = {
+      ...validAreaEntry,
+      flightProhibitedAreaId: "no-detail-2",
+    };
+
+    const result = normalizeFlightProhibitedAreasWithDiagnostics({
+      flightProhibitedAreaInfo: [validAreaEntry, entryWithNullFields, entryWithoutKeys],
+    });
+
+    expect(result.excludedCount).toBe(0);
+    expect(result.areas).toHaveLength(3);
+    expect(result.areas[0].detail).toBe(validAreaEntry.detail);
+    expect(result.areas[1].detail).toBeNull();
+    expect(result.areas[2].detail).toBeNull();
+  });
+
   it("test_circle_geometry_defaults_missing_coordinates_to_empty_array", () => {
     const circleEntry = {
       ...validAreaEntry,
