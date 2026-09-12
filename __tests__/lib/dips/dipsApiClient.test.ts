@@ -615,9 +615,11 @@ describe("DipsApiClient", () => {
     expect(error.isErrorBodySafeToDisplay).toBeUndefined();
   });
 
-  it("test_request_extends_truncation_length_to_1000_chars_for_allowlisted_fpl_endpoints", async () => {
-    // 2026-09-11 req-014 課題2 (人の決定 H-4): allowlist 済み (fpl系) のみ200→1000に
-    // 引き上げる。長文エラー (必須項目不足の羅列等) が読めるようにするための変更
+  it("test_request_does_not_truncate_response_body_to_200_or_1000_chars_for_allowlisted_fpl_endpoints", async () => {
+    // 2026-09-12 CodeRabbit指摘1: allowlist 済み (fpl系) のエラー本文は、
+    // extractDisplayableDipsErrorMessage() が JSON.parse できるよう構造を保ったまま
+    // 保持する (1000文字ちょうどで機械的に切り詰めない)。1500文字の本文でも
+    // 切り詰められないことを確認する
     const longBody = "a".repeat(1500);
     fetchMock.mockResolvedValue(new Response(longBody, { status: 400 }));
 
@@ -625,8 +627,26 @@ describe("DipsApiClient", () => {
       .notifyFlightPlan("user-1", samplePayload)
       .catch((caught: unknown) => caught)) as { responseBody?: string; isErrorBodySafeToDisplay?: boolean };
 
-    expect(error.responseBody).toHaveLength(1000);
+    expect(error.responseBody).toHaveLength(1500);
     expect(error.isErrorBodySafeToDisplay).toBe(true);
+  });
+
+  it("test_request_preserves_a_long_valid_json_error_body_for_allowlisted_fpl_endpoints", async () => {
+    // 2026-09-12 CodeRabbit指摘1 (本質): 1000文字を超える有効な JSON 本文 (必須項目不足の
+    // 複数羅列を模したもの) が、responseBody に格納された時点で JSON.parse 可能な状態を
+    // 保っていることを確認する (extractDisplayableDipsErrorMessage 側の詳細テストは
+    // dipsErrorMessage.test.ts に置く)
+    const longErrorMessage = "必須項目が不足しています: " + "立入管理措置は必須項目です。".repeat(80);
+    expect(longErrorMessage.length).toBeGreaterThan(1000);
+    const longJsonBody = JSON.stringify({ errorMessage: longErrorMessage });
+    fetchMock.mockResolvedValue(new Response(longJsonBody, { status: 400 }));
+
+    const error = (await makeClient()
+      .notifyFlightPlan("user-1", samplePayload)
+      .catch((caught: unknown) => caught)) as { responseBody?: string };
+
+    expect(() => JSON.parse(error.responseBody ?? "")).not.toThrow();
+    expect(JSON.parse(error.responseBody ?? "").errorMessage).toBe(longErrorMessage);
   });
 
   it("test_request_wraps_network_failure_in_DipsApiError", async () => {

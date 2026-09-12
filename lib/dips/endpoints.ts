@@ -38,20 +38,6 @@ export interface DipsEndpoint {
    * `lib/dips/dipsErrorMessage.ts` の `extractDisplayableDipsErrorMessage()` が参照する。
    */
   isErrorBodySafeToDisplay?: boolean;
-  /**
-   * エラー本文をログ・例外メッセージへ格納する際の最大長 (文字数)。省略時は
-   * `isErrorBodySafeToDisplay` に応じた既定値 (false: 200 / true: 1000。PII 対策として
-   * 最小限に切り詰める) を使う (2026-09-11 人の決定: 1000。§2.3.8 のエラー本文は業務
-   * メッセージのみで PII を含まない設計のため、DRS 系より緩めてよいと判断)。
-   *
-   * `DipsApiClient.resolveErrorBodyPreviewLength()` がこの値を
-   * `isErrorBodySafeToDisplay` に**従属させて**参照する (2026-09-11 /code-review 指摘3:
-   * 以前はこのフィールド単独で参照しており、`isErrorBodySafeToDisplay` を true にせず
-   * ここだけ引き上げると allowlist を経ずに PII がログへ残ってしまう構造的な穴があった)。
-   * `isErrorBodySafeToDisplay` が false/未設定のエンドポイントでこの値を設定しても
-   * 無視される。
-   */
-  errorBodyPreviewLength?: number;
 }
 
 export const DIPS_ENDPOINTS = {
@@ -66,7 +52,6 @@ export const DIPS_ENDPOINTS = {
     realm: "fpl",
     apiBase: "fpr",
     isErrorBodySafeToDisplay: true,
-    errorBodyPreviewLength: 1000,
   },
   /** 飛行禁止エリア情報取得 (fpl)。エラー本文は allowlist 対象 (上記と同じ理由) */
   flightProhibitedAreaSearch: {
@@ -75,7 +60,6 @@ export const DIPS_ENDPOINTS = {
     realm: "fpl",
     apiBase: "fpr",
     isErrorBodySafeToDisplay: true,
-    errorBodyPreviewLength: 1000,
   },
   /**
    * 飛行計画通報受付 (fpl)。非冪等な登録系 POST (I1 参照)。
@@ -90,7 +74,6 @@ export const DIPS_ENDPOINTS = {
     apiBase: "fpr",
     isNonIdempotentWrite: true,
     isErrorBodySafeToDisplay: true,
-    errorBodyPreviewLength: 1000,
   },
   /**
    * 許可・承認情報取得 (req)。エラー本文は allowlist 対象外

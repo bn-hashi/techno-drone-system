@@ -83,4 +83,46 @@ describe("extractDisplayableDipsErrorMessage", () => {
 
     expect(extractDisplayableDipsErrorMessage(error)).toBe("拒否理由");
   });
+
+  // ─── 2026-09-12 CodeRabbit指摘1: 長い有効な JSON でも errorMessage を読める ─────
+
+  it("test_returns_the_message_when_the_raw_body_exceeds_1000_chars_but_is_valid_json", () => {
+    // 立入管理措置等の必須項目不足を複数羅列した長文エラーを模す (本文自体は1000文字超)。
+    // DipsApiClient.request() が本文を構造解析できる状態のまま保持するようになった
+    // (2026-09-12 修正) ことの検証。修正前はここが1000文字で切り詰められており
+    // JSON.parse に失敗して null になっていた
+    const longErrorMessage = "必須項目が不足しています: " + "立入管理措置は必須項目です。".repeat(80);
+    expect(longErrorMessage.length).toBeGreaterThan(1000);
+    const rawBody = JSON.stringify({ errorMessage: longErrorMessage });
+    expect(rawBody.length).toBeGreaterThan(1000);
+
+    const error = new DipsApiError("failed", 400, rawBody, undefined, true);
+
+    const result = extractDisplayableDipsErrorMessage(error);
+    expect(result).not.toBeNull();
+    expect(result).toBe(longErrorMessage.slice(0, 1000));
+    expect(result?.length).toBe(1000);
+  });
+
+  it("test_truncates_the_extracted_message_to_1000_chars_even_when_the_json_value_is_longer", () => {
+    const veryLongMessage = "あ".repeat(2000);
+    const rawBody = JSON.stringify({ errorMessage: veryLongMessage });
+
+    const error = new DipsApiError("failed", 400, rawBody, undefined, true);
+
+    const result = extractDisplayableDipsErrorMessage(error);
+    expect(result).toHaveLength(1000);
+    expect(result).toBe(veryLongMessage.slice(0, 1000));
+  });
+
+  it("test_returns_null_for_non_allowlisted_endpoints_regardless_of_message_length_pii_regression_guard", () => {
+    // PII 制限の回帰防止: allowlist 対象外 (DRS/req 系) では本文が長くても
+    // (200文字切り詰め由来の非JSONも含め) 具体文言を絶対に返さない
+    const longErrorMessage = "個人情報が含まれるかもしれない住所氏名電話番号".repeat(20);
+    const rawBody = JSON.stringify({ errorMessage: longErrorMessage }).slice(0, 200);
+
+    const error = new DipsApiError("failed", 400, rawBody, undefined, false);
+
+    expect(extractDisplayableDipsErrorMessage(error)).toBeNull();
+  });
 });

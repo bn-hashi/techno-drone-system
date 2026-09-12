@@ -427,6 +427,11 @@ describe("FlightPlanService", () => {
       await expect(
         service.recordDipsNotification("plan-1", "", { userId: "user-1", isAdmin: false })
       ).rejects.toThrow();
+      // ガードは findById より前に実行される (services/flightPlanService.ts 参照)。
+      // findById が呼ばれないことも確認しないと、ガードが将来 findById の後ろへ
+      // 移動する回帰 (無効な dipsFlightPlanId で読み取り処理が実行される) を検出できない
+      // (2026-09-12 CodeRabbit指摘5)
+      expect(repo.findById).not.toHaveBeenCalled();
       expect(repo.recordDipsNotification).not.toHaveBeenCalled();
     });
 
@@ -434,6 +439,7 @@ describe("FlightPlanService", () => {
       await expect(
         service.recordDipsNotification("plan-1", "   ", { userId: "user-1", isAdmin: false })
       ).rejects.toThrow();
+      expect(repo.findById).not.toHaveBeenCalled();
       expect(repo.recordDipsNotification).not.toHaveBeenCalled();
     });
   });

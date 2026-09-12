@@ -465,11 +465,12 @@ describe("DipsService", () => {
     // ─── 2026-09-11 req-014 課題3: 飛行予定日時が古すぎる場合は送信前に止める ────────
     // 受け入れ条件: 拒否される側は DIPS へ送信される前に止まる
     // (apiClient.notifyFlightPlan がモックで呼ばれないことをアサートする)。
-    // 境界は lib/dips/notifiableStartTime.ts (JSTの暦日で2日前) を参照。
+    // 境界は lib/dips/notifiableStartTime.ts (許容する最古は前日) を参照
+    // (2026-09-12 CodeRabbit指摘4で「2日前ちょうど」→「前日」に境界修正)。
 
     it("test_notify_flight_plan_with_a_planned_time_too_far_in_the_past_raises_business_error", async () => {
       const now = new Date("2026-09-11T12:00:00+09:00");
-      // 境界 (2026-09-09T00:00+09:00) の1分前 → 拒否される
+      // 境界 (2026-09-10T00:00+09:00、前日0:00) の1分前 → 拒否される
       const tooOld = makePlan({ plannedAt: new Date("2026-09-08T23:59:00+09:00") });
       vi.mocked(flightPlanService.findById).mockResolvedValue(tooOld);
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
@@ -494,7 +495,8 @@ describe("DipsService", () => {
 
     it("test_notify_flight_plan_accepts_a_planned_time_exactly_at_the_boundary", async () => {
       const now = new Date("2026-09-11T12:00:00+09:00");
-      const atBoundary = makePlan({ plannedAt: new Date("2026-09-09T00:00:00+09:00") });
+      // 境界 (前日0:00) ちょうど → 許容される (2026-09-12 CodeRabbit指摘4)
+      const atBoundary = makePlan({ plannedAt: new Date("2026-09-10T00:00:00+09:00") });
       vi.mocked(flightPlanService.findById).mockResolvedValue(atBoundary);
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({

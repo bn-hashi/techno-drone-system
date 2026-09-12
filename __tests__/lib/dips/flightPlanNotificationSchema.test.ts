@@ -221,10 +221,14 @@ describe("normalizeFlightPlanNotificationResult", () => {
     expectUnreadable([{ flightPlanInfoRegistrationResult: { flightPlanId: true } }]);
   });
 
-  it("test_throws_when_exist_other_flight_routes_count_is_nan", () => {
+  // ─── 付随項目が不正 → flightPlanId が有効なら成功する (非対称設計。2026-09-12 ────
+  // ─── CodeRabbit指摘2: 以前は付随項目の型が不正なだけで有効な flightPlanId まで ──
+  // ─── 巻き込んで「取り出せない」判定になっていた) ───────────────────────────────
+
+  it("test_succeeds_and_normalizes_to_null_when_exist_other_flight_routes_count_is_nan", () => {
     // JSON.parse は NaN を生成できないが、呼び出し元が直接オブジェクトを渡すケースに
-    // 備えて欠落扱いにする (Number.isNaN も欠落扱いにする受け入れ条件)
-    expectUnreadable([
+    // 備える。不正な付随項目は例外ではなく null への正規化として扱う受け入れ条件
+    const result = normalizeFlightPlanNotificationResult([
       {
         flightPlanInfoRegistrationResult: {
           flightPlanId: "FP-1",
@@ -232,7 +236,26 @@ describe("normalizeFlightPlanNotificationResult", () => {
         },
       },
     ]);
+    expect(result.flightPlanId).toBe("FP-1");
+    expect(result.existOtherFlightRoutesCount).toBeNull();
   });
+
+  it("test_succeeds_and_normalizes_to_null_when_registration_result_has_the_wrong_type", () => {
+    // flightPlanRegistrationResult が文字列でない (数値) 場合も、有効な flightPlanId の
+    // 取り出しを妨げない
+    const result = normalizeFlightPlanNotificationResult([
+      {
+        flightPlanInfoRegistrationResult: {
+          flightPlanId: "FP-2",
+          flightPlanRegistrationResult: 12345,
+        },
+      },
+    ]);
+    expect(result.flightPlanId).toBe("FP-2");
+    expect(result.flightPlanRegistrationResult).toBeNull();
+  });
+
+  // ─── 先頭要素だけを検証する (2026-09-12 CodeRabbit指摘3) ───────────────────────
 
   it("test_second_and_later_array_entries_are_ignored_and_do_not_prevent_success", () => {
     // ガイドラインのサンプルは常に1要素。2件以上でも HTTP 200 = 受理済みのため、
@@ -242,6 +265,17 @@ describe("normalizeFlightPlanNotificationResult", () => {
       { flightPlanInfoRegistrationResult: { flightPlanId: "FP-second" } },
     ];
     const result = normalizeFlightPlanNotificationResult(twoEntries);
+    expect(result.flightPlanId).toBe("AAAAAAAAAAAAAAAAAAA.FP20221205042709013.001");
+  });
+
+  it("test_a_malformed_second_entry_does_not_prevent_the_first_result_from_being_read", () => {
+    // 2件目が flightPlanId を欠く (単独なら unreadable になる形状) 不正な要素でも、
+    // 先頭が有効なら成功する (使わない2件目以降は検証対象外)
+    const secondEntryIsMalformed = [
+      ...sampleNoDuplicateInfo,
+      { flightPlanInfoRegistrationResult: {} },
+    ];
+    const result = normalizeFlightPlanNotificationResult(secondEntryIsMalformed);
     expect(result.flightPlanId).toBe("AAAAAAAAAAAAAAAAAAA.FP20221205042709013.001");
   });
 });

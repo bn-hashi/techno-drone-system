@@ -47,26 +47,20 @@ const NON_IDEMPOTENT_WRITE_TIMEOUT_MS = 30_000;
 const RESPONSE_BODY_PREVIEW_LENGTH = 200;
 
 /**
- * allowlist 済み (`isErrorBodySafeToDisplay: true`) API のエラー本文プレビュー長の既定値。
- * `endpoint.errorBodyPreviewLength` が省略された場合に使う (2026-09-11 /code-review 指摘3:
- * `resolveErrorBodyPreviewLength()` 参照)。
+ * allowlist 済み (`isErrorBodySafeToDisplay: true`) API のエラー本文について、構造解析
+ * (JSON.parse) を諦めずに保持してよい最大長 (文字数)。
+ *
+ * 2026-09-12 CodeRabbit指摘1への対応: 以前はここを200/1000文字へ切り詰めてから
+ * `DipsApiError.responseBody` に格納しており、`extractDisplayableDipsErrorMessage()` は
+ * その切り詰め後の本文を `JSON.parse` していた。allowlist 済み API (§2.3.8 の必須項目
+ * 不足の複数羅列など) の正当な JSON 本文が1000文字を超えると `JSON.parse` に失敗し、
+ * 長文エラーを読めるようにするという課題2の目的自体が果たせていなかった。
+ * ここでは「構造解析できる状態を保つ」ことが目的であり、DoS 的に巨大な応答を防ぐための
+ * 上限としてのみこの長さを使う (通常の業務エラーメッセージがこれを超えることは
+ * 想定していない)。表示する `errorMessage` の値そのものの長さ制限は
+ * `lib/dips/dipsErrorMessage.ts` の `MAX_DISPLAYABLE_ERROR_MESSAGE_LENGTH` が担う。
  */
-const EXTENDED_ERROR_BODY_PREVIEW_LENGTH = 1000;
-
-/**
- * エラー本文のプレビュー長を決定する。`endpoint.errorBodyPreviewLength` は
- * `isErrorBodySafeToDisplay` から独立したフィールドだが、ここで意図的に従属させる
- * (2026-09-11 /code-review 指摘3): 以前は `errorBodyPreviewLength` 単独で参照しており、
- * 将来 DRS 系 (aircraftList。個人情報が乗りうると明記) に調査目的で
- * `errorBodyPreviewLength: 1000` だけ足すと、allowlist (isErrorBodySafeToDisplay) に
- * 入れなくてもログ・例外メッセージに1000文字分の PII が残ってしまう。
- * `isErrorBodySafeToDisplay` が false/未設定なら `errorBodyPreviewLength` の値に関わらず
- * 常に既定の200文字までしか許さないことで、構造的に塞ぐ。
- */
-function resolveErrorBodyPreviewLength(endpoint: DipsEndpoint): number {
-  if (!endpoint.isErrorBodySafeToDisplay) return RESPONSE_BODY_PREVIEW_LENGTH;
-  return endpoint.errorBodyPreviewLength ?? EXTENDED_ERROR_BODY_PREVIEW_LENGTH;
-}
+const MAX_STRUCTURED_ERROR_BODY_LENGTH = 20_000;
 
 /**
  * `AbortSignal.timeout()` によるタイムアウトで fetch が中断されたかを判定する。
@@ -217,13 +211,16 @@ export class DipsApiClient {
 
     if (!response.ok) {
       const rawResponseBody = await response.text().catch(() => undefined);
-      // DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、
-      // 診断に必要な範囲までに切り詰めて保持する。既定は200文字だが、
-      // isErrorBodySafeToDisplay: true の API (PII を含まない業務メッセージのみと
-      // 判断した fpl 系) は endpoint.errorBodyPreviewLength (既定1000) まで許す
-      // (2026-09-11 req-014 課題2: 長文エラー (必須項目不足の羅列等) が読めるように)
-      const previewLength = resolveErrorBodyPreviewLength(endpoint);
-      const responseBody = rawResponseBody?.slice(0, previewLength);
+      // DRS 系 (機体情報一覧取得) など isErrorBodySafeToDisplay が false/未設定の API は
+      // 個人情報が乗りうるため、従来どおり200文字 (RESPONSE_BODY_PREVIEW_LENGTH) に
+      // 切り詰めて保持する (PII 制限。ここは変更しない)。
+      // allowlist 済み (isErrorBodySafeToDisplay: true) の fpl 系は業務メッセージのみで
+      // PII を含まない設計のため、`extractDisplayableDipsErrorMessage()` が
+      // JSON.parse できるよう構造を保ったまま保持する (2026-09-12 CodeRabbit指摘1。
+      // MAX_STRUCTURED_ERROR_BODY_LENGTH のコメント参照)
+      const responseBody = endpoint.isErrorBodySafeToDisplay
+        ? rawResponseBody?.slice(0, MAX_STRUCTURED_ERROR_BODY_LENGTH)
+        : rawResponseBody?.slice(0, RESPONSE_BODY_PREVIEW_LENGTH);
       throw new DipsApiError(
         `DIPS API がエラーを返しました (${endpoint.method} ${endpoint.path})`,
         response.status,

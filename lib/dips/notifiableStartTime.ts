@@ -15,7 +15,8 @@
  *
  * 【人の決定 2026-09-11】上記の不確かさを踏まえ、安全側 (planner 推奨は「前日以前を
  * 拒否」) ではなく、DIPS の実測制限に合わせて「2日前以前を拒否」(JST の暦日で当日から
- * 2日以上前は拒否) を採用する。この決定は以下のトレードオフを受け入れている:
+ * 2日以上前は拒否。= 許容する最古の日は前日) を採用する。この決定は以下のトレードオフを
+ * 受け入れている:
  * - もし実際の DIPS の境界がこれより厳しければ、検証をすり抜けた送信が DIPS 側で
  *   拒否されるだけで、現状 (本システムに検証がない状態) と同じ挙動に留まる (悪化しない)
  * - もし実際の境界がこれより緩ければ、正当な通報 (例: 一昨日実施した飛行の事後通報)
@@ -23,6 +24,12 @@
  *
  * 【境界がずれていた場合】本番の疎通確認で境界のズレが判明したら、
  * `NOTIFIABLE_START_TIME_MIN_OFFSET_DAYS` の値をここで調整すること。
+ *
+ * 【2026-09-12 CodeRabbit指摘4への対応】実装は「今日 - 2日 より前を拒否」(= 2日前
+ * ちょうどを許容) になっており、人の決定「2日前以前を拒否」(2日前を含めて拒否。
+ * 許容する最古は前日) より1日寛容な側にずれていた。`isNotifiableStartTime()` の
+ * `minAllowedAt` を「前日 (OFFSET_DAYS - 1) の 0:00」に修正する。これは H-6 (DIPS の
+ * 実際の規則が何かは未確認) とは別の話で、直すのは「人が決めた仕様と実装の食い違い」。
  */
 
 const JST_OFFSET_MINUTES = 9 * 60;
@@ -51,8 +58,12 @@ function jstMidnightOf(date: Date): Date {
  */
 export function isNotifiableStartTime(plannedAt: Date, now: Date): boolean {
   const todayJstMidnight = jstMidnightOf(now);
+  // 許容する最古の日は「今日 - (OFFSET_DAYS - 1)」= 前日 0:00 (JST)。人の決定は
+  // 「2日前以前を拒否」(2日前を含めて拒否) であり、拒否の起点は OFFSET_DAYS (2) 日前
+  // だが、許容できる最古はその1日後 (前日) になる (2026-09-12 CodeRabbit指摘4)
+  const oldestAllowedOffsetDays = NOTIFIABLE_START_TIME_MIN_OFFSET_DAYS - 1;
   const minAllowedAt = new Date(
-    todayJstMidnight.getTime() - NOTIFIABLE_START_TIME_MIN_OFFSET_DAYS * MILLISECONDS_PER_DAY
+    todayJstMidnight.getTime() - oldestAllowedOffsetDays * MILLISECONDS_PER_DAY
   );
   return plannedAt.getTime() >= minAllowedAt.getTime();
 }
