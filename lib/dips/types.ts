@@ -292,14 +292,31 @@ export interface DipsFlightPlanNotificationPayload {
   };
 }
 
-/** 飛行計画通報の受付結果 (FPRガイドライン 2.3.8 レスポンス) */
+/**
+ * 飛行計画通報の受付結果 (FPRガイドライン 2.3.8 レスポンス)。
+ *
+ * ガイドラインの実際の応答形状は「トップレベル配列 + flightPlanInfoRegistrationResult
+ * 入れ子」であり (req-014 課題1)、`lib/dips/flightPlanNotificationSchema.ts` の
+ * `normalizeFlightPlanNotificationResult()` がここへ正規化する。`flightPlanId` は
+ * DB (`dipsFlightPlanId`) に保存され冪等性保護の要になるため厳格に検証済み (非空文字列
+ * 保証)。それ以外は表示用の付随項目のため、欠落しても通報自体は失敗扱いにしない
+ * (非対称設計。取り出せなければ null)。
+ */
 export interface DipsFlightPlanNotificationResult {
-  /** 採番された飛行計画 ID (DB の dipsFlightPlanId に保存) */
+  /** 採番された飛行計画 ID (DB の dipsFlightPlanId に保存)。正規化済みのため常に非空文字列 */
   flightPlanId: string;
-  /** 登録結果 (失敗時は理由) */
-  flightPlanRegistrationResult: string;
-  /** 受付日時 "yyyy/MM/dd hh:mm" */
-  flightPlanRegistrationDatetime: string;
+  /** 登録結果 (失敗時は理由)。取り出せなければ null */
+  flightPlanRegistrationResult: string | null;
+  /** 受付日時 "yyyy/MM/dd hh:mm"。取り出せなければ null */
+  flightPlanRegistrationDatetime: string | null;
+  /**
+   * 他の飛行経路と重なっている件数 (ガイドライン No.5)。取り出せなければ null。
+   * `duplicateFlightPlan` (重複飛行計画詳細) は他事業者の連絡先メールアドレス等の
+   * PII を含むため意図的に型として持たない (正規化層で strip する。PII 遮断点)。
+   * ガイドライン11件版サンプルは件数11・配列0件であり、件数と配列長は一致しない
+   * 前提で扱うこと (配列長から数え直さない)。
+   */
+  existOtherFlightRoutesCount: number | null;
 }
 
 /**

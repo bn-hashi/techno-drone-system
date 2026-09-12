@@ -14,6 +14,7 @@ import { formatFlightDateTime } from "@/lib/utils/formatFlightDateTime";
 import { StatusUpdateButton } from "@/components/flight/plans/StatusUpdateButton";
 import { DipsNotifyButton } from "@/components/flight/plans/DipsNotifyButton";
 import { isDipsEnabled } from "@/lib/dips/config";
+import { isNotifiableStartTime } from "@/lib/dips/notifiableStartTime";
 import type { FlightPlanStatus } from "@prisma/client";
 
 interface FlightPlanDetailPageProps {
@@ -191,7 +192,15 @@ export default async function FlightPlanDetailPage({ params }: FlightPlanDetailP
 
       {isDipsEnabled() && isOwnPlan && status === "APPROVED" && (
         <div className="mt-4 border-t border-line-soft pt-4">
-          <DipsNotifyButton planId={plan.id} dipsFlightPlanId={plan.dipsFlightPlanId} />
+          <DipsNotifyButton
+            planId={plan.id}
+            dipsFlightPlanId={plan.dipsFlightPlanId}
+            // 2026-09-11 req-014 課題3 (H-5): サーバー側検証 (services/dipsService.ts) が
+            // 必須であり、これは UX 改善 (事前にボタンを無効化する) に過ぎない。
+            // クライアント側で new Date() を評価すると SSR とのハイドレーション不一致を
+            // 起こしうるため、レンダー時点 (サーバー) で判定済みの boolean を渡す
+            isPastNotifiableWindow={!isNotifiableStartTime(new Date(plan.plannedAt), new Date())}
+          />
         </div>
       )}
     </div>

@@ -15,6 +15,10 @@ import type {
   DipsPermissionApplicationResult,
 } from "@/lib/dips/types";
 import { buildFlightPlanNotificationPayload, GRAMS_PER_KILOGRAM } from "@/lib/dips/notificationMapper";
+import {
+  isNotifiableStartTime,
+  NOTIFIABLE_START_TIME_MIN_OFFSET_DAYS,
+} from "@/lib/dips/notifiableStartTime";
 import { DIPS_UA_STATUS_ACTIVE } from "@/lib/constants/dipsAircraftStatus";
 import type { AircraftService } from "@/services/aircraftService";
 import type { FlightPlanService } from "@/services/flightPlanService";
@@ -76,11 +80,17 @@ export class DipsService {
    *
    * 機体の DIPS 属性 (機体の種類) が未設定の場合、共用の検証環境DBへ無駄な送信をしないよう
    * DIPS へ送信する前に BusinessError を投げる。
+   *
+   * 飛行予定日時 (plannedAt) が古すぎる場合も同様に送信前に止める (2026-09-11 req-014
+   * 課題3)。本番の疎通確認で DIPS が「予定開始時間が2日以前です」を実際に返したため。
+   * 正確な境界はガイドラインに記載がなく未確認 (lib/dips/notifiableStartTime.ts 参照)。
+   * `now` は既定で現在時刻だが、テストで固定できるよう引数として受け取る。
    */
   async notifyFlightPlan(
     flightPlanId: string,
     userInput: DipsNotificationUserInput,
-    context: AccessContext
+    context: AccessContext,
+    now: Date = new Date()
   ): Promise<DipsFlightPlanNotificationResult> {
     const plan = await this.flightPlanService.findById(flightPlanId, context);
     if (plan.dipsFlightPlanId) {
@@ -93,6 +103,11 @@ export class DipsService {
     }
     if (aircraft.dipsUaType === null) {
       throw new BusinessError("機体の「機体の種類」が未設定です。機体情報を編集してください");
+    }
+    if (!isNotifiableStartTime(plan.plannedAt, now)) {
+      throw new BusinessError(
+        `飛行予定日時が古すぎるため通報できません (JSTの暦日で本日から${NOTIFIABLE_START_TIME_MIN_OFFSET_DAYS}日以上前は送信前に止めています。DIPSの正確な境界はガイドラインに記載がなく未確認のため安全側の目安です)。飛行計画の日時を確認してください`
+      );
     }
 
     const user = await this.userRepository.findById(context.userId);

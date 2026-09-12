@@ -3,7 +3,11 @@ import { requireApiBaseUrl } from "@/lib/dips/config";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DIPS_ENDPOINTS } from "@/lib/dips/endpoints";
 import type { DipsEndpoint } from "@/lib/dips/endpoints";
-import { DipsApiError, DipsPossiblyAcceptedTimeoutError } from "@/lib/dips/errors";
+import {
+  DipsApiError,
+  DipsPossiblyAcceptedTimeoutError,
+  DipsAcceptedButUnreadableResultError,
+} from "@/lib/dips/errors";
 import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
 import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
 import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchema";
@@ -13,6 +17,7 @@ import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProh
 import { normalizeFlightPlansWithDiagnostics } from "@/lib/dips/flightPlanSchema";
 import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
 import { normalizePermissionApplicationResult } from "@/lib/dips/permissionApplicationSchema";
+import { normalizeFlightPlanNotificationResult } from "@/lib/dips/flightPlanNotificationSchema";
 import type {
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
@@ -40,6 +45,22 @@ const NON_IDEMPOTENT_WRITE_TIMEOUT_MS = 30_000;
  * DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、全文は保持しない。
  */
 const RESPONSE_BODY_PREVIEW_LENGTH = 200;
+
+/**
+ * allowlist 済み (`isErrorBodySafeToDisplay: true`) API のエラー本文について、構造解析
+ * (JSON.parse) を諦めずに保持してよい最大長 (文字数)。
+ *
+ * 2026-09-12 CodeRabbit指摘1への対応: 以前はここを200/1000文字へ切り詰めてから
+ * `DipsApiError.responseBody` に格納しており、`extractDisplayableDipsErrorMessage()` は
+ * その切り詰め後の本文を `JSON.parse` していた。allowlist 済み API (§2.3.8 の必須項目
+ * 不足の複数羅列など) の正当な JSON 本文が1000文字を超えると `JSON.parse` に失敗し、
+ * 長文エラーを読めるようにするという課題2の目的自体が果たせていなかった。
+ * ここでは「構造解析できる状態を保つ」ことが目的であり、DoS 的に巨大な応答を防ぐための
+ * 上限としてのみこの長さを使う (通常の業務エラーメッセージがこれを超えることは
+ * 想定していない)。表示する `errorMessage` の値そのものの長さ制限は
+ * `lib/dips/dipsErrorMessage.ts` の `MAX_DISPLAYABLE_ERROR_MESSAGE_LENGTH` が担う。
+ */
+const MAX_STRUCTURED_ERROR_BODY_LENGTH = 20_000;
 
 /**
  * `AbortSignal.timeout()` によるタイムアウトで fetch が中断されたかを判定する。
@@ -74,16 +95,19 @@ export class DipsApiClient {
     return normalizePermissionsWithDiagnostics(raw);
   }
 
-  /** 飛行計画通報受付 (fpl realm) */
+  /**
+   * 飛行計画通報受付 (fpl realm)。レスポンスは境界で検証・正規化してから返す
+   * (2026-09-11 req-014 課題1: 以前は素キャストで返しており、ガイドライン §2.3.8 の
+   * 実際の応答形状 (トップレベル配列 + flightPlanInfoRegistrationResult 入れ子) との
+   * 食い違いにより flightPlanId が常に undefined になっていた。lib/dips/
+   * flightPlanNotificationSchema.ts 参照)。
+   */
   async notifyFlightPlan(
     userId: string,
     payload: DipsFlightPlanNotificationPayload
   ): Promise<DipsFlightPlanNotificationResult> {
-    return this.request<DipsFlightPlanNotificationResult>(
-      userId,
-      DIPS_ENDPOINTS.flightPlanRegister,
-      payload
-    );
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.flightPlanRegister, payload);
+    return normalizeFlightPlanNotificationResult(raw);
   }
 
   /**
@@ -187,19 +211,40 @@ export class DipsApiClient {
 
     if (!response.ok) {
       const rawResponseBody = await response.text().catch(() => undefined);
-      // DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、
-      // 診断に必要な範囲 (先頭 200 文字) までに切り詰めて保持する
-      const responseBody = rawResponseBody?.slice(0, RESPONSE_BODY_PREVIEW_LENGTH);
+      // DRS 系 (機体情報一覧取得) など isErrorBodySafeToDisplay が false/未設定の API は
+      // 個人情報が乗りうるため、従来どおり200文字 (RESPONSE_BODY_PREVIEW_LENGTH) に
+      // 切り詰めて保持する (PII 制限。ここは変更しない)。
+      // allowlist 済み (isErrorBodySafeToDisplay: true) の fpl 系は業務メッセージのみで
+      // PII を含まない設計のため、`extractDisplayableDipsErrorMessage()` が
+      // JSON.parse できるよう構造を保ったまま保持する (2026-09-12 CodeRabbit指摘1。
+      // MAX_STRUCTURED_ERROR_BODY_LENGTH のコメント参照)
+      const responseBody = endpoint.isErrorBodySafeToDisplay
+        ? rawResponseBody?.slice(0, MAX_STRUCTURED_ERROR_BODY_LENGTH)
+        : rawResponseBody?.slice(0, RESPONSE_BODY_PREVIEW_LENGTH);
       throw new DipsApiError(
         `DIPS API がエラーを返しました (${endpoint.method} ${endpoint.path})`,
         response.status,
-        responseBody
+        responseBody,
+        undefined,
+        endpoint.isErrorBodySafeToDisplay
       );
     }
 
     try {
       return (await response.json()) as T;
     } catch (error) {
+      if (endpoint.isNonIdempotentWrite) {
+        // 課題2 (2026-09-11 /code-review 指摘2): 非冪等な登録系 POST が HTTP 200 (=
+        // DIPS 側では受理済み) を返しつつ本文が空・非JSON (プロキシのHTML、切断された
+        // 応答等) だった場合、通常の DipsApiError のまま「送信に失敗しました」を出すと
+        // DipsAcceptedButUnreadableResultError (通報結果を配列から読み取れない場合) と
+        // 同じ実害 (再送による重複登録) が別入口から残ってしまう。この経路も
+        // 「受理済みの可能性あり」側に倒す
+        throw new DipsAcceptedButUnreadableResultError(
+          `DIPS API は HTTP ${response.status} を返しましたが、レスポンス本文を読み取れませんでした。受理済みの可能性があります (${endpoint.method} ${endpoint.path})`,
+          error
+        );
+      }
       throw new DipsApiError(
         `DIPS API のレスポンス形式が不正です (${endpoint.method} ${endpoint.path})`,
         response.status,
