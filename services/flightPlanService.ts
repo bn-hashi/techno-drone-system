@@ -144,12 +144,25 @@ export class FlightPlanService {
   /**
    * DIPS 2.0 飛行計画通報受付 API への通報結果 (受付番号) を記録する。
    * 既に記録済みの場合は BusinessError を投げ、重複通報を防ぐ (冪等性保護)。
+   *
+   * 2026-09-11 req-014 課題1 の再発防止 (実行時ガード): `DipsApiClient.notifyFlightPlan()`
+   * の素キャストが「応答は必ず flightPlanId を持つ」と型で嘘をついていたことが原因で、
+   * `undefined` がここまで到達し `prisma.flightPlan.update()` が黙って列を更新しない
+   * (Prisma は `undefined` を「更新しない」と解釈する) という事故があった。正規化層
+   * (`lib/dips/flightPlanNotificationSchema.ts`) で既に非空文字列を保証しているが、
+   * 型に頼らずここでも実行時に弾く (将来別の呼び出し元が正規化を経由しない値を渡しても
+   * 同じ穴が開かないようにするため)。
    */
   async recordDipsNotification(
     id: string,
     dipsFlightPlanId: string,
     context: AccessContext
   ): Promise<FlightPlan> {
+    if (typeof dipsFlightPlanId !== "string" || dipsFlightPlanId.trim() === "") {
+      throw new Error(
+        `recordDipsNotification に不正な dipsFlightPlanId が渡されました (飛行計画: ${id})`
+      );
+    }
     const plan = await this.findById(id, context);
     if (plan.dipsFlightPlanId) {
       throw new BusinessError("この飛行計画は既にDIPSへ通報済みです");

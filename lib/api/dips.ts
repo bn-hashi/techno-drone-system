@@ -81,8 +81,14 @@ export interface DipsNotificationInput {
 
 export interface DipsNotificationResult {
   flightPlanId: string;
-  flightPlanRegistrationResult: string;
-  flightPlanRegistrationDatetime: string;
+  flightPlanRegistrationResult: string | null;
+  flightPlanRegistrationDatetime: string | null;
+  /**
+   * 他の飛行経路と重なっている件数 (ガイドライン §2.3.8 No.5)。取得できなければ null。
+   * 詳細 (重複計画の連絡先・経路等) は他事業者の個人情報を含むため意図的に含めない
+   * (サーバー側 lib/dips/flightPlanNotificationSchema.ts で strip 済み)。
+   */
+  existOtherFlightRoutesCount: number | null;
 }
 
 /** DIPS ログインが必要なときに投げる。呼び出し側はログイン画面へ誘導する */

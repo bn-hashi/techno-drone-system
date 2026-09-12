@@ -13,6 +13,7 @@ import type { NormalizeFlightProhibitedAreasResult } from "@/lib/dips/flightProh
 import { normalizeFlightPlansWithDiagnostics } from "@/lib/dips/flightPlanSchema";
 import type { NormalizeFlightPlansResult } from "@/lib/dips/flightPlanSchema";
 import { normalizePermissionApplicationResult } from "@/lib/dips/permissionApplicationSchema";
+import { normalizeFlightPlanNotificationResult } from "@/lib/dips/flightPlanNotificationSchema";
 import type {
   DipsFlightPlanNotificationPayload,
   DipsFlightPlanNotificationResult,
@@ -74,16 +75,19 @@ export class DipsApiClient {
     return normalizePermissionsWithDiagnostics(raw);
   }
 
-  /** 飛行計画通報受付 (fpl realm) */
+  /**
+   * 飛行計画通報受付 (fpl realm)。レスポンスは境界で検証・正規化してから返す
+   * (2026-09-11 req-014 課題1: 以前は素キャストで返しており、ガイドライン §2.3.8 の
+   * 実際の応答形状 (トップレベル配列 + flightPlanInfoRegistrationResult 入れ子) との
+   * 食い違いにより flightPlanId が常に undefined になっていた。lib/dips/
+   * flightPlanNotificationSchema.ts 参照)。
+   */
   async notifyFlightPlan(
     userId: string,
     payload: DipsFlightPlanNotificationPayload
   ): Promise<DipsFlightPlanNotificationResult> {
-    return this.request<DipsFlightPlanNotificationResult>(
-      userId,
-      DIPS_ENDPOINTS.flightPlanRegister,
-      payload
-    );
+    const raw = await this.request<unknown>(userId, DIPS_ENDPOINTS.flightPlanRegister, payload);
+    return normalizeFlightPlanNotificationResult(raw);
   }
 
   /**
@@ -188,12 +192,18 @@ export class DipsApiClient {
     if (!response.ok) {
       const rawResponseBody = await response.text().catch(() => undefined);
       // DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、
-      // 診断に必要な範囲 (先頭 200 文字) までに切り詰めて保持する
-      const responseBody = rawResponseBody?.slice(0, RESPONSE_BODY_PREVIEW_LENGTH);
+      // 診断に必要な範囲までに切り詰めて保持する。既定は200文字だが、
+      // isErrorBodySafeToDisplay: true の API (PII を含まない業務メッセージのみと
+      // 判断した fpl 系) は endpoint.errorBodyPreviewLength (既定1000) まで許す
+      // (2026-09-11 req-014 課題2: 長文エラー (必須項目不足の羅列等) が読めるように)
+      const previewLength = endpoint.errorBodyPreviewLength ?? RESPONSE_BODY_PREVIEW_LENGTH;
+      const responseBody = rawResponseBody?.slice(0, previewLength);
       throw new DipsApiError(
         `DIPS API がエラーを返しました (${endpoint.method} ${endpoint.path})`,
         response.status,
-        responseBody
+        responseBody,
+        undefined,
+        endpoint.isErrorBodySafeToDisplay
       );
     }
 

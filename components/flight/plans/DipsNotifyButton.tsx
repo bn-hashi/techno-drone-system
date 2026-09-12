@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { notifyFlightPlanToDips, dipsLoginUrl, DipsAuthRequiredClientError } from "@/lib/api/dips";
-import type { DipsNotificationInput } from "@/lib/api/dips";
+import type { DipsNotificationInput, DipsNotificationResult } from "@/lib/api/dips";
 import { DipsNotifyForm, INITIAL_FORM, validateAndBuildInput } from "./DipsNotifyForm";
 import type { FormState } from "./DipsNotifyForm";
 
@@ -57,22 +57,37 @@ function savePendingNotifyForm(planId: string, form: FormState): void {
  * resubmitAfterDipsLink (自動再送信) と handleSubmit (手動送信) はこの
  * API 呼び出し自体は同一だが、成功時・失敗時の振る舞い（バナー表示・
  * ログイン誘導の有無など）が異なるため、それぞれコールバックに委ねる。
+ *
+ * onSuccess にレスポンス (result) を渡す (2026-09-11 req-014 課題1: 他の飛行経路との
+ * 重複件数 (existOtherFlightRoutesCount) を送信直後に一度だけ表示するため。DB には
+ * 保存しない一時的な表示であり、この呼び出し以外に取得手段がないため result をここで
+ * 受け渡す必要がある)。
  */
 async function sendDipsNotification(
   targetPlanId: string,
   input: DipsNotificationInput,
-  onSuccess: () => void,
+  onSuccess: (result: DipsNotificationResult) => void,
   onError: (err: unknown) => void
 ): Promise<void> {
   try {
-    await notifyFlightPlanToDips(targetPlanId, input);
-    onSuccess();
+    const result = await notifyFlightPlanToDips(targetPlanId, input);
+    onSuccess(result);
   } catch (err) {
     onError(err);
   }
 }
 
-export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonProps) {
+/** 他の飛行経路との重複件数を、通報直後に一度だけ表示するための案内文を組み立てる */
+function buildDuplicateRouteNotice(existOtherFlightRoutesCount: number | null): string | null {
+  if (existOtherFlightRoutesCount === null || existOtherFlightRoutesCount <= 0) return null;
+  return `通報が完了しました。他の飛行経路と ${existOtherFlightRoutesCount} 件重複しています。`;
+}
+
+export function DipsNotifyButton({
+  planId,
+  dipsFlightPlanId,
+  isPastNotifiableWindow = false,
+}: DipsNotifyButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -114,9 +129,15 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
         await sendDipsNotification(
           planId,
           validated.input,
-          () => {
+          (result) => {
             setIsOpen(false);
-            setBanner({ type: "success", message: "DIPS連携が完了し、飛行計画の通報を自動で送信しました。" });
+            const duplicateNotice = buildDuplicateRouteNotice(result.existOtherFlightRoutesCount);
+            setBanner({
+              type: "success",
+              message: duplicateNotice
+                ? `DIPS連携が完了し、飛行計画の通報を自動で送信しました。${duplicateNotice}`
+                : "DIPS連携が完了し、飛行計画の通報を自動で送信しました。",
+            });
             router.refresh();
           },
           (err) => {
@@ -210,9 +231,13 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     await sendDipsNotification(
       planId,
       validated.input,
-      () => {
+      (result) => {
         setIsSubmitting(false);
         setIsOpen(false);
+        const duplicateNotice = buildDuplicateRouteNotice(result.existOtherFlightRoutesCount);
+        if (duplicateNotice) {
+          setBanner({ type: "success", message: duplicateNotice });
+        }
         router.refresh();
       },
       (err) => {

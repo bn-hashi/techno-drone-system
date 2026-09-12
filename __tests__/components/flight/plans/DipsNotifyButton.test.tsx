@@ -34,6 +34,7 @@ const SAMPLE_RESULT: DipsNotificationResult = {
   flightPlanId: "dips-123",
   flightPlanRegistrationResult: "OK",
   flightPlanRegistrationDatetime: "2026-07-19 10:00",
+  existOtherFlightRoutesCount: 0,
 };
 
 /** 復元対象のフォーム内容 (妥当な入力) を sessionStorage に退避する */
@@ -419,6 +420,94 @@ describe("DipsNotifyButton", () => {
       fireEvent.click(screen.getByRole("button", { name: "DIPSへ通報" }));
 
       expect(screen.getByRole("button", { name: "通報する" })).toBeEnabled();
+    });
+
+    // ─── 2026-09-11 req-014 課題1: 重複件数・possiblyAccepted の表示 ────────────────
+
+    it("test_DipsNotifyButton_manual_submit_shows_duplicate_route_count_when_positive", async () => {
+      mockNotifyFlightPlanToDips.mockResolvedValue({
+        ...SAMPLE_RESULT,
+        existOtherFlightRoutesCount: 2,
+      });
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+      await waitForDialogToClose();
+
+      expect(await screen.findByText(/他の飛行経路と 2 件重複しています/)).toBeInTheDocument();
+    });
+
+    it("test_DipsNotifyButton_manual_submit_does_not_show_duplicate_notice_when_count_is_zero", async () => {
+      mockNotifyFlightPlanToDips.mockResolvedValue({
+        ...SAMPLE_RESULT,
+        existOtherFlightRoutesCount: 0,
+      });
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+      await waitForDialogToClose();
+
+      expect(screen.queryByText(/件重複しています/)).not.toBeInTheDocument();
+    });
+
+    it("test_DipsNotifyButton_manual_submit_does_not_show_duplicate_notice_when_count_is_null", async () => {
+      // 正規化層が値を取り出せなかった場合 (existOtherFlightRoutesCount: null)
+      mockNotifyFlightPlanToDips.mockResolvedValue({
+        ...SAMPLE_RESULT,
+        existOtherFlightRoutesCount: null,
+      });
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+      await waitForDialogToClose();
+
+      expect(screen.queryByText(/件重複しています/)).not.toBeInTheDocument();
+    });
+
+    it("test_DipsNotifyButton_manual_submit_shows_the_possibly_accepted_message_verbatim", async () => {
+      // possiblyAccepted (受理済みだが読み取れない/タイムアウト) は API ルートの
+      // handleDipsRouteError が「再送しないでください」を含む文言を body.error として
+      // 返す。クライアントは通常のエラーと同様にその文言をそのまま表示する
+      // (lib/api/dips.ts の fetchDipsRoute が body.error を Error に包む)
+      mockNotifyFlightPlanToDips.mockRejectedValue(
+        new Error(
+          "飛行計画通報はDIPS側で受理されましたが、受付結果(飛行計画ID)を読み取れませんでした。再度通報しないでください(重複通報になります)。DIPSのサイトで登録状況をご確認ください。"
+        )
+      );
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+
+      expect(await screen.findByText(/再度通報しないでください/)).toBeInTheDocument();
+    });
+
+    // ─── 2026-09-11 req-014 課題3 (H-5): 飛行予定日時が古い場合のボタン無効化 ────────
+    // サーバー側検証 (services/dipsService.ts) が必須であり、これは UX 改善のみ
+
+    it("test_DipsNotifyButton_disables_the_notify_button_when_past_notifiable_window", () => {
+      render(
+        <DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} isPastNotifiableWindow />
+      );
+
+      expect(screen.getByRole("button", { name: "DIPSへ通報" })).toBeDisabled();
+    });
+
+    it("test_DipsNotifyButton_shows_a_reason_when_past_notifiable_window", () => {
+      render(
+        <DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} isPastNotifiableWindow />
+      );
+
+      expect(screen.getByText(/飛行予定日時が古すぎるため/)).toBeInTheDocument();
+    });
+
+    it("test_DipsNotifyButton_keeps_the_notify_button_enabled_by_default", () => {
+      render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+
+      expect(screen.getByRole("button", { name: "DIPSへ通報" })).toBeEnabled();
     });
 
     describe("DipsAuthRequiredClientError 発生時", () => {

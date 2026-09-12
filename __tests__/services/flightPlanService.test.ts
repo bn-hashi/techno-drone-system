@@ -405,6 +405,37 @@ describe("FlightPlanService", () => {
       ).rejects.toThrow();
       expect(repo.recordDipsNotification).not.toHaveBeenCalled();
     });
+
+    // ─── 2026-09-11 req-014 課題1: 実行時ガード (undefined/空文字の到達を防ぐ) ──────
+    // DipsApiClient の素キャストが型で嘘をついていたことが重複通報事故の一因だったため、
+    // 型に頼らず実行時にも非空文字列であることを検証する (services/flightPlanService.ts
+    // 参照)。findById/repo.findById が呼ばれる前に弾くことも併せて確認する。
+
+    it("test_recordDipsNotification_throws_when_dips_flight_plan_id_is_undefined", async () => {
+      await expect(
+        service.recordDipsNotification(
+          "plan-1",
+          undefined as unknown as string,
+          { userId: "user-1", isAdmin: false }
+        )
+      ).rejects.toThrow();
+      expect(repo.findById).not.toHaveBeenCalled();
+      expect(repo.recordDipsNotification).not.toHaveBeenCalled();
+    });
+
+    it("test_recordDipsNotification_throws_when_dips_flight_plan_id_is_empty_string", async () => {
+      await expect(
+        service.recordDipsNotification("plan-1", "", { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow();
+      expect(repo.recordDipsNotification).not.toHaveBeenCalled();
+    });
+
+    it("test_recordDipsNotification_throws_when_dips_flight_plan_id_is_whitespace_only", async () => {
+      await expect(
+        service.recordDipsNotification("plan-1", "   ", { userId: "user-1", isAdmin: false })
+      ).rejects.toThrow();
+      expect(repo.recordDipsNotification).not.toHaveBeenCalled();
+    });
   });
 
   // ─── updateStatus ────────────────────────────────────────────────────────────

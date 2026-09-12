@@ -357,9 +357,26 @@ describe("DipsApiClient", () => {
   });
 
   // ─── notifyFlightPlan (fpl realm / fpr base) ─────────────────────────────────
+  //
+  // 2026-09-11 req-014 課題1: ガイドライン §2.3.8 の正常時レスポンスは「トップレベル配列
+  // + flightPlanInfoRegistrationResult 入れ子」であり、以前の `{ flightPlanId: "FP-1" }`
+  // というフラットなモックは実際の DIPS 応答と一致していなかった (このモックのままだと
+  // 素キャストのバグ (result.flightPlanId が undefined になる) を検出できない)。
+  // ガイドラインのレスポンスボディサンプル (samples.txt 326-337行) をそのまま使う。
+
+  const guidelineNotifySuccessResponse = [
+    {
+      flightPlanInfoRegistrationResult: {
+        flightPlanId: "AAAAAAAAAAAAAAAAAAA.FP20221205042709013.001",
+        flightPlanRegistrationResult: "登録完了",
+        flightPlanRegistrationDatetime: "2022/12/05 10:27",
+        existOtherFlightRoutesCount: 0,
+      },
+    },
+  ];
 
   it("test_notifyFlightPlan_requests_fpr_register_url", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
 
@@ -368,7 +385,7 @@ describe("DipsApiClient", () => {
   });
 
   it("test_notifyFlightPlan_uses_post_method", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
 
@@ -377,7 +394,7 @@ describe("DipsApiClient", () => {
   });
 
   it("test_notifyFlightPlan_uses_fpl_realm_token", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
 
@@ -385,7 +402,7 @@ describe("DipsApiClient", () => {
   });
 
   it("test_notifyFlightPlan_sends_payload_as_body", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
 
@@ -393,14 +410,32 @@ describe("DipsApiClient", () => {
     expect(JSON.parse(init.body).flightPlanInfo.name).toBe("訓練飛行");
   });
 
-  it("test_notifyFlightPlan_returns_parsed_result", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ flightPlanId: "FP-1", flightPlanRegistrationResult: "OK" })
-    );
+  it("test_notifyFlightPlan_returns_flight_plan_id_from_the_nested_guideline_shape", async () => {
+    // 2026-09-11 事故の再現・回帰テスト: これは修正前 (素キャスト) では失敗する
+    // (result.flightPlanId が undefined になる)。実行結果は builder 報告書に貼ること
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     const result = await makeClient().notifyFlightPlan("user-1", samplePayload);
 
-    expect(result.flightPlanId).toBe("FP-1");
+    expect(result.flightPlanId).toBe("AAAAAAAAAAAAAAAAAAA.FP20221205042709013.001");
+  });
+
+  it("test_notifyFlightPlan_returns_exist_other_flight_routes_count", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
+
+    const result = await makeClient().notifyFlightPlan("user-1", samplePayload);
+
+    expect(result.existOtherFlightRoutesCount).toBe(0);
+  });
+
+  it("test_notifyFlightPlan_throws_accepted_but_unreadable_error_when_response_is_flat_not_array", async () => {
+    // 修正前の実装が想定していた (誤った) フラット形状は、修正後は
+    // 「受理済みだが読み取れない」エラーとして扱われる (undefined を握りつぶさない)
+    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+
+    await expect(makeClient().notifyFlightPlan("user-1", samplePayload)).rejects.toMatchObject({
+      name: "DipsAcceptedButUnreadableResultError",
+    });
   });
 
   // ─── fetchAircraftList (utm realm / drs base) ────────────────────────────────
@@ -528,6 +563,31 @@ describe("DipsApiClient", () => {
     expect(error.responseBody).toBe("a".repeat(200));
   });
 
+  it("test_request_marks_error_as_safe_to_display_only_for_allowlisted_endpoints", async () => {
+    // req 系 (許可・承認情報取得) は allowlist 対象外 (isErrorBodySafeToDisplay 省略 = false)
+    fetchMock.mockResolvedValue(new Response("detail", { status: 500 }));
+
+    const error = (await makeClient()
+      .fetchPermissions("user-1")
+      .catch((caught: unknown) => caught)) as { isErrorBodySafeToDisplay?: boolean };
+
+    expect(error.isErrorBodySafeToDisplay).toBeUndefined();
+  });
+
+  it("test_request_extends_truncation_length_to_1000_chars_for_allowlisted_fpl_endpoints", async () => {
+    // 2026-09-11 req-014 課題2 (人の決定 H-4): allowlist 済み (fpl系) のみ200→1000に
+    // 引き上げる。長文エラー (必須項目不足の羅列等) が読めるようにするための変更
+    const longBody = "a".repeat(1500);
+    fetchMock.mockResolvedValue(new Response(longBody, { status: 400 }));
+
+    const error = (await makeClient()
+      .notifyFlightPlan("user-1", samplePayload)
+      .catch((caught: unknown) => caught)) as { responseBody?: string; isErrorBodySafeToDisplay?: boolean };
+
+    expect(error.responseBody).toHaveLength(1000);
+    expect(error.isErrorBodySafeToDisplay).toBe(true);
+  });
+
   it("test_request_wraps_network_failure_in_DipsApiError", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
 
@@ -572,7 +632,7 @@ describe("DipsApiClient", () => {
 
   it("test_notifyFlightPlan_requests_a_longer_timeout_than_read_requests", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
-    fetchMock.mockResolvedValue(jsonResponse({ flightPlanId: "FP-1" }));
+    fetchMock.mockResolvedValue(jsonResponse(guidelineNotifySuccessResponse));
 
     await makeClient().notifyFlightPlan("user-1", samplePayload);
     const writeTimeoutMs = timeoutSpy.mock.calls[0][0];
