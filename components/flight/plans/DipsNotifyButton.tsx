@@ -88,7 +88,18 @@ async function sendDipsNotification(
 
 /** 他の飛行経路との重複件数を、通報直後に一度だけ表示するための案内文を組み立てる */
 function buildDuplicateRouteNotice(existOtherFlightRoutesCount: number | null): string | null {
-  if (existOtherFlightRoutesCount === null || existOtherFlightRoutesCount <= 0) return null;
+  // null と undefined の両方を弾く (2026-09-11 /code-review 指摘4)。クライアント境界
+  // (lib/api/dips.ts) で result の形を再検証していないため、将来 existOtherFlightRoutesCount
+  // が欠けた body が来ると undefined になりうる。`=== null` のみだと undefined がすり抜け、
+  // `undefined <= 0` は false (NaN比較) のため「他の飛行経路と undefined 件重複しています」
+  // を表示してしまう (プロジェクト規約の `===`/`!==` 徹底 (eqeqeq) を保ちつつ両方を弾く)
+  if (
+    existOtherFlightRoutesCount === null ||
+    existOtherFlightRoutesCount === undefined ||
+    existOtherFlightRoutesCount <= 0
+  ) {
+    return null;
+  }
   return `通報が完了しました。他の飛行経路と ${existOtherFlightRoutesCount} 件重複しています。`;
 }
 
@@ -223,8 +234,26 @@ export function DipsNotifyButton({
     router.replace(newUrl, { scroll: false });
   }, [searchParams, planId, pathname, router, resubmitAfterDipsLink, dipsFlightPlanId]);
 
+  const bannerElement = banner && (
+    <p
+      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
+      role={banner.type === "success" ? "status" : "alert"}
+      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
+    >
+      {banner.message}
+    </p>
+  );
+
   if (dipsFlightPlanId) {
-    return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
+    // 通報成功直後の router.refresh() で dipsFlightPlanId が非 null になり、この早期
+    // return に切り替わっても、直前に表示した重複件数 (安全上の情報) が消えないよう
+    // banner をここでも描画する (2026-09-11 /code-review 指摘1)
+    return (
+      <div>
+        {bannerElement}
+        <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>
+      </div>
+    );
   }
 
   const handleSubmit = async () => {
@@ -265,16 +294,6 @@ export function DipsNotifyButton({
       }
     );
   };
-
-  const bannerElement = banner && (
-    <p
-      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
-      role={banner.type === "success" ? "status" : "alert"}
-      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
-    >
-      {banner.message}
-    </p>
-  );
 
   return (
     <div>

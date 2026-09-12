@@ -4,7 +4,11 @@ import { DipsApiClient } from "@/lib/dips/dipsApiClient";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import type { DipsConfig } from "@/lib/dips/config";
 import type { DipsFlightPlanNotificationPayload } from "@/lib/dips/types";
-import { DipsConfigError, DipsPossiblyAcceptedTimeoutError } from "@/lib/dips/errors";
+import {
+  DipsConfigError,
+  DipsPossiblyAcceptedTimeoutError,
+  DipsAcceptedButUnreadableResultError,
+} from "@/lib/dips/errors";
 import { accountAResponse } from "@/test-fixtures/dips/aircraftListFixtures";
 import { buildPermissionApplicationTestPayload } from "@/lib/dips/permissionApplicationSchema";
 
@@ -435,6 +439,43 @@ describe("DipsApiClient", () => {
 
     await expect(makeClient().notifyFlightPlan("user-1", samplePayload)).rejects.toMatchObject({
       name: "DipsAcceptedButUnreadableResultError",
+    });
+  });
+
+  // ─── /code-review 指摘2 (2026-09-11): HTTP 200 + 非JSON応答も受理済み側に倒す ─────
+  //
+  // 課題1で塞いだ経路 (受理済みなのに失敗表示 → 再送 → 重複通報) は、
+  // normalizeFlightPlanNotificationResult に到達した場合しか塞がれていなかった。
+  // DIPS が HTTP 200 を返しつつ本文が空・非JSON (プロキシのHTML、切断された応答等) の
+  // 場合、request() 内の response.json() が例外になり、以前は素の DipsApiError
+  // (isErrorBodySafeToDisplay 未指定) として投げていたため、通常の失敗文言が出て再送を
+  // 促し、DipsAcceptedButUnreadableResultError と同じ実害 (重複通報) が残っていた。
+
+  it("test_notifyFlightPlan_throws_accepted_but_unreadable_error_when_response_body_is_not_json", async () => {
+    // 修正前の実測: DipsApiError (name: "DipsApiError") のまま投げられ、このテストは
+    // 「rejects.toBeInstanceOf(DipsAcceptedButUnreadableResultError)」で失敗していた
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeClient().notifyFlightPlan("user-1", samplePayload)).rejects.toBeInstanceOf(
+      DipsAcceptedButUnreadableResultError
+    );
+  });
+
+  it("test_notifyFlightPlan_accepted_but_unreadable_error_message_mentions_possible_acceptance_on_non_json_response", async () => {
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeClient().notifyFlightPlan("user-1", samplePayload)).rejects.toThrow(
+      /受理済みの可能性があります/
+    );
+  });
+
+  it("test_fetchPermissions_throws_plain_api_error_not_accepted_on_non_json_response", async () => {
+    // 冪等な GET (isNonIdempotentWrite が立っていない) は再送しても重複登録の懸念が
+    // ないため、非JSON応答であっても通常の DipsApiError のままでよい (格上げしない)
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+
+    await expect(makeClient().fetchPermissions("user-1")).rejects.toMatchObject({
+      name: "DipsApiError",
     });
   });
 

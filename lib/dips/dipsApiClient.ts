@@ -3,7 +3,11 @@ import { requireApiBaseUrl } from "@/lib/dips/config";
 import type { DipsOidcClient } from "@/lib/dips/oidcClient";
 import { DIPS_ENDPOINTS } from "@/lib/dips/endpoints";
 import type { DipsEndpoint } from "@/lib/dips/endpoints";
-import { DipsApiError, DipsPossiblyAcceptedTimeoutError } from "@/lib/dips/errors";
+import {
+  DipsApiError,
+  DipsPossiblyAcceptedTimeoutError,
+  DipsAcceptedButUnreadableResultError,
+} from "@/lib/dips/errors";
 import { normalizeAircraftListWithDiagnostics } from "@/lib/dips/aircraftListSchema";
 import type { NormalizeAircraftListResult } from "@/lib/dips/aircraftListSchema";
 import { normalizePermissionsWithDiagnostics } from "@/lib/dips/permissionsSchema";
@@ -41,6 +45,28 @@ const NON_IDEMPOTENT_WRITE_TIMEOUT_MS = 30_000;
  * DRS 系 (機体情報一覧取得) のエラー本文には個人情報が乗りうるため、全文は保持しない。
  */
 const RESPONSE_BODY_PREVIEW_LENGTH = 200;
+
+/**
+ * allowlist 済み (`isErrorBodySafeToDisplay: true`) API のエラー本文プレビュー長の既定値。
+ * `endpoint.errorBodyPreviewLength` が省略された場合に使う (2026-09-11 /code-review 指摘3:
+ * `resolveErrorBodyPreviewLength()` 参照)。
+ */
+const EXTENDED_ERROR_BODY_PREVIEW_LENGTH = 1000;
+
+/**
+ * エラー本文のプレビュー長を決定する。`endpoint.errorBodyPreviewLength` は
+ * `isErrorBodySafeToDisplay` から独立したフィールドだが、ここで意図的に従属させる
+ * (2026-09-11 /code-review 指摘3): 以前は `errorBodyPreviewLength` 単独で参照しており、
+ * 将来 DRS 系 (aircraftList。個人情報が乗りうると明記) に調査目的で
+ * `errorBodyPreviewLength: 1000` だけ足すと、allowlist (isErrorBodySafeToDisplay) に
+ * 入れなくてもログ・例外メッセージに1000文字分の PII が残ってしまう。
+ * `isErrorBodySafeToDisplay` が false/未設定なら `errorBodyPreviewLength` の値に関わらず
+ * 常に既定の200文字までしか許さないことで、構造的に塞ぐ。
+ */
+function resolveErrorBodyPreviewLength(endpoint: DipsEndpoint): number {
+  if (!endpoint.isErrorBodySafeToDisplay) return RESPONSE_BODY_PREVIEW_LENGTH;
+  return endpoint.errorBodyPreviewLength ?? EXTENDED_ERROR_BODY_PREVIEW_LENGTH;
+}
 
 /**
  * `AbortSignal.timeout()` によるタイムアウトで fetch が中断されたかを判定する。
@@ -196,7 +222,7 @@ export class DipsApiClient {
       // isErrorBodySafeToDisplay: true の API (PII を含まない業務メッセージのみと
       // 判断した fpl 系) は endpoint.errorBodyPreviewLength (既定1000) まで許す
       // (2026-09-11 req-014 課題2: 長文エラー (必須項目不足の羅列等) が読めるように)
-      const previewLength = endpoint.errorBodyPreviewLength ?? RESPONSE_BODY_PREVIEW_LENGTH;
+      const previewLength = resolveErrorBodyPreviewLength(endpoint);
       const responseBody = rawResponseBody?.slice(0, previewLength);
       throw new DipsApiError(
         `DIPS API がエラーを返しました (${endpoint.method} ${endpoint.path})`,
@@ -210,6 +236,18 @@ export class DipsApiClient {
     try {
       return (await response.json()) as T;
     } catch (error) {
+      if (endpoint.isNonIdempotentWrite) {
+        // 課題2 (2026-09-11 /code-review 指摘2): 非冪等な登録系 POST が HTTP 200 (=
+        // DIPS 側では受理済み) を返しつつ本文が空・非JSON (プロキシのHTML、切断された
+        // 応答等) だった場合、通常の DipsApiError のまま「送信に失敗しました」を出すと
+        // DipsAcceptedButUnreadableResultError (通報結果を配列から読み取れない場合) と
+        // 同じ実害 (再送による重複登録) が別入口から残ってしまう。この経路も
+        // 「受理済みの可能性あり」側に倒す
+        throw new DipsAcceptedButUnreadableResultError(
+          `DIPS API は HTTP ${response.status} を返しましたが、レスポンス本文を読み取れませんでした。受理済みの可能性があります (${endpoint.method} ${endpoint.path})`,
+          error
+        );
+      }
       throw new DipsApiError(
         `DIPS API のレスポンス形式が不正です (${endpoint.method} ${endpoint.path})`,
         response.status,

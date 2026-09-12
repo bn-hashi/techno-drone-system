@@ -467,6 +467,29 @@ describe("DipsNotifyButton", () => {
       expect(screen.queryByText(/件重複しています/)).not.toBeInTheDocument();
     });
 
+    it("test_DipsNotifyButton_manual_submit_duplicate_notice_still_shows_after_becoming_notified", async () => {
+      // /code-review 指摘1 (2026-09-11): 成功時に重複件数の banner を出した直後に
+      // router.refresh() を呼ぶと、Server Component が dipsFlightPlanId を非 null で
+      // 再レンダーし、コンポーネント冒頭の早期 return が効いて banner ごと消えてしまう
+      // (修正前の実測: このテストは screen.getByText が要素を見つけられず失敗していた)。
+      // router.refresh() 自体は本テストでは呼び出しをモック済みで実描画に影響しないため、
+      // 同じコンポーネントインスタンスに新しい props を与える rerender で
+      // 「サーバー側が再レンダーして dipsFlightPlanId が埋まった」状態を再現する。
+      mockNotifyFlightPlanToDips.mockResolvedValue({
+        ...SAMPLE_RESULT,
+        existOtherFlightRoutesCount: 3,
+      });
+      const { rerender } = render(<DipsNotifyButton planId="plan-1" dipsFlightPlanId={null} />);
+      openDialogAndFillValidForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "通報する" }));
+      await waitForDialogToClose();
+
+      rerender(<DipsNotifyButton planId="plan-1" dipsFlightPlanId="dips-123" />);
+
+      expect(screen.getByText(/他の飛行経路と 3 件重複しています/)).toBeInTheDocument();
+    });
+
     it("test_DipsNotifyButton_manual_submit_shows_the_possibly_accepted_message_verbatim", async () => {
       // possiblyAccepted (受理済みだが読み取れない/タイムアウト) は API ルートの
       // handleDipsRouteError が「再送しないでください」を含む文言を body.error として

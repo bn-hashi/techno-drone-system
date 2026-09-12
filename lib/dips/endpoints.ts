@@ -40,10 +40,16 @@ export interface DipsEndpoint {
   isErrorBodySafeToDisplay?: boolean;
   /**
    * エラー本文をログ・例外メッセージへ格納する際の最大長 (文字数)。省略時は
-   * `DipsApiClient` の既定値 (200。PII 対策として最小限に切り詰める) を使う。
-   * `isErrorBodySafeToDisplay: true` の API のみ、長文エラー (必須項目不足の羅列等) が
-   * 読めるよう引き上げる (2026-09-11 人の決定: 1000。§2.3.8 のエラー本文は業務
+   * `isErrorBodySafeToDisplay` に応じた既定値 (false: 200 / true: 1000。PII 対策として
+   * 最小限に切り詰める) を使う (2026-09-11 人の決定: 1000。§2.3.8 のエラー本文は業務
    * メッセージのみで PII を含まない設計のため、DRS 系より緩めてよいと判断)。
+   *
+   * `DipsApiClient.resolveErrorBodyPreviewLength()` がこの値を
+   * `isErrorBodySafeToDisplay` に**従属させて**参照する (2026-09-11 /code-review 指摘3:
+   * 以前はこのフィールド単独で参照しており、`isErrorBodySafeToDisplay` を true にせず
+   * ここだけ引き上げると allowlist を経ずに PII がログへ残ってしまう構造的な穴があった)。
+   * `isErrorBodySafeToDisplay` が false/未設定のエンドポイントでこの値を設定しても
+   * 無視される。
    */
   errorBodyPreviewLength?: number;
 }
