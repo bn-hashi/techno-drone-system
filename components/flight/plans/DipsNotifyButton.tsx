@@ -11,6 +11,15 @@ interface DipsNotifyButtonProps {
   planId: string;
   /** 通報済みなら DIPS 採番の飛行計画 ID。未通報は null */
   dipsFlightPlanId: string | null;
+  /**
+   * 飛行予定日時が古すぎて通報できない見込みか (2026-09-11 req-014 課題3, H-5)。
+   * サーバー側検証 (services/dipsService.ts の isNotifiableStartTime) が必須の判定であり、
+   * これは送信前にボタンを無効化する UX 改善に過ぎない (サーバー側の再検証を省略しない)。
+   * 呼び出し元 (Server Component) がレンダー時点の判定済み boolean を渡す (クライアント側で
+   * new Date() を評価すると SSR とのハイドレーション不一致を起こしうるため)。省略時は false
+   * (無効化しない)。
+   */
+  isPastNotifiableWindow?: boolean;
 }
 
 /** DIPS ログイン遷移でページを離れる間、フォーム入力を退避する sessionStorage キー */
@@ -273,10 +282,18 @@ export function DipsNotifyButton({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="rounded bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90"
+        disabled={isPastNotifiableWindow}
+        className="rounded bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
       >
         DIPSへ通報
       </button>
+      {isPastNotifiableWindow && (
+        // サーバー側検証 (services/dipsService.ts) が必須の判定であり、これは事前に
+        // 気づけるようにする UX 改善に過ぎない (H-5)
+        <p className="mt-1 text-xs text-muted">
+          飛行予定日時が古すぎるため、この飛行計画は通報できません
+        </p>
+      )}
 
       {isOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
