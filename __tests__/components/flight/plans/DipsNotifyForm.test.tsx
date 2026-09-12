@@ -94,6 +94,24 @@ describe("DipsNotifyForm — 表示", () => {
 
     expect(screen.getByText(/通報者と操縦者は同一人物として送信します/)).toBeInTheDocument();
   });
+
+  // req-012 段階1: 2026-09-07 の本番疎通確認で `1, 1` (南太平洋) が誤入力・送信された事故の回帰テスト
+  it("test_shows_a_warning_when_the_flight_area_coordinates_are_outside_japan", () => {
+    render(
+      <DipsNotifyForm
+        form={{ ...INITIAL_FORM, centerLongitude: "1", centerLatitude: "1" }}
+        onFormChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("日本国内ではありません");
+  });
+
+  it("test_does_not_show_a_warning_for_coordinates_inside_japan", () => {
+    render(<DipsNotifyForm form={validForm} onFormChange={vi.fn()} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });
 
 describe("DipsNotifyForm — 入力の反映", () => {
