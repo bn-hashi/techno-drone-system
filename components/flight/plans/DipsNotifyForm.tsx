@@ -9,6 +9,7 @@ import {
 import { DIPS_PREFECTURE_OPTIONS } from "@/lib/constants/dipsAddressCode";
 import { DIPS_FLIGHT_AIRSPACE_OPTIONS } from "@/lib/constants/dipsFlightAirspace";
 import { buildCircleFlyRoute } from "@/lib/dips/notificationMapper";
+import { isWithinJapanBounds, OUT_OF_JAPAN_WARNING_MESSAGE } from "@/lib/utils/japanBounds";
 
 /**
  * 通報ダイアログのフォーム状態。
@@ -79,6 +80,13 @@ function parseNumberInRange(raw: string, min: number, max: number): number | nul
   const value = Number(raw);
   if (!Number.isFinite(value) || value < min || value > max) return null;
   return value;
+}
+
+/** 数値入力欄をパースする。空欄・非数値なら null (範囲チェックなし。DipsCircleSearchFields.tsx と同じ) */
+function parseNumber(raw: string): number | null {
+  if (raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
 type ValidationResult = { ok: true; input: DipsNotificationInput } | { ok: false; message: string };
@@ -350,11 +358,35 @@ function FlightAirspaceFieldset({ form, setField }: FieldsetProps) {
   );
 }
 
+/**
+ * 飛行範囲の経度・緯度が入力済みで、かつ日本国外を指しているか (req-012 段階1)
+ *
+ * /code-review 指摘 (PR #100): `parseNumberInRange` は範囲外の値に null を返す
+ * ため、警告判定にそのまま使うと「範囲外」が「未入力」と同一視され、緯度・経度を
+ * 取り違えた入力 (例: 緯度欄に 139.7671 のような ±90 を超える値) で警告が出なくなる。
+ * ここでは「未入力かどうか」だけを判定したいので、範囲チェックを行わない
+ * `Number.isFinite` ベースの parseNumber (DipsCircleSearchFields.tsx と同じ考え方) を使う。
+ * 送信時のバリデーション (validateAndBuildInput, 131-136行) は範囲付きの
+ * parseNumberInRange のまま変更しない
+ */
+function isFlightAreaOutOfJapan(form: FormState): boolean {
+  const longitude = parseNumber(form.centerLongitude);
+  const latitude = parseNumber(form.centerLatitude);
+  if (longitude === null || latitude === null) return false;
+  return !isWithinJapanBounds(longitude, latitude);
+}
+
 /** 飛行範囲 (円: 中心座標と半径。既存項目。req-012 で地図入力化予定) */
 function FlyRouteFieldset({ form, setField }: FieldsetProps) {
   return (
     <fieldset className="rounded border border-line-soft p-3">
       <legend className="px-1 text-xs text-muted">飛行範囲 (円: 中心と半径)</legend>
+      {isFlightAreaOutOfJapan(form) && (
+        // role="alert" は打鍵のたびに読み上げを割り込ませるため使わない (role="status" + aria-live="polite")
+        <p role="status" aria-live="polite" className="mb-2 text-xs text-warning">
+          {OUT_OF_JAPAN_WARNING_MESSAGE}
+        </p>
+      )}
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="mb-1 block text-xs text-body">経度</span>

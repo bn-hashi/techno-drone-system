@@ -83,6 +83,12 @@ const userInput: DipsNotificationUserInput = {
   privateLicense: false,
 };
 
+// notifyFlightPlan の既定 now (省略時は new Date()) をテストで固定するための値。
+// makePlan() の既定 plannedAt (2026-07-03T10:00+09:00) の少し前に置くことで、
+// 2026-09-11 req-014 課題3 (飛行予定日時が古すぎる場合は送信前に止める) の
+// バリデーションに引っかからないようにする
+const NOW_FOR_TESTS = new Date("2026-07-03T09:00:00+09:00");
+
 const mockApiClient = (): DipsApiClient =>
   ({
     fetchPermissions: vi.fn(),
@@ -197,9 +203,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.name).toBe("訓練飛行");
@@ -212,9 +219,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.aircraftInfo[0].symbol).toBe("JU1234567890");
@@ -227,9 +235,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect({
@@ -245,9 +254,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.startTime).toBe("20260703 1000");
@@ -260,9 +270,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      const result = await service.notifyFlightPlan("plan-1", userInput, context);
+      const result = await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       expect(result.flightPlanId).toBe("FP-1");
     });
@@ -274,9 +285,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       expect(flightPlanService.recordDipsNotification).toHaveBeenCalledWith(
         "plan-1",
@@ -290,7 +302,7 @@ describe("DipsService", () => {
         makePlan({ dipsFlightPlanId: "FP-existing" })
       );
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         BusinessError
       );
     });
@@ -300,7 +312,7 @@ describe("DipsService", () => {
         makePlan({ dipsFlightPlanId: "FP-existing" })
       );
 
-      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS).catch(() => {});
 
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
@@ -311,7 +323,7 @@ describe("DipsService", () => {
         makeAircraft({ registrationNumber: null })
       );
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         BusinessError
       );
     });
@@ -322,7 +334,7 @@ describe("DipsService", () => {
         makeAircraft({ registrationNumber: null })
       );
 
-      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS).catch(() => {});
 
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
@@ -332,7 +344,7 @@ describe("DipsService", () => {
         new FlightPlanNotFoundError("plan-1")
       );
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         FlightPlanNotFoundError
       );
     });
@@ -345,9 +357,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.reporter.contactReporter.name).toBe("現場 太郎");
@@ -361,9 +374,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.pilotInfo[0].contactPilot.email).toBe(
@@ -381,9 +395,10 @@ describe("DipsService", () => {
         flightPlanId: "FP-1",
         flightPlanRegistrationResult: "OK",
         flightPlanRegistrationDatetime: "2026/07/03 10:00",
+        existOtherFlightRoutesCount: 0,
       });
 
-      await service.notifyFlightPlan("plan-1", userInput, context);
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS);
 
       const payload = vi.mocked(apiClient.notifyFlightPlan).mock.calls[0][1];
       expect(payload.flightPlanInfo.aircraftInfo[0].certification1).toBe("1");
@@ -394,7 +409,7 @@ describe("DipsService", () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ dipsUaType: null }));
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         BusinessError
       );
     });
@@ -403,7 +418,7 @@ describe("DipsService", () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan());
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ dipsUaType: null }));
 
-      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS).catch(() => {});
 
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
@@ -413,7 +428,7 @@ describe("DipsService", () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan({ durationMin: 60 }));
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ maxFlightTimeMin: 20 }));
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         BusinessError
       );
     });
@@ -422,7 +437,7 @@ describe("DipsService", () => {
       vi.mocked(flightPlanService.findById).mockResolvedValue(makePlan({ durationMin: 60 }));
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft({ maxFlightTimeMin: 20 }));
 
-      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS).catch(() => {});
 
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
@@ -432,7 +447,7 @@ describe("DipsService", () => {
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(userRepository.findById).mockResolvedValue(null);
 
-      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+      await expect(service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS)).rejects.toThrow(
         BusinessError
       );
     });
@@ -442,8 +457,71 @@ describe("DipsService", () => {
       vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
       vi.mocked(userRepository.findById).mockResolvedValue(null);
 
-      await service.notifyFlightPlan("plan-1", userInput, context).catch(() => {});
+      await service.notifyFlightPlan("plan-1", userInput, context, NOW_FOR_TESTS).catch(() => {});
 
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
+    });
+
+    // ─── 2026-09-11 req-014 課題3: 飛行予定日時が古すぎる場合は送信前に止める ────────
+    // 受け入れ条件: 拒否される側は DIPS へ送信される前に止まる
+    // (apiClient.notifyFlightPlan がモックで呼ばれないことをアサートする)。
+    // 境界は lib/dips/notifiableStartTime.ts (許容する最古は前日) を参照
+    // (2026-09-12 CodeRabbit指摘4で「2日前ちょうど」→「前日」に境界修正)。
+
+    it("test_notify_flight_plan_with_a_planned_time_too_far_in_the_past_raises_business_error", async () => {
+      const now = new Date("2026-09-11T12:00:00+09:00");
+      // 境界 (2026-09-10T00:00+09:00、前日0:00) の1分前 → 拒否される
+      const tooOld = makePlan({ plannedAt: new Date("2026-09-08T23:59:00+09:00") });
+      vi.mocked(flightPlanService.findById).mockResolvedValue(tooOld);
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+
+      await expect(
+        service.notifyFlightPlan("plan-1", userInput, context, now)
+      ).rejects.toThrow(BusinessError);
+    });
+
+    it("test_notify_flight_plan_with_a_planned_time_too_far_in_the_past_does_not_call_the_dips_api", async () => {
+      // 受け入れ条件の核心: DIPS へ送信される前に止まる (共用検証環境DBへの無駄な
+      // 送信を防ぐ)。エラーになるだけでなく、送信されていないことを直接確認する
+      const now = new Date("2026-09-11T12:00:00+09:00");
+      const tooOld = makePlan({ plannedAt: new Date("2026-09-08T23:59:00+09:00") });
+      vi.mocked(flightPlanService.findById).mockResolvedValue(tooOld);
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+
+      await service.notifyFlightPlan("plan-1", userInput, context, now).catch(() => {});
+
+      expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
+    });
+
+    it("test_notify_flight_plan_accepts_a_planned_time_exactly_at_the_boundary", async () => {
+      const now = new Date("2026-09-11T12:00:00+09:00");
+      // 境界 (前日0:00) ちょうど → 許容される (2026-09-12 CodeRabbit指摘4)
+      const atBoundary = makePlan({ plannedAt: new Date("2026-09-10T00:00:00+09:00") });
+      vi.mocked(flightPlanService.findById).mockResolvedValue(atBoundary);
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+      vi.mocked(apiClient.notifyFlightPlan).mockResolvedValue({
+        flightPlanId: "FP-1",
+        flightPlanRegistrationResult: "OK",
+        flightPlanRegistrationDatetime: "2026/09/11 12:00",
+        existOtherFlightRoutesCount: 0,
+      });
+
+      await service.notifyFlightPlan("plan-1", userInput, context, now);
+
+      expect(apiClient.notifyFlightPlan).toHaveBeenCalledTimes(1);
+    });
+
+    it("test_notify_flight_plan_defaults_now_to_the_current_time_when_omitted", async () => {
+      // 4引数目 (now) を省略した場合、既定で new Date() (=呼び出し時点の現在時刻) が
+      // 使われる。makePlan() の既定 plannedAt (2026-07-03) は現在時刻から見て
+      // 十分に古いため、この呼び出しは拒否される
+      const plan = makePlan();
+      vi.mocked(flightPlanService.findById).mockResolvedValue(plan);
+      vi.mocked(aircraftService.findById).mockResolvedValue(makeAircraft());
+
+      await expect(service.notifyFlightPlan("plan-1", userInput, context)).rejects.toThrow(
+        BusinessError
+      );
       expect(apiClient.notifyFlightPlan).not.toHaveBeenCalled();
     });
   });

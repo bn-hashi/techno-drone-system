@@ -8,6 +8,7 @@ import {
   DipsApiError,
   DipsAuthRequiredError,
   DipsPossiblyAcceptedTimeoutError,
+  DipsAcceptedButUnreadableResultError,
 } from "@/lib/dips/errors";
 import type { DipsRealm } from "@/lib/dips/config";
 import { logger } from "@/lib/logger";
@@ -237,6 +238,69 @@ describe("handleDipsRouteError", () => {
     const body = await response.json();
 
     expect(body.error).toContain("再送する前に登録状況を確認してください");
+  });
+
+  // ─── 2026-09-11 req-014 課題1: DipsAcceptedButUnreadableResultError ──────────
+
+  it("test_returns_502_with_possibly_accepted_flag_for_accepted_but_unreadable_result_error", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsAcceptedButUnreadableResultError("unreadable");
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect({ status: response.status, possiblyAccepted: body.possiblyAccepted }).toEqual({
+      status: 502,
+      possiblyAccepted: true,
+    });
+  });
+
+  it("test_accepted_but_unreadable_result_error_message_forbids_resubmission", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsAcceptedButUnreadableResultError("unreadable");
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    // I1 (タイムアウト) の文言 (「タイムアウト」) と区別できること・再送を明確に
+    // 禁じることの両方を確認する
+    expect(body.error).not.toContain("タイムアウト");
+    expect(body.error).toContain("再度通報しないでください");
+  });
+
+  // ─── 2026-09-11 req-014 課題2: DIPS の拒否理由を allowlist 経由で表示する ────────
+  // 受け入れ条件: 「具体文言が出るテスト」と「PII 経路では出ないテスト」の両方が
+  // 存在すること (片方だけだと「全部出す」「全部隠す」のどちらかに倒れても緑になる)。
+
+  it("test_shows_the_concrete_dips_message_for_an_allowlisted_fpl_400_error", async () => {
+    // fpl realm (飛行計画通報) の本番実測エラー。allowlist を通過した場合のみ具体文言が出る
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError(
+      "failed",
+      400,
+      '{"errorMessage":"【飛行計画通報情報更新API】日付形式が不正です。予定開始時間が2日以前です。"}',
+      undefined,
+      true
+    );
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect(body.error).toBe(
+      "【飛行計画通報情報更新API】日付形式が不正です。予定開始時間が2日以前です。"
+    );
+  });
+
+  it("test_falls_back_to_generic_message_for_a_non_allowlisted_error_even_with_the_same_body_shape", async () => {
+    // DRS 系等、isErrorBodySafeToDisplay が false (省略時の既定) のエラー経路では、
+    // 同じ形の本文でも汎用文言のままになる (個人情報を含みうるため)
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new DipsApiError("failed", 400, '{"errorMessage":"個人情報が含まれるかもしれない"}');
+
+    const response = handleDipsRouteError(error, options);
+    const body = await response.json();
+
+    expect(body.error).toBe("DIPS連携でエラーが発生しました");
   });
 
   it("test_client_facing_error_body_never_contains_the_label", async () => {

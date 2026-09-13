@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { notifyFlightPlanToDips, dipsLoginUrl, DipsAuthRequiredClientError } from "@/lib/api/dips";
-import type { DipsNotificationInput } from "@/lib/api/dips";
+import type { DipsNotificationInput, DipsNotificationResult } from "@/lib/api/dips";
 import { DipsNotifyForm, INITIAL_FORM, validateAndBuildInput } from "./DipsNotifyForm";
 import type { FormState } from "./DipsNotifyForm";
 
@@ -11,6 +11,15 @@ interface DipsNotifyButtonProps {
   planId: string;
   /** 通報済みなら DIPS 採番の飛行計画 ID。未通報は null */
   dipsFlightPlanId: string | null;
+  /**
+   * 飛行予定日時が古すぎて通報できない見込みか (2026-09-11 req-014 課題3, H-5)。
+   * サーバー側検証 (services/dipsService.ts の isNotifiableStartTime) が必須の判定であり、
+   * これは送信前にボタンを無効化する UX 改善に過ぎない (サーバー側の再検証を省略しない)。
+   * 呼び出し元 (Server Component) がレンダー時点の判定済み boolean を渡す (クライアント側で
+   * new Date() を評価すると SSR とのハイドレーション不一致を起こしうるため)。省略時は false
+   * (無効化しない)。
+   */
+  isPastNotifiableWindow?: boolean;
 }
 
 /** DIPS ログイン遷移でページを離れる間、フォーム入力を退避する sessionStorage キー */
@@ -57,22 +66,48 @@ function savePendingNotifyForm(planId: string, form: FormState): void {
  * resubmitAfterDipsLink (自動再送信) と handleSubmit (手動送信) はこの
  * API 呼び出し自体は同一だが、成功時・失敗時の振る舞い（バナー表示・
  * ログイン誘導の有無など）が異なるため、それぞれコールバックに委ねる。
+ *
+ * onSuccess にレスポンス (result) を渡す (2026-09-11 req-014 課題1: 他の飛行経路との
+ * 重複件数 (existOtherFlightRoutesCount) を送信直後に一度だけ表示するため。DB には
+ * 保存しない一時的な表示であり、この呼び出し以外に取得手段がないため result をここで
+ * 受け渡す必要がある)。
  */
 async function sendDipsNotification(
   targetPlanId: string,
   input: DipsNotificationInput,
-  onSuccess: () => void,
+  onSuccess: (result: DipsNotificationResult) => void,
   onError: (err: unknown) => void
 ): Promise<void> {
   try {
-    await notifyFlightPlanToDips(targetPlanId, input);
-    onSuccess();
+    const result = await notifyFlightPlanToDips(targetPlanId, input);
+    onSuccess(result);
   } catch (err) {
     onError(err);
   }
 }
 
-export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonProps) {
+/** 他の飛行経路との重複件数を、通報直後に一度だけ表示するための案内文を組み立てる */
+function buildDuplicateRouteNotice(existOtherFlightRoutesCount: number | null): string | null {
+  // null と undefined の両方を弾く (2026-09-11 /code-review 指摘4)。クライアント境界
+  // (lib/api/dips.ts) で result の形を再検証していないため、将来 existOtherFlightRoutesCount
+  // が欠けた body が来ると undefined になりうる。`=== null` のみだと undefined がすり抜け、
+  // `undefined <= 0` は false (NaN比較) のため「他の飛行経路と undefined 件重複しています」
+  // を表示してしまう (プロジェクト規約の `===`/`!==` 徹底 (eqeqeq) を保ちつつ両方を弾く)
+  if (
+    existOtherFlightRoutesCount === null ||
+    existOtherFlightRoutesCount === undefined ||
+    existOtherFlightRoutesCount <= 0
+  ) {
+    return null;
+  }
+  return `通報が完了しました。他の飛行経路と ${existOtherFlightRoutesCount} 件重複しています。`;
+}
+
+export function DipsNotifyButton({
+  planId,
+  dipsFlightPlanId,
+  isPastNotifiableWindow = false,
+}: DipsNotifyButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -114,9 +149,15 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
         await sendDipsNotification(
           planId,
           validated.input,
-          () => {
+          (result) => {
             setIsOpen(false);
-            setBanner({ type: "success", message: "DIPS連携が完了し、飛行計画の通報を自動で送信しました。" });
+            const duplicateNotice = buildDuplicateRouteNotice(result.existOtherFlightRoutesCount);
+            setBanner({
+              type: "success",
+              message: duplicateNotice
+                ? `DIPS連携が完了し、飛行計画の通報を自動で送信しました。${duplicateNotice}`
+                : "DIPS連携が完了し、飛行計画の通報を自動で送信しました。",
+            });
             router.refresh();
           },
           (err) => {
@@ -193,8 +234,26 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     router.replace(newUrl, { scroll: false });
   }, [searchParams, planId, pathname, router, resubmitAfterDipsLink, dipsFlightPlanId]);
 
+  const bannerElement = banner && (
+    <p
+      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
+      role={banner.type === "success" ? "status" : "alert"}
+      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
+    >
+      {banner.message}
+    </p>
+  );
+
   if (dipsFlightPlanId) {
-    return <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>;
+    // 通報成功直後の router.refresh() で dipsFlightPlanId が非 null になり、この早期
+    // return に切り替わっても、直前に表示した重複件数 (安全上の情報) が消えないよう
+    // banner をここでも描画する (2026-09-11 /code-review 指摘1)
+    return (
+      <div>
+        {bannerElement}
+        <p className="text-sm text-success">DIPS通報済み (飛行計画ID: {dipsFlightPlanId})</p>
+      </div>
+    );
   }
 
   const handleSubmit = async () => {
@@ -210,9 +269,13 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     await sendDipsNotification(
       planId,
       validated.input,
-      () => {
+      (result) => {
         setIsSubmitting(false);
         setIsOpen(false);
+        const duplicateNotice = buildDuplicateRouteNotice(result.existOtherFlightRoutesCount);
+        if (duplicateNotice) {
+          setBanner({ type: "success", message: duplicateNotice });
+        }
         router.refresh();
       },
       (err) => {
@@ -232,26 +295,24 @@ export function DipsNotifyButton({ planId, dipsFlightPlanId }: DipsNotifyButtonP
     );
   };
 
-  const bannerElement = banner && (
-    <p
-      // 支援技術ユーザーにも連携結果が伝わるよう live region として通知する
-      role={banner.type === "success" ? "status" : "alert"}
-      className={`mb-3 text-sm ${banner.type === "success" ? "text-success" : "text-danger"}`}
-    >
-      {banner.message}
-    </p>
-  );
-
   return (
     <div>
       {!isOpen && bannerElement}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="rounded bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90"
+        disabled={isPastNotifiableWindow}
+        className="rounded bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
       >
         DIPSへ通報
       </button>
+      {isPastNotifiableWindow && (
+        // サーバー側検証 (services/dipsService.ts) が必須の判定であり、これは事前に
+        // 気づけるようにする UX 改善に過ぎない (H-5)
+        <p className="mt-1 text-xs text-muted">
+          飛行予定日時が古すぎるため、この飛行計画は通報できません
+        </p>
+      )}
 
       {isOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">

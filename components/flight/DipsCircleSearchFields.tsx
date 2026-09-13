@@ -8,6 +8,8 @@
  * (2026-09-06 レビュー I7。約120行相当)、ここへ1本化する。
  */
 
+import { isWithinJapanBounds, OUT_OF_JAPAN_WARNING_MESSAGE } from "@/lib/utils/japanBounds";
+
 /** 検索フォームの既定値 (東京駅周辺、半径1000m)。汎用的な既定値であり、このシステムの
  * 検証環境利用開始予定地に依らない */
 export const DEFAULT_LONGITUDE = "139.7671";
@@ -81,11 +83,25 @@ interface DipsCircleSearchFieldsProps {
   onChange: (form: CircleSearchFormState) => void;
 }
 
+/** 経度・緯度が入力済みで、かつ日本国外を指しているか (req-012 段階1) */
+function isOutOfJapanWarningVisible(form: CircleSearchFormState): boolean {
+  const longitude = parseNumber(form.longitude);
+  const latitude = parseNumber(form.latitude);
+  if (longitude === null || latitude === null) return false;
+  return !isWithinJapanBounds(longitude, latitude);
+}
+
 /** 経度・緯度・半径の3つの数値入力欄 (fieldset)。両検索パネルで共有する */
 export function DipsCircleSearchFields({ form, onChange }: DipsCircleSearchFieldsProps) {
   return (
     <fieldset className="rounded border border-gray-200 p-3">
       <legend className="px-1 text-xs text-gray-500">検索範囲 (円: 中心と半径)</legend>
+      {isOutOfJapanWarningVisible(form) && (
+        // role="alert" は打鍵のたびに読み上げを割り込ませるため使わない (role="status" + aria-live="polite")
+        <p role="status" aria-live="polite" className="mb-2 text-xs text-warning">
+          {OUT_OF_JAPAN_WARNING_MESSAGE}
+        </p>
+      )}
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="mb-1 block text-xs text-gray-700">経度</span>
