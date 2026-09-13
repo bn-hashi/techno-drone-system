@@ -94,6 +94,49 @@ describe("DipsNotifyForm — 表示", () => {
 
     expect(screen.getByText(/通報者と操縦者は同一人物として送信します/)).toBeInTheDocument();
   });
+
+  // req-012 段階1: 2026-09-07 の本番疎通確認で `1, 1` (南太平洋) が誤入力・送信された事故の回帰テスト
+  it("test_shows_a_warning_when_the_flight_area_coordinates_are_outside_japan", () => {
+    render(
+      <DipsNotifyForm
+        form={{ ...INITIAL_FORM, centerLongitude: "1", centerLatitude: "1" }}
+        onFormChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("日本国内ではありません");
+  });
+
+  it("test_does_not_show_a_warning_for_coordinates_inside_japan", () => {
+    render(<DipsNotifyForm form={validForm} onFormChange={vi.fn()} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  // /code-review 指摘 (PR #100): parseNumberInRange は範囲外の値に null を返す仕様のため、
+  // 「範囲外」を「未入力」と同一視すると緯度・経度が入れ替わった入力 (139.7671 は緯度の
+  // 範囲 -90〜90 外) で警告が出なかった。取り違えこそ警告文が名指しする最頻ケース
+  it("test_shows_a_warning_when_longitude_and_latitude_are_swapped", () => {
+    render(
+      <DipsNotifyForm
+        form={{ ...validForm, centerLongitude: "35.6812", centerLatitude: "139.7671" }}
+        onFormChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("日本国内ではありません");
+  });
+
+  it("test_does_not_show_a_warning_while_the_flight_area_fields_are_empty", () => {
+    render(
+      <DipsNotifyForm
+        form={{ ...INITIAL_FORM, centerLongitude: "", centerLatitude: "" }}
+        onFormChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });
 
 describe("DipsNotifyForm — 入力の反映", () => {

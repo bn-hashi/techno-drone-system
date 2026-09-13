@@ -107,4 +107,38 @@ describe("DipsCircleSearchFields", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({ longitude: "5", latitude: "2", radiusMeters: "3" });
   });
+
+  // req-012 段階1: 2026-09-07 の本番疎通確認で `1, 1` (南太平洋) が誤入力・送信された事故の回帰テスト
+  it("test_shows_a_warning_when_the_coordinates_are_outside_japan", () => {
+    render(
+      <DipsCircleSearchFields
+        form={{ longitude: "1", latitude: "1", radiusMeters: "1000" }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("日本国内ではありません");
+  });
+
+  it("test_does_not_show_a_warning_for_the_default_tokyo_coordinates", () => {
+    render(
+      <DipsCircleSearchFields
+        form={{ longitude: DEFAULT_LONGITUDE, latitude: DEFAULT_LATITUDE, radiusMeters: DEFAULT_RADIUS_METERS }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("test_does_not_show_a_warning_while_the_longitude_field_is_empty", () => {
+    render(
+      <DipsCircleSearchFields
+        form={{ longitude: "", latitude: "1", radiusMeters: "1000" }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });
