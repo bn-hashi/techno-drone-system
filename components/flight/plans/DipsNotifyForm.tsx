@@ -82,6 +82,13 @@ function parseNumberInRange(raw: string, min: number, max: number): number | nul
   return value;
 }
 
+/** 数値入力欄をパースする。空欄・非数値なら null (範囲チェックなし。DipsCircleSearchFields.tsx と同じ) */
+function parseNumber(raw: string): number | null {
+  if (raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 type ValidationResult = { ok: true; input: DipsNotificationInput } | { ok: false; message: string };
 
 /** 飛行目的「その他」系が選択されているのに理由が未入力なら、条件付き必須の項目を検証する */
@@ -351,10 +358,20 @@ function FlightAirspaceFieldset({ form, setField }: FieldsetProps) {
   );
 }
 
-/** 飛行範囲の経度・緯度が入力済みで、かつ日本国外を指しているか (req-012 段階1) */
+/**
+ * 飛行範囲の経度・緯度が入力済みで、かつ日本国外を指しているか (req-012 段階1)
+ *
+ * /code-review 指摘 (PR #100): `parseNumberInRange` は範囲外の値に null を返す
+ * ため、警告判定にそのまま使うと「範囲外」が「未入力」と同一視され、緯度・経度を
+ * 取り違えた入力 (例: 緯度欄に 139.7671 のような ±90 を超える値) で警告が出なくなる。
+ * ここでは「未入力かどうか」だけを判定したいので、範囲チェックを行わない
+ * `Number.isFinite` ベースの parseNumber (DipsCircleSearchFields.tsx と同じ考え方) を使う。
+ * 送信時のバリデーション (validateAndBuildInput, 131-136行) は範囲付きの
+ * parseNumberInRange のまま変更しない
+ */
 function isFlightAreaOutOfJapan(form: FormState): boolean {
-  const longitude = parseNumberInRange(form.centerLongitude, -180, 180);
-  const latitude = parseNumberInRange(form.centerLatitude, -90, 90);
+  const longitude = parseNumber(form.centerLongitude);
+  const latitude = parseNumber(form.centerLatitude);
   if (longitude === null || latitude === null) return false;
   return !isWithinJapanBounds(longitude, latitude);
 }

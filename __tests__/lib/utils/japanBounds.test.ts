@@ -74,8 +74,11 @@ describe("isWithinJapanBounds", () => {
 });
 
 describe("OUT_OF_JAPAN_WARNING_MESSAGE", () => {
-  it("test_mentions_the_longitude_and_latitude_mixup", () => {
+  it("test_mentions_longitude", () => {
     expect(OUT_OF_JAPAN_WARNING_MESSAGE).toContain("経度");
+  });
+
+  it("test_mentions_latitude", () => {
     expect(OUT_OF_JAPAN_WARNING_MESSAGE).toContain("緯度");
   });
 });
