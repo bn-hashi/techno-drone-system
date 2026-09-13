@@ -6,7 +6,9 @@ import {
   DipsApiError,
   DipsAuthRequiredError,
   DipsPossiblyAcceptedTimeoutError,
+  DipsAcceptedButUnreadableResultError,
 } from "@/lib/dips/errors";
+import { extractDisplayableDipsErrorMessage } from "@/lib/dips/dipsErrorMessage";
 import { logger } from "@/lib/logger";
 
 /**
@@ -99,8 +101,17 @@ function dipsErrorLogContext(error: DipsAuthError | DipsApiError): Record<string
  *   `possiblyAccepted: true` と「再送前に確認してください」の専用文言を返す。
  *   `DipsApiError` のサブクラスのため、このチェックは下の `DipsAuthError || DipsApiError`
  *   より前に置く必要がある
+ * - `DipsAcceptedButUnreadableResultError`: 飛行計画通報受付 (5-6) が HTTP 200 を
+ *   返した (= 受理済み) にもかかわらず flightPlanId を読み取れなかった (2026-09-11
+ *   req-014 課題1)。I1 と同水準の `possiblyAccepted: true` を返すが、I1 (受理されたか
+ *   不明) とは異なり「受理済みだが結果が読めない」ことを明示する専用文言にする。
+ *   `DipsApiError` のサブクラスのため、これも `DipsAuthError || DipsApiError` より前に
+ *   置く必要がある (I1 との順序はどちらが先でもよい。互いのサブクラスではないため)
  * - `DipsAuthError` / `DipsApiError`: DIPS 側のエラー。502。ログの context に
- *   `dipsErrorLogContext` (上記) の `status` / `responseBody` を含める (2026-09-08 対応)
+ *   `dipsErrorLogContext` (上記) の `status` / `responseBody` を含める (2026-09-08 対応)。
+ *   `extractDisplayableDipsErrorMessage()` が allowlist (fpl 系のみ) を通過した場合に
+ *   限り、DIPS の拒否理由をそのまま利用者向けメッセージにする (2026-09-11 req-014 課題2。
+ *   PII を含みうる DRS/req 系は対象外で、従来どおり汎用文言のまま)
  * - それ以外: 自システムの内部エラー。500
  */
 export function handleDipsRouteError(
@@ -146,12 +157,33 @@ export function handleDipsRouteError(
     );
   }
 
+  if (error instanceof DipsAcceptedButUnreadableResultError) {
+    logger.error(
+      `DIPS${label}${actionVerb}の受付結果を読み取れませんでした (受理済みの可能性があります)`,
+      error,
+      { ...context, ...dipsErrorLogContext(error) }
+    );
+    return NextResponse.json(
+      {
+        error:
+          `${label}${actionVerb}はDIPS側で受理されましたが、受付結果(飛行計画ID)を読み取れませんでした。` +
+          "再度通報しないでください(重複通報になります)。DIPSのサイトで登録状況をご確認ください。",
+        possiblyAccepted: true,
+      },
+      { status: 502 }
+    );
+  }
+
   if (error instanceof DipsAuthError || error instanceof DipsApiError) {
     logger.error(`DIPS${label}${actionVerb}に失敗しました`, error, {
       ...context,
       ...dipsErrorLogContext(error),
     });
-    return NextResponse.json({ error: "DIPS連携でエラーが発生しました" }, { status: 502 });
+    const displayableMessage = extractDisplayableDipsErrorMessage(error);
+    return NextResponse.json(
+      { error: displayableMessage ?? "DIPS連携でエラーが発生しました" },
+      { status: 502 }
+    );
   }
 
   logger.error(`${label}${actionVerb}で内部エラーが発生しました`, error, context);

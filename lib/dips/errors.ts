@@ -65,7 +65,16 @@ export class DipsApiError extends Error {
     message: string,
     readonly status?: number,
     readonly responseBody?: string,
-    readonly cause?: unknown
+    readonly cause?: unknown,
+    /**
+     * `responseBody` を利用者向け UI にそのまま (allowlist 経由で) 表示してよいか。
+     * `lib/dips/endpoints.ts` の `DipsEndpoint.isErrorBodySafeToDisplay` (既定 false =
+     * fail-closed) を `DipsApiClient.request()` がここへ転記する。DRS 系 (機体情報一覧
+     * 取得) のように個人情報が乗りうる API のエラー本文をうっかり画面に出さないための
+     * 歯止め (req-014 課題2)。`lib/dips/dipsErrorMessage.ts` の
+     * `extractDisplayableDipsErrorMessage()` がこのフラグを見る。
+     */
+    readonly isErrorBodySafeToDisplay?: boolean
   ) {
     super(message);
     this.name = "DipsApiError";
@@ -86,5 +95,23 @@ export class DipsPossiblyAcceptedTimeoutError extends DipsApiError {
   constructor(message: string, cause?: unknown) {
     super(message, undefined, undefined, cause);
     this.name = "DipsPossiblyAcceptedTimeoutError";
+  }
+}
+
+/**
+ * 飛行計画通報受付 API (5-6) が HTTP 200 を返した (= DIPS は通報を受理済み) にも
+ * かかわらず、レスポンスから flightPlanId を取り出せなかった (req-014 課題1)。
+ *
+ * これは `DipsPossiblyAcceptedTimeoutError` (I1: 受理されたか不明) より強い状態で、
+ * 「受理されたがこちらが結果を読み取れない」である。`services/dipsService.ts` の
+ * 冪等性保護 (dipsFlightPlanId の保存) が働かないまま「送信に失敗しました」と表示すると、
+ * 利用者が再送し DIPS 側へ重複通報してしまう。`DipsApiError` のサブクラスとして区別し、
+ * `handleDipsRouteError` が I1 と同水準の `possiblyAccepted: true` と、再送を明確に
+ * 禁じる専用文言を返せるようにする (2026-09-11 planner計画 §1-1 案B)。
+ */
+export class DipsAcceptedButUnreadableResultError extends DipsApiError {
+  constructor(message: string, cause?: unknown) {
+    super(message, undefined, undefined, cause);
+    this.name = "DipsAcceptedButUnreadableResultError";
   }
 }
